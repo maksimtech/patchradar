@@ -100,3 +100,22 @@ MIT — see [LICENSE](LICENSE) for details.
 <div align="center">
 Built with ❤️ by <a href="https://github.com/maksimtech">maksimtech</a>
 </div>
+
+---
+
+## 📝 Changelog
+
+### 2026.8.5 — 2026-08-14
+- 🐛 Fixed UTF-8 encoding error on Windows when serving the web UI
+
+### 2026.8.4 — 2026-08-14
+- 🎉 First stable public release on PyPI
+- 🔍 NVD collector for realtime CVE monitoring
+- 📋 Personal software watchlist
+- 🎨 Web UI with dark theme dashboard
+- 💻 Full CLI — `add`, `remove`, `list`, `scan`, `status`, `serve`
+- 📊 CVSS scoring with severity breakdown
+- 💾 Local SQLite storage
+
+### 2026.8.1 — 2026.8.3 — 2026-08-14
+- 🔧 Internal development versions — not published to PyPI
