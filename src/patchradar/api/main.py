@@ -1,15 +1,15 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pathlib import Path
+from importlib.metadata import version as pkg_version
 from patchradar.db.database import (
     init_db, get_watchlist, add_to_watchlist,
     remove_from_watchlist, get_cves
 )
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
-import asyncio
+import aiosqlite
 
-app = FastAPI(title="PatchRadar", version="2026.8.1")
+app = FastAPI(title="PatchRadar", version="2026.8.6")
 
 @app.on_event("startup")
 async def startup():
@@ -52,7 +52,6 @@ async def api_scan(days: int = 7):
 @app.get("/api/stats")
 async def api_stats():
     from patchradar.db.database import DB_PATH
-    import aiosqlite
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT COUNT(*) FROM cves") as cur:
             total = (await cur.fetchone())[0]
@@ -75,12 +74,6 @@ async def api_stats():
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=html_path.read_text(encoding='utf-8'))
-
-from importlib.metadata import version as pkg_version
-
-@app.get("/", response_class=HTMLResponse)
-async def index():
     html = html_path.read_text(encoding='utf-8')
     html = html.replace('__VERSION__', pkg_version('patchradar'))
     return HTMLResponse(content=html)
