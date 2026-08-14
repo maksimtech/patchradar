@@ -75,4 +75,4 @@ async def api_stats():
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content=html_path.read_text(encoding='utf-8'))
