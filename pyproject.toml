@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "patchradar"
+version = "2026.8.1"
+description = "Realtime CVE intelligence for your software stack"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "maksimtech", email = "github@maksimtech.com"}
+]
+keywords = ["cve", "security", "vulnerability", "monitoring", "patch-tuesday"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "httpx>=0.28.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "apscheduler>=3.10.0",
+    "aiosqlite>=0.20.0",
+]
+
+[project.scripts]
+patchradar = "patchradar.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/maksimtech/patchradar"
+Repository = "https://github.com/maksimtech/patchradar"
+Issues = "https://github.com/maksimtech/patchradar/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/patchradar"]
