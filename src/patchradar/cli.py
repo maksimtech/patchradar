@@ -154,6 +154,18 @@ def _print_cves_table(cves: list):
         )
     console.print(table)
 
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h"),
+    port: int = typer.Option(8000, "--port", "-p"),
+):
+    """Launch the PatchRadar web UI."""
+    import uvicorn
+    console.print(f"🛡️  [bold]PatchRadar[/bold] UI → [cyan]http://{host}:{port}[/cyan]")
+    uvicorn.run("patchradar.api.main:app", host=host, port=port, reload=False)
+
+
 def main():
     app()
 

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PatchRadar 🛡️</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+  header h1 { font-size: 1.4rem; font-weight: 600; }
+  header span { font-size: 1.5rem; }
+  .badge { background: #238636; color: #fff; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
+  .stat-card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; }
+  .stat-card.critical .value { color: #f85149; }
+  .stat-card.high .value { color: #e3b341; }
+  .stat-card.medium .value { color: #d29922; }
+  .stat-card.low .value { color: #3fb950; }
+  .stat-card.total .value { color: #58a6ff; }
+  .grid { display: grid; grid-template-columns: 300px 1fr; gap: 1.5rem; }
+  .panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; }
+  .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #e6edf3; }
+  .watchlist-item { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 0.4rem; background: #0d1117; border: 1px solid #30363d; }
+  .watchlist-item span { font-size: 0.9rem; }
+  .btn-remove { background: none; border: none; color: #f85149; cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; }
+  .btn-remove:hover { background: #2d1316; }
+  .add-form { display: flex; gap: 0.5rem; margin-top: 1rem; }
+  .add-form input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.5rem 0.8rem; color: #e6edf3; font-size: 0.9rem; outline: none; }
+  .add-form input:focus { border-color: #58a6ff; }
+  .btn { padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #238636; color: #fff; }
+  .btn-scan { background: #1f6feb; color: #fff; width: 100%; margin-top: 1rem; padding: 0.7rem; }
+  .filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .filter-btn { padding: 0.3rem 0.8rem; border-radius: 20px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; cursor: pointer; font-size: 0.8rem; }
+  .filter-btn.active { border-color: #58a6ff; color: #58a6ff; background: #0c2d6b; }
+  .filter-btn.critical.active { border-color: #f85149; color: #f85149; background: #2d1316; }
+  .filter-btn.high.active { border-color: #e3b341; color: #e3b341; background: #2d2005; }
+  .filter-btn.medium.active { border-color: #d29922; color: #d29922; background: #2d1f00; }
+  .filter-btn.low.active { border-color: #3fb950; color: #3fb950; background: #0d2b1a; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.6rem 0.8rem; color: #8b949e; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid #30363d; }
+  td { padding: 0.7rem 0.8rem; border-bottom: 1px solid #21262d; vertical-align: top; }
+  tr:hover td { background: #1c2128; }
+  .severity-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+  .sev-CRITICAL { background: #2d1316; color: #f85149; }
+  .sev-HIGH { background: #2d2005; color: #e3b341; }
+  .sev-MEDIUM { background: #2d1f00; color: #d29922; }
+  .sev-LOW { background: #0d2b1a; color: #3fb950; }
+  .sev-UNKNOWN { background: #21262d; color: #8b949e; }
+  .score { font-weight: 700; }
+  .score.critical { color: #f85149; }
+  .score.high { color: #e3b341; }
+  .score.medium { color: #d29922; }
+  .score.low { color: #3fb950; }
+  .cve-link { color: #58a6ff; text-decoration: none; font-family: monospace; }
+  .cve-link:hover { text-decoration: underline; }
+  .desc { color: #8b949e; max-width: 400px; }
+  .source-badge { font-size: 0.7rem; background: #21262d; padding: 2px 6px; border-radius: 4px; color: #8b949e; }
+  .scanning { opacity: 0.6; }
+  .toast { position: fixed; bottom: 2rem; right: 2rem; background: #238636; color: #fff; padding: 0.8rem 1.2rem; border-radius: 8px; font-size: 0.9rem; display: none; z-index: 100; }
+  .empty { text-align: center; padding: 3rem; color: #8b949e; }
+  .chart-container { margin-top: 1rem; }
+  .chart-bar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.6rem; }
+  .chart-bar .label { width: 80px; font-size: 0.8rem; color: #8b949e; text-align: right; }
+  .chart-bar .bar-wrap { flex: 1; background: #21262d; border-radius: 4px; height: 20px; overflow: hidden; }
+  .chart-bar .bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; padding-left: 8px; font-size: 0.75rem; font-weight: 600; }
+  .bar-critical { background: #f85149; }
+  .bar-high { background: #e3b341; }
+  .bar-medium { background: #d29922; }
+  .bar-low { background: #3fb950; }
+  .bar-unknown { background: #8b949e; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff3; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <span>🛡️</span>
+  <h1>PatchRadar</h1>
+  <span class="badge">2026.8.1</span>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card total"><div class="label">Total CVEs</div><div class="value" id="stat-total">—</div></div>
+    <div class="stat-card critical"><div class="label">Critical</div><div class="value" id="stat-critical">—</div></div>
+    <div class="stat-card high"><div class="label">High</div><div class="value" id="stat-high">—</div></div>
+    <div class="stat-card medium"><div class="label">Medium</div><div class="value" id="stat-medium">—</div></div>
+    <div class="stat-card low"><div class="label">Low</div><div class="value" id="stat-low">—</div></div>
+    <div class="stat-card total"><div class="label">Watching</div><div class="value" id="stat-watched">—</div></div>
+  </div>
+
+  <div class="grid">
+    <!-- Watchlist -->
+    <div>
+      <div class="panel">
+        <h2>📋 Watchlist</h2>
+        <div id="watchlist-items"></div>
+        <div class="add-form">
+          <input type="text" id="add-input" placeholder="Add software..." onkeydown="if(event.key==='Enter')addSoftware()">
+          <button class="btn btn-primary" onclick="addSoftware()">Add</button>
+        </div>
+        <button class="btn btn-scan" id="scan-btn" onclick="scanAll()">🔍 Scan All</button>
+      </div>
+
+      <!-- Chart -->
+      <div class="panel" style="margin-top: 1rem;">
+        <h2>📊 By Severity</h2>
+        <div class="chart-container" id="severity-chart"></div>
+      </div>
+
+      <!-- By Software -->
+      <div class="panel" style="margin-top: 1rem;">
+        <h2>📦 By Software</h2>
+        <div class="chart-container" id="software-chart"></div>
+      </div>
+    </div>
+
+    <!-- CVE Table -->
+    <div class="panel">
+      <h2>🚨 CVEs</h2>
+      <div class="filters">
+        <button class="filter-btn active" onclick="setFilter('ALL', this)">All</button>
+        <button class="filter-btn critical" onclick="setFilter('CRITICAL', this)">Critical</button>
+        <button class="filter-btn high" onclick="setFilter('HIGH', this)">High</button>
+        <button class="filter-btn medium" onclick="setFilter('MEDIUM', this)">Medium</button>
+        <button class="filter-btn low" onclick="setFilter('LOW', this)">Low</button>
+      </div>
+      <div id="cve-table-wrap">
+        <div class="empty">Run a scan to see CVEs</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let allCves = [];
+let currentFilter = 'ALL';
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+function toast(msg, color='#238636') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+async function loadWatchlist() {
+  const data = await api('/api/watchlist');
+  const el = document.getElementById('watchlist-items');
+  if (!data.watchlist.length) {
+    el.innerHTML = '<div style="color:#8b949e;font-size:0.85rem;padding:0.5rem 0">No software added yet</div>';
+    return;
+  }
+  el.innerHTML = data.watchlist.map(sw => `
+    <div class="watchlist-item">
+      <span>📦 ${sw}</span>
+      <button class="btn-remove" onclick="removeSoftware('${sw}')" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addSoftware() {
+  const input = document.getElementById('add-input');
+  const sw = input.value.trim();
+  if (!sw) return;
+  const data = await api(`/api/watchlist/${encodeURIComponent(sw)}`, 'POST');
+  if (data.added) {
+    toast(`✅ Added ${sw}`);
+    input.value = '';
+    await loadWatchlist();
+    await loadStats();
+  } else {
+    toast(`⚠️ ${sw} already in watchlist`, '#d29922');
+  }
+}
+
+async function removeSoftware(sw) {
+  await api(`/api/watchlist/${encodeURIComponent(sw)}`, 'DELETE');
+  toast(`🗑️ Removed ${sw}`, '#f85149');
+  await loadWatchlist();
+  await loadStats();
+  await loadCves();
+}
+
+async function scanAll() {
+  const btn = document.getElementById('scan-btn');
+  btn.innerHTML = '<span class="spinner"></span>Scanning...';
+  btn.disabled = true;
+  try {
+    const data = await api('/api/scan?days=30', 'POST');
+    toast(`✅ Found ${data.total} CVEs`);
+    await loadCves();
+    await loadStats();
+  } finally {
+    btn.innerHTML = '🔍 Scan All';
+    btn.disabled = false;
+  }
+}
+
+async function loadCves() {
+  const data = await api('/api/cves?limit=200');
+  allCves = data.cves;
+  renderTable();
+}
+
+function setFilter(severity, btn) {
+  currentFilter = severity;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function severityClass(s) {
+  const m = {'CRITICAL':'critical','HIGH':'high','MEDIUM':'medium','LOW':'low'};
+  return m[(s||'').toUpperCase()] || '';
+}
+
+function scoreClass(score) {
+  if (!score) return '';
+  if (score >= 9.0) return 'critical';
+  if (score >= 7.0) return 'high';
+  if (score >= 4.0) return 'medium';
+  return 'low';
+}
+
+function renderTable() {
+  const filtered = currentFilter === 'ALL'
+    ? allCves
+    : allCves.filter(c => (c.severity||'').toUpperCase() === currentFilter);
+
+  const wrap = document.getElementById('cve-table-wrap');
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="empty">No CVEs found. Run a scan first.</div>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>CVE ID</th>
+          <th>Software</th>
+          <th>Score</th>
+          <th>Severity</th>
+          <th>Description</th>
+          <th>Source</th>
+          <th>Published</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(cve => `
+          <tr>
+            <td><a class="cve-link" href="${cve.url||'#'}" target="_blank">${cve.id}</a></td>
+            <td><span class="source-badge">${cve.software||''}</span></td>
+            <td><span class="score ${scoreClass(cve.cvss_score)}">${cve.cvss_score ? cve.cvss_score.toFixed(1) : 'N/A'}</span></td>
+            <td><span class="severity-badge sev-${(cve.severity||'UNKNOWN').toUpperCase()}">${cve.severity||'UNKNOWN'}</span></td>
+            <td class="desc">${(cve.description||'').substring(0, 120)}${(cve.description||'').length > 120 ? '...' : ''}</td>
+            <td><span class="source-badge">${cve.source||''}</span></td>
+            <td style="color:#8b949e;font-size:0.8rem">${cve.published_at ? cve.published_at.substring(0,10) : ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function loadStats() {
+  const data = await api('/api/stats');
+  document.getElementById('stat-total').textContent = data.total_cves;
+  document.getElementById('stat-watched').textContent = data.watched;
+  const sev = data.by_severity || {};
+  document.getElementById('stat-critical').textContent = sev['CRITICAL'] || 0;
+  document.getElementById('stat-high').textContent = sev['HIGH'] || 0;
+  document.getElementById('stat-medium').textContent = sev['MEDIUM'] || 0;
+  document.getElementById('stat-low').textContent = sev['LOW'] || 0;
+
+  const total = data.total_cves || 1;
+  const sevOrder = ['CRITICAL','HIGH','MEDIUM','LOW','UNKNOWN'];
+  const sevColors = {'CRITICAL':'critical','HIGH':'high','MEDIUM':'medium','LOW':'low','UNKNOWN':'unknown'};
+  document.getElementById('severity-chart').innerHTML = sevOrder
+    .filter(s => sev[s])
+    .map(s => `
+      <div class="chart-bar">
+        <div class="label">${s}</div>
+        <div class="bar-wrap">
+          <div class="bar bar-${sevColors[s]}" style="width:${Math.round((sev[s]/total)*100)}%">
+            ${sev[s]}
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+  const bySw = data.by_software || {};
+  const maxSw = Math.max(...Object.values(bySw), 1);
+  document.getElementById('software-chart').innerHTML = Object.entries(bySw)
+    .sort((a,b) => b[1]-a[1])
+    .map(([sw, count]) => `
+      <div class="chart-bar">
+        <div class="label">${sw}</div>
+        <div class="bar-wrap">
+          <div class="bar bar-high" style="width:${Math.round((count/maxSw)*100)}%">
+            ${count}
+          </div>
+        </div>
+      </div>
+    `).join('');
+}
+
+async function init() {
+  await loadWatchlist();
+  await loadStats();
+  await loadCves();
+}
+
+init();
+</script>
+</body>
+</html>
