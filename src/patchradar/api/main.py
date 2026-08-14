@@ -76,3 +76,11 @@ async def api_stats():
 async def index():
     html_path = Path(__file__).parent / "templates" / "index.html"
     return HTMLResponse(content=html_path.read_text(encoding='utf-8'))
+
+from importlib.metadata import version as pkg_version
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    html = html_path.read_text(encoding='utf-8')
+    html = html.replace('__VERSION__', pkg_version('patchradar'))
+    return HTMLResponse(content=html)
