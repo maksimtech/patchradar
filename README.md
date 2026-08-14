@@ -78,11 +78,6 @@ patchradar serve
 
 PatchRadar uses [CalVer](https://calver.org) — `YYYY.MM.PATCH`.
 
-| Version | Date | Notes |
-|---------|------|-------|
-| 2026.8.2 | 2026-08-14 | Web UI added |
-| 2026.8.1 | 2026-08-14 | Initial release |
-
 ---
 
 ## 🤝 Contributing
