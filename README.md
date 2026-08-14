@@ -7,7 +7,7 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 ![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)
 ![CalVer](https://img.shields.io/badge/calver-2026.8.2-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square)
+![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square)label=pypi)
 
 ---
 
