@@ -167,12 +167,26 @@ async function loadWatchlist() {
     el.innerHTML = '<div style="color:#8b949e;font-size:0.85rem;padding:0.5rem 0">No software added yet</div>';
     return;
   }
-  el.innerHTML = data.watchlist.map(sw => `
-    <div class="watchlist-item">
-      <span>📦 ${sw}</span>
-      <button class="btn-remove" onclick="removeSoftware('${sw}')" title="Remove">✕</button>
-    </div>
-  `).join('');
+  // CWE-79 fix: build watchlist via DOM API
+  el.innerHTML = '';
+  data.watchlist.forEach(sw => {
+    const div = document.createElement('div');
+    div.className = 'watchlist-item';
+
+    const span = document.createElement('span');
+    span.textContent = '📦 ' + sw;  // textContent prevents XSS
+
+    const btn = document.createElement('button');
+    btn.className = 'btn-remove';
+    btn.title = 'Remove';
+    btn.textContent = '✕';
+    btn.addEventListener('click', () => removeSoftware(sw));  // closure sicura
+
+    div.appendChild(span);
+    div.appendChild(btn);
+    el.appendChild(div);
+  });
+
 }
 
 async function addSoftware() {
@@ -250,35 +264,90 @@ function renderTable() {
     return;
   }
 
-  wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>CVE ID</th>
-          <th>Software</th>
-          <th>Score</th>
-          <th>Severity</th>
-          <th>Description</th>
-          <th>Source</th>
-          <th>Published</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filtered.map(cve => `
-          <tr>
-            <td><a class="cve-link" href="${cve.url||'#'}" target="_blank">${cve.id}</a></td>
-            <td><span class="source-badge">${cve.software||''}</span></td>
-            <td><span class="score ${scoreClass(cve.cvss_score)}">${cve.cvss_score ? cve.cvss_score.toFixed(1) : 'N/A'}</span></td>
-            <td><span class="severity-badge sev-${(cve.severity||'UNKNOWN').toUpperCase()}">${cve.severity||'UNKNOWN'}</span></td>
-            <td class="desc">${(cve.description||'').substring(0, 120)}${(cve.description||'').length > 120 ? '...' : ''}</td>
-            <td><span class="source-badge">${cve.source||''}</span></td>
-            <td style="color:#8b949e;font-size:0.8rem">${cve.published_at ? cve.published_at.substring(0,10) : ''}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
+  // CWE-79 fix: build table via DOM API instead of innerHTML
+  const table = document.createElement('table');
+  
+  // Header
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['CVE ID','Software','Score','Severity','Description','Source','Published'].forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  // Body
+  const tbody = document.createElement('tbody');
+  filtered.forEach(cve => {
+    const tr = document.createElement('tr');
+
+    // CVE ID — link
+    const tdId = document.createElement('td');
+    const a = document.createElement('a');
+    a.className = 'cve-link';
+    a.href = cve.url || '#';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = cve.id || '';
+    tdId.appendChild(a);
+    tr.appendChild(tdId);
+
+    // Software
+    const tdSw = document.createElement('td');
+    const spanSw = document.createElement('span');
+    spanSw.className = 'source-badge';
+    spanSw.textContent = cve.software || '';
+    tdSw.appendChild(spanSw);
+    tr.appendChild(tdSw);
+
+    // Score
+    const tdScore = document.createElement('td');
+    const spanScore = document.createElement('span');
+    spanScore.className = `score ${scoreClass(cve.cvss_score)}`;
+    spanScore.textContent = cve.cvss_score ? cve.cvss_score.toFixed(1) : 'N/A';
+    tdScore.appendChild(spanScore);
+    tr.appendChild(tdScore);
+
+    // Severity
+    const tdSev = document.createElement('td');
+    const spanSev = document.createElement('span');
+    const sev = (cve.severity || 'UNKNOWN').toUpperCase();
+    spanSev.className = `severity-badge sev-${sev}`;
+    spanSev.textContent = sev;
+    tdSev.appendChild(spanSev);
+    tr.appendChild(tdSev);
+
+    // Description — textContent prevents XSS
+    const tdDesc = document.createElement('td');
+    tdDesc.className = 'desc';
+    const desc = cve.description || '';
+    tdDesc.textContent = desc.length > 120 ? desc.substring(0, 120) + '...' : desc;
+    tr.appendChild(tdDesc);
+
+    // Source
+    const tdSrc = document.createElement('td');
+    const spanSrc = document.createElement('span');
+    spanSrc.className = 'source-badge';
+    spanSrc.textContent = cve.source || '';
+    tdSrc.appendChild(spanSrc);
+    tr.appendChild(tdSrc);
+
+    // Published
+    const tdPub = document.createElement('td');
+    tdPub.style.color = '#8b949e';
+    tdPub.style.fontSize = '0.8rem';
+    tdPub.textContent = cve.published_at ? cve.published_at.substring(0,10) : '';
+    tr.appendChild(tdPub);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
 }
+
 
 async function loadStats() {
   const data = await api('/api/stats');
@@ -304,22 +373,36 @@ async function loadStats() {
           </div>
         </div>
       </div>
-    `).join('');
 
-  const bySw = data.by_software || {};
-  const maxSw = Math.max(...Object.values(bySw), 1);
-  document.getElementById('software-chart').innerHTML = Object.entries(bySw)
-    .sort((a,b) => b[1]-a[1])
-    .map(([sw, count]) => `
-      <div class="chart-bar">
-        <div class="label">${sw}</div>
-        <div class="bar-wrap">
-          <div class="bar bar-high" style="width:${Math.round((count/maxSw)*100)}%">
-            ${count}
-          </div>
-        </div>
-      </div>
     `).join('');
+  const bySw = data.by_software || {};
+  // CWE-79 fix: build software chart via DOM API
+  const swChart = document.getElementById('software-chart');
+  swChart.innerHTML = '';
+  Object.entries(bySw)
+    .sort((a,b) => b[1]-a[1])
+    .forEach(([sw, count]) => {
+      const div = document.createElement('div');
+      div.className = 'chart-bar';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = sw;  // textContent prevents XSS
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'bar-wrap';
+
+      const bar = document.createElement('div');
+      bar.className = 'bar bar-high';
+      bar.style.width = Math.round((count/maxSw)*100) + '%';
+      bar.textContent = count;
+
+      barWrap.appendChild(bar);
+      div.appendChild(label);
+      div.appendChild(barWrap);
+      swChart.appendChild(div);
+    });
+
 }
 
 async function init() {
