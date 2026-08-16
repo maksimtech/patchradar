@@ -9,6 +9,7 @@ from patchradar.db.database import (
     remove_from_watchlist, get_cves, save_cve
 )
 from patchradar.collectors.nvd import fetch_cves
+from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 
 app = typer.Typer(
     name="patchradar",
@@ -71,11 +72,14 @@ def scan(
         for target in targets:
             with console.status(f"[cyan]Scanning {target}...[/cyan]"):
                 cves = await fetch_cves(target, days_back=days)
+            msrc_cves = await msrc_fetch(target, days_back=days)
+            all_cves = cves + msrc_cves
 
-            for cve in cves:
+            for cve in all_cves:
                 await save_cve(cve)
 
-            total += len(cves)
+            total += len(all_cves)
+            cves = all_cves
             if cves:
                 _print_cves(target, cves)
             else:
