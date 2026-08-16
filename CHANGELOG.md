@@ -18,6 +18,8 @@ All notable changes to PatchRadar are documented here.
 - Add Docker support and RELEASING.md (#5) ([179f395](https://github.com/maksimtech/patchradar/commit/179f395e9dce82ec75e13d4189bc7f63cc288ccb))
 - Add MSRC collector for Microsoft Patch Tuesday ([b3ae63c](https://github.com/maksimtech/patchradar/commit/b3ae63ccbf36b41540fd8dddbf18e42a466faded))
 - Add MSRC collector for Microsoft Patch Tuesday (#9) ([e64ac24](https://github.com/maksimtech/patchradar/commit/e64ac24eeac0d6e6fed9adf687f504a28ec279d1))
+- Add CVE detail modal and fix watchlist overflow ([2526977](https://github.com/maksimtech/patchradar/commit/252697730d65948f835096eb1f826f4232f8b6d0))
+- Add CVE detail modal and fix watchlist overflow (#11) ([5ca963a](https://github.com/maksimtech/patchradar/commit/5ca963afbbd346940fcb5d0c1432e9b6b258fa92))
 
 ### 🐛 Bug Fixes
 
@@ -36,6 +38,7 @@ All notable changes to PatchRadar are documented here.
 - Update CHANGELOG ([6b69230](https://github.com/maksimtech/patchradar/commit/6b692307020d914a8e632d6aa2b50bbaa793c63e))
 - Update README — MSRC active, remove inline changelog ([544e72f](https://github.com/maksimtech/patchradar/commit/544e72fb54cf857a6ddde8a941727dcd3ba8685f))
 - Update README with MSRC status and remove inline changelog (#10) ([083e9bb](https://github.com/maksimtech/patchradar/commit/083e9bbaf823bc1cdd5da648b98e22ca1d7a50d4))
+- Update CHANGELOG ([51d1078](https://github.com/maksimtech/patchradar/commit/51d1078c988cf0a4bd158889e9378d2bf6ae7681))
 
 ### 🔒 Security
 
@@ -64,6 +67,7 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.16 ([6a40e98](https://github.com/maksimtech/patchradar/commit/6a40e9868778e79f2c57ab79dfff5747f4106ed1))
 - Bump version to 2026.8.17 ([9ebb4f2](https://github.com/maksimtech/patchradar/commit/9ebb4f28964efa9fe0ed8670b8b49fb93c392546))
 - Bump version to 2026.8.18 ([090dd45](https://github.com/maksimtech/patchradar/commit/090dd4513f8f9f3c1d048970e13b186cc567fd74))
+- Bump version to 2026.8.19 ([7c17e50](https://github.com/maksimtech/patchradar/commit/7c17e5010a90c9a6415a9b5ed13498da92e78141))
 
 ### 🧪 Tests
 
