@@ -1,14 +1,14 @@
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
     """Fetch CVEs from NVD for a given keyword."""
-    start = (datetime.utcnow() - timedelta(days=days_back)).strftime(
+    start = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime(
         "%Y-%m-%dT00:00:00.000"
     )
-    end = datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999")
+    end = datetime.now(timezone.utc).strftime("%Y-%m-%dT23:59:59.999")
 
     params = {
         "keywordSearch": keyword,

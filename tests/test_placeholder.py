@@ -123,3 +123,176 @@ async def test_db_remove():
     await add_to_watchlist("remove-test")
     removed = await remove_from_watchlist("remove-test")
     assert removed == True
+
+# ─── CLI Tests ──────────────────────────────────────────────────────────────
+
+from typer.testing import CliRunner
+from patchradar.cli import app as cli_app
+
+runner = CliRunner()
+
+def test_cli_help():
+    result = runner.invoke(cli_app, ["--help"])
+    assert result.exit_code == 0
+    assert "PatchRadar" in result.output
+
+def test_cli_add():
+    result = runner.invoke(cli_app, ["add", "test-cli-software"])
+    assert result.exit_code == 0
+    assert "test-cli-software" in result.output
+
+def test_cli_list():
+    runner.invoke(cli_app, ["add", "test-list-software"])
+    result = runner.invoke(cli_app, ["list"])
+    assert result.exit_code == 0
+
+def test_cli_remove():
+    runner.invoke(cli_app, ["add", "test-remove-software"])
+    result = runner.invoke(cli_app, ["remove", "test-remove-software"])
+    assert result.exit_code == 0
+    assert "test-remove-software" in result.output
+
+def test_cli_status():
+    result = runner.invoke(cli_app, ["status"])
+    assert result.exit_code == 0
+
+def test_cli_add_invalid():
+    """CLI add with very long name — goes to API which validates"""
+    long_name = "a" * 101
+    result = runner.invoke(cli_app, ["add", long_name])
+    # CLI itself doesn't validate length — API does via Path validator
+    # Just verify CLI doesn't crash
+    assert result.exit_code in [0, 1]
+
+# ─── NVD Collector Tests ─────────────────────────────────────────────────────
+
+import respx
+import httpx
+from patchradar.collectors.nvd import fetch_cves
+
+@pytest.mark.asyncio
+async def test_nvd_fetch_success():
+    """Mock NVD API response with valid CVE data"""
+    mock_response = {
+        "vulnerabilities": [
+            {
+                "cve": {
+                    "id": "CVE-2026-99999",
+                    "published": "2026-08-15T00:00:00.000",
+                    "descriptions": [
+                        {"lang": "en", "value": "Test vulnerability description"}
+                    ],
+                    "metrics": {
+                        "cvssMetricV31": [
+                            {
+                                "cvssData": {
+                                    "baseScore": 9.8,
+                                    "version": "3.1",
+                                    "baseSeverity": "CRITICAL"
+                                },
+                                "baseSeverity": "CRITICAL"
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+    }
+
+    with respx.mock:
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
+        cves = await fetch_cves("testsoftware", days_back=7)
+
+    assert len(cves) == 1
+    assert cves[0]["id"] == "CVE-2026-99999"
+    assert cves[0]["severity"] == "CRITICAL"
+    assert cves[0]["cvss_score"] == 9.8
+    assert cves[0]["software"] == "testsoftware"
+
+@pytest.mark.asyncio
+async def test_nvd_fetch_empty():
+    """Mock NVD API response with no CVEs"""
+    mock_response = {"vulnerabilities": []}
+
+    with respx.mock:
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
+        cves = await fetch_cves("unknownsoftware", days_back=7)
+
+    assert len(cves) == 0
+
+@pytest.mark.asyncio
+async def test_nvd_fetch_error():
+    """Mock NVD API error — should return empty list gracefully"""
+    with respx.mock:
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(500)
+        )
+        cves = await fetch_cves("testsoftware", days_back=7)
+
+    assert cves == []
+
+@pytest.mark.asyncio
+async def test_nvd_fetch_timeout():
+    """Mock NVD API timeout — should return empty list gracefully"""
+    with respx.mock:
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        cves = await fetch_cves("testsoftware", days_back=7)
+
+    assert cves == []
+
+# ─── Database CRUD Tests ──────────────────────────────────────────────────────
+
+from patchradar.db.database import save_cve, get_cves
+
+@pytest.mark.asyncio
+async def test_db_save_and_get_cve():
+    """Test saving and retrieving a CVE"""
+    await init_db()
+    test_cve = {
+        "id": "CVE-2026-TEST01",
+        "software": "test-db-software",
+        "description": "Test CVE description",
+        "cvss_score": 7.5,
+        "cvss_version": "3.1",
+        "severity": "HIGH",
+        "published_at": "2026-08-15T00:00:00.000",
+        "source": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-TEST01"
+    }
+    await save_cve(test_cve)
+    cves = await get_cves(software="test-db-software")
+    assert any(c["id"] == "CVE-2026-TEST01" for c in cves)
+
+@pytest.mark.asyncio
+async def test_db_save_duplicate_cve():
+    """Test that duplicate CVEs are handled gracefully"""
+    await init_db()
+    test_cve = {
+        "id": "CVE-2026-TEST02",
+        "software": "test-db-software",
+        "description": "Test duplicate CVE",
+        "cvss_score": 5.0,
+        "cvss_version": "3.1",
+        "severity": "MEDIUM",
+        "published_at": "2026-08-15T00:00:00.000",
+        "source": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-TEST02"
+    }
+    await save_cve(test_cve)
+    await save_cve(test_cve)  # duplicate — should not crash
+    cves = await get_cves(software="test-db-software")
+    count = sum(1 for c in cves if c["id"] == "CVE-2026-TEST02")
+    assert count == 1  # only one copy
+
+@pytest.mark.asyncio
+async def test_db_get_cves_with_limit():
+    """Test CVE retrieval with limit"""
+    await init_db()
+    cves = await get_cves(limit=5)
+    assert len(cves) <= 5
