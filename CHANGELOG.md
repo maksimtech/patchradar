@@ -33,6 +33,9 @@ All notable changes to PatchRadar are documented here.
 - Update CHANGELOG ([34dc7c2](https://github.com/maksimtech/patchradar/commit/34dc7c24ba20791f728ca0b702c8022dd3174133))
 - Update CHANGELOG ([e795abc](https://github.com/maksimtech/patchradar/commit/e795abca64bc021680e76dfcb149b78bbf5c70c5))
 - Update CHANGELOG ([20421dc](https://github.com/maksimtech/patchradar/commit/20421dc2950cf737e1c4dd00a8e525247892698d))
+- Update CHANGELOG ([6b69230](https://github.com/maksimtech/patchradar/commit/6b692307020d914a8e632d6aa2b50bbaa793c63e))
+- Update README — MSRC active, remove inline changelog ([544e72f](https://github.com/maksimtech/patchradar/commit/544e72fb54cf857a6ddde8a941727dcd3ba8685f))
+- Update README with MSRC status and remove inline changelog (#10) ([083e9bb](https://github.com/maksimtech/patchradar/commit/083e9bbaf823bc1cdd5da648b98e22ca1d7a50d4))
 
 ### 🔒 Security
 
@@ -60,6 +63,7 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.15 ([06e78a9](https://github.com/maksimtech/patchradar/commit/06e78a9000d92048f6a11ab51f96540e7bd2413d))
 - Bump version to 2026.8.16 ([6a40e98](https://github.com/maksimtech/patchradar/commit/6a40e9868778e79f2c57ab79dfff5747f4106ed1))
 - Bump version to 2026.8.17 ([9ebb4f2](https://github.com/maksimtech/patchradar/commit/9ebb4f28964efa9fe0ed8670b8b49fb93c392546))
+- Bump version to 2026.8.18 ([090dd45](https://github.com/maksimtech/patchradar/commit/090dd4513f8f9f3c1d048970e13b186cc567fd74))
 
 ### 🧪 Tests
 
