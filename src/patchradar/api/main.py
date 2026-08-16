@@ -30,6 +30,26 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
 
+
+def sanitize_cve(cve: dict) -> dict:
+    """Sanitize CVE data before returning to frontend — removes null bytes and truncates long strings."""
+    safe = {}
+    str_fields = ["id", "software", "description", "severity", "source", "url", "published_at", "cvss_version"]
+    for field in str_fields:
+        val = cve.get(field)
+        if isinstance(val, str):
+            # Remove null bytes and control characters
+            val = val.replace("\x00", "").strip()
+            # Truncate excessively long strings
+            if field == "description" and len(val) > 2000:
+                val = val[:2000] + "..."
+            elif field not in ["description", "url"] and len(val) > 200:
+                val = val[:200]
+        safe[field] = val
+    # Numeric fields
+    safe["cvss_score"] = cve.get("cvss_score")
+    return safe
+
 @app.on_event("startup")
 async def startup():
     await init_db()
@@ -52,7 +72,8 @@ async def api_remove(software: str = Path(..., min_length=1, max_length=100, pat
 @app.get("/api/cves")
 async def api_cves(software: str = Query(None, min_length=1, max_length=100), limit: int = Query(50, ge=1, le=200)):
     cves = await get_cves(software=software, limit=limit)
-    return {"cves": cves, "total": len(cves)}
+    sanitized = [sanitize_cve(c) for c in cves]
+    return {"cves": sanitized, "total": len(sanitized)}
 
 @app.post("/api/scan")
 async def api_scan(days: int = Query(7, ge=1, le=90)):
