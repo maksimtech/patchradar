@@ -18,12 +18,15 @@ All notable changes to PatchRadar are documented here.
 ### 🐛 Bug Fixes
 
 - Rewrite api/main.py cleanly, dynamic version in UI ([0d2331c](https://github.com/maksimtech/patchradar/commit/0d2331c297edff8385a78468dc67c9eb482bf16a))
+- Replace deprecated on_event with lifespan handler ([7827afb](https://github.com/maksimtech/patchradar/commit/7827afb57ef0c0741b5c9b55c399bb359f92f3ee))
+- Replace deprecated on_event with lifespan handler (#7) ([9c8fcf0](https://github.com/maksimtech/patchradar/commit/9c8fcf044402d3c7a7f047f73370896184a1c4ae))
 
 ### 📄 Documentation
 
 - Update CHANGELOG ([2dd00c4](https://github.com/maksimtech/patchradar/commit/2dd00c479986b456ae9cb30aad576349b9fb9437))
 - Add RELEASING.md with pre-release checklist and process ([7466f82](https://github.com/maksimtech/patchradar/commit/7466f82621ed8fe88fe98986ca70ab1c3a6adabb))
 - Update CHANGELOG ([96250ef](https://github.com/maksimtech/patchradar/commit/96250ef47d641a22e077b11a68d8d077bed4e25a))
+- Update CHANGELOG ([34dc7c2](https://github.com/maksimtech/patchradar/commit/34dc7c24ba20791f728ca0b702c8022dd3174133))
 
 ### 🔒 Security
 
@@ -48,6 +51,7 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.12 ([812b0a4](https://github.com/maksimtech/patchradar/commit/812b0a4fe7e75ea4221bbb0c0780b43bde3f476d))
 - Bump version to 2026.8.13 ([1c8f320](https://github.com/maksimtech/patchradar/commit/1c8f320237142d6892e1712205eab48641157f9b))
 - Bump version to 2026.8.14 ([df51440](https://github.com/maksimtech/patchradar/commit/df514400c4d0d86715b7488db2881014dbcb2ffb))
+- Bump version to 2026.8.15 ([06e78a9](https://github.com/maksimtech/patchradar/commit/06e78a9000d92048f6a11ab51f96540e7bd2413d))
 
 ### 🧪 Tests
 
