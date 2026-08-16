@@ -7,6 +7,8 @@ All notable changes to PatchRadar are documented here.
 ### ⚙️ CI/CD
 
 - Add Docker Hub build and push workflow ([5e4e003](https://github.com/maksimtech/patchradar/commit/5e4e003852e86356fbd0f4644f04ff830ad5fd7b))
+- Update GitHub Actions to Node.js 24 compatible versions ([66a985b](https://github.com/maksimtech/patchradar/commit/66a985b884e14b19efc5166046b075a857ea71ab))
+- Update GitHub Actions to Node.js 24 compatible versions (#8) ([2d04f55](https://github.com/maksimtech/patchradar/commit/2d04f55f4528bd9400dc3cfd2c9db8202dec1fe5))
 
 ### ✨ Features
 
@@ -27,6 +29,7 @@ All notable changes to PatchRadar are documented here.
 - Add RELEASING.md with pre-release checklist and process ([7466f82](https://github.com/maksimtech/patchradar/commit/7466f82621ed8fe88fe98986ca70ab1c3a6adabb))
 - Update CHANGELOG ([96250ef](https://github.com/maksimtech/patchradar/commit/96250ef47d641a22e077b11a68d8d077bed4e25a))
 - Update CHANGELOG ([34dc7c2](https://github.com/maksimtech/patchradar/commit/34dc7c24ba20791f728ca0b702c8022dd3174133))
+- Update CHANGELOG ([e795abc](https://github.com/maksimtech/patchradar/commit/e795abca64bc021680e76dfcb149b78bbf5c70c5))
 
 ### 🔒 Security
 
@@ -52,6 +55,7 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.13 ([1c8f320](https://github.com/maksimtech/patchradar/commit/1c8f320237142d6892e1712205eab48641157f9b))
 - Bump version to 2026.8.14 ([df51440](https://github.com/maksimtech/patchradar/commit/df514400c4d0d86715b7488db2881014dbcb2ffb))
 - Bump version to 2026.8.15 ([06e78a9](https://github.com/maksimtech/patchradar/commit/06e78a9000d92048f6a11ab51f96540e7bd2413d))
+- Bump version to 2026.8.16 ([6a40e98](https://github.com/maksimtech/patchradar/commit/6a40e9868778e79f2c57ab79dfff5747f4106ed1))
 
 ### 🧪 Tests
 
