@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query, Path
 from fastapi.responses import Response
 from fastapi.responses import HTMLResponse
-from pathlib import Path
+from pathlib import Path as FilePath
 from importlib.metadata import version as pkg_version
 from patchradar.db.database import (
     init_db, get_watchlist, add_to_watchlist,
@@ -40,22 +40,22 @@ async def api_watchlist():
     return {"watchlist": items}
 
 @app.post("/api/watchlist/{software}")
-async def api_add(software: str):
+async def api_add(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):
     added = await add_to_watchlist(software)
     return {"added": added, "software": software}
 
 @app.delete("/api/watchlist/{software}")
-async def api_remove(software: str):
+async def api_remove(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):
     removed = await remove_from_watchlist(software)
     return {"removed": removed, "software": software}
 
 @app.get("/api/cves")
-async def api_cves(software: str = None, limit: int = 50):
+async def api_cves(software: str = Query(None, min_length=1, max_length=100), limit: int = Query(50, ge=1, le=200)):
     cves = await get_cves(software=software, limit=limit)
     return {"cves": cves, "total": len(cves)}
 
 @app.post("/api/scan")
-async def api_scan(days: int = 7):
+async def api_scan(days: int = Query(7, ge=1, le=90)):
     from patchradar.db.database import save_cve
     watchlist = await get_watchlist()
     total = 0
@@ -92,7 +92,7 @@ async def api_stats():
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    html_path = Path(__file__).parent / "templates" / "index.html"
+    html_path = FilePath(__file__).parent / "templates" / "index.html"
     html = html_path.read_text(encoding='utf-8')
     html = html.replace('__VERSION__', pkg_version('patchradar'))
     return HTMLResponse(content=html)
