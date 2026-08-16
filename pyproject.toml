@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "patchradar"
-version = "2026.8.7"
+version = "2026.8.8"
 description = "Realtime CVE intelligence for your software stack"
 readme = "README.md"
 license = {text = "MIT"}
@@ -47,3 +47,6 @@ Issues = "https://github.com/maksimtech/patchradar/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/patchradar"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
