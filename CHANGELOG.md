@@ -30,6 +30,9 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.10 ([07d775f](https://github.com/maksimtech/patchradar/commit/07d775ffa2f4c8f397048c7bec1d634a0f1ee557))
 - Add release.py script ([4c15240](https://github.com/maksimtech/patchradar/commit/4c1524053f090d57dd040caca17bbc48f38590af))
 - Bump version to 2026.8.11 ([b4c0f6a](https://github.com/maksimtech/patchradar/commit/b4c0f6a7789c9ac4dd9ace47a89183c34eb2e555))
+- Integrate git-cliff for automatic changelog generation ([0820aca](https://github.com/maksimtech/patchradar/commit/0820aca32fb0711668c6d4a1782d638b8ea28223))
+- Integrate git-cliff for automatic changelog generation (#3) ([78f60fd](https://github.com/maksimtech/patchradar/commit/78f60fd6e7031ba6e8f84ec18ef68b426d52db2c))
+- Bump version to 2026.8.12 ([812b0a4](https://github.com/maksimtech/patchradar/commit/812b0a4fe7e75ea4221bbb0c0780b43bde3f476d))
 
 ### 🧪 Tests
 
