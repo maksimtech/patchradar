@@ -23,6 +23,7 @@ All notable changes to PatchRadar are documented here.
 
 - Update CHANGELOG ([2dd00c4](https://github.com/maksimtech/patchradar/commit/2dd00c479986b456ae9cb30aad576349b9fb9437))
 - Add RELEASING.md with pre-release checklist and process ([7466f82](https://github.com/maksimtech/patchradar/commit/7466f82621ed8fe88fe98986ca70ab1c3a6adabb))
+- Update CHANGELOG ([96250ef](https://github.com/maksimtech/patchradar/commit/96250ef47d641a22e077b11a68d8d077bed4e25a))
 
 ### 🔒 Security
 
@@ -46,10 +47,13 @@ All notable changes to PatchRadar are documented here.
 - Integrate git-cliff for automatic changelog generation (#3) ([78f60fd](https://github.com/maksimtech/patchradar/commit/78f60fd6e7031ba6e8f84ec18ef68b426d52db2c))
 - Bump version to 2026.8.12 ([812b0a4](https://github.com/maksimtech/patchradar/commit/812b0a4fe7e75ea4221bbb0c0780b43bde3f476d))
 - Bump version to 2026.8.13 ([1c8f320](https://github.com/maksimtech/patchradar/commit/1c8f320237142d6892e1712205eab48641157f9b))
+- Bump version to 2026.8.14 ([df51440](https://github.com/maksimtech/patchradar/commit/df514400c4d0d86715b7488db2881014dbcb2ffb))
 
 ### 🧪 Tests
 
 - Add real test suite replacing placeholder ([a24105d](https://github.com/maksimtech/patchradar/commit/a24105d3455c5bedfde82bd7c4d7d811666ed02c))
+- Complete test suite — CLI, NVD collector mock, database CRUD ([82c96fe](https://github.com/maksimtech/patchradar/commit/82c96fe444c6a993a578439bfdfc5bd63e8933a2))
+- Complete test suite with CLI, NVD mock and database CRUD (#6) ([2acd294](https://github.com/maksimtech/patchradar/commit/2acd294a4f00bb69612b5ecd9a42398ad52c0d7c))
 
 ## 2026.8.6 — 2026-08-14
 
