@@ -25,7 +25,7 @@
   .panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; }
   .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #e6edf3; }
   .watchlist-item { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 0.4rem; background: #0d1117; border: 1px solid #30363d; }
-  .watchlist-item span { font-size: 0.9rem; }
+  .watchlist-item span { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
   .btn-remove { background: none; border: none; color: #f85149; cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; }
   .btn-remove:hover { background: #2d1316; }
   .add-form { display: flex; gap: 0.5rem; margin-top: 1rem; }
@@ -74,6 +74,24 @@
   .bar-medium { background: #d29922; }
   .bar-low { background: #3fb950; }
   .bar-unknown { background: #8b949e; }
+
+  /* Modal CVE Detail */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 2rem; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; }
+  .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1.5rem; }
+  .modal-close:hover { color: #e6edf3; }
+  .modal h2 { font-size: 1.1rem; font-weight: 700; color: #58a6ff; font-family: monospace; margin-bottom: 1.5rem; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  .modal-field { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 0.8rem; }
+  .modal-field .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+  .modal-field .value { font-size: 0.9rem; color: #e6edf3; font-weight: 500; }
+  .modal-desc { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+  .modal-desc .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .modal-desc .value { font-size: 0.85rem; color: #e6edf3; line-height: 1.6; }
+  .modal-links { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  .modal-link { padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid #30363d; color: #58a6ff; text-decoration: none; font-size: 0.85rem; }
+  .modal-link:hover { background: #1c2128; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff3; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
@@ -287,9 +305,8 @@ function renderTable() {
     const tdId = document.createElement('td');
     const a = document.createElement('a');
     a.className = 'cve-link';
-    a.href = cve.url || '#';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
+    a.href = '#';
+    a.addEventListener('click', (e) => { e.preventDefault(); openCveDetail(cve.id); });
     a.textContent = cve.id || '';
     tdId.appendChild(a);
     tr.appendChild(tdId);
@@ -419,6 +436,63 @@ async function loadStats() {
 
 }
 
+
+async function openCveDetail(cveId) {
+  try {
+    const data = await api(`/api/cves/${encodeURIComponent(cveId)}`);
+    
+    document.getElementById('modal-cve-id').textContent = data.id || cveId;
+    document.getElementById('modal-software').textContent = data.software || '—';
+    document.getElementById('modal-source').textContent = data.source || '—';
+    document.getElementById('modal-score').textContent = data.cvss_score ? data.cvss_score.toFixed(1) : '—';
+    document.getElementById('modal-cvss-version').textContent = data.cvss_version || '—';
+    document.getElementById('modal-description').textContent = data.description || '—';
+    
+    const sev = (data.severity || 'UNKNOWN').toUpperCase();
+    const sevEl = document.getElementById('modal-severity');
+    sevEl.textContent = sev;
+    sevEl.className = `value severity-badge sev-${sev}`;
+    
+    const pub = data.published_at ? data.published_at.substring(0, 10) : '—';
+    document.getElementById('modal-published').textContent = pub;
+    
+    // Links
+    const linksEl = document.getElementById('modal-links');
+    linksEl.innerHTML = '';
+    if (data.url) {
+      const a = document.createElement('a');
+      a.className = 'modal-link';
+      a.href = data.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = '🔗 View on NVD';
+      linksEl.appendChild(a);
+    }
+    if (data.id && data.id.startsWith('CVE-')) {
+      const a2 = document.createElement('a');
+      a2.className = 'modal-link';
+      a2.href = `https://msrc.microsoft.com/update-guide/en-US/vulnerability/${data.id}`;
+      a2.target = '_blank';
+      a2.rel = 'noopener noreferrer';
+      a2.textContent = '🔗 View on MSRC';
+      linksEl.appendChild(a2);
+    }
+    
+    document.getElementById('cve-modal').classList.add('active');
+  } catch(e) {
+    console.error('Error loading CVE detail:', e);
+  }
+}
+
+function closeModal() {
+  document.getElementById('cve-modal').classList.remove('active');
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
 async function init() {
   await loadWatchlist();
   await loadStats();
@@ -427,5 +501,45 @@ async function init() {
 
 init();
 </script>
+
+<!-- CVE Detail Modal -->
+<div class="modal-overlay" id="cve-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2 id="modal-cve-id">CVE-XXXX-XXXXX</h2>
+    <div class="modal-grid">
+      <div class="modal-field">
+        <div class="label">Software</div>
+        <div class="value" id="modal-software">—</div>
+      </div>
+      <div class="modal-field">
+        <div class="label">Severity</div>
+        <div class="value" id="modal-severity">—</div>
+      </div>
+      <div class="modal-field">
+        <div class="label">CVSS Score</div>
+        <div class="value" id="modal-score">—</div>
+      </div>
+      <div class="modal-field">
+        <div class="label">CVSS Version</div>
+        <div class="value" id="modal-cvss-version">—</div>
+      </div>
+      <div class="modal-field">
+        <div class="label">Source</div>
+        <div class="value" id="modal-source">—</div>
+      </div>
+      <div class="modal-field">
+        <div class="label">Published</div>
+        <div class="value" id="modal-published">—</div>
+      </div>
+    </div>
+    <div class="modal-desc">
+      <div class="label">Description</div>
+      <div class="value" id="modal-description">—</div>
+    </div>
+    <div class="modal-links" id="modal-links"></div>
+  </div>
+</div>
+
 </body>
 </html>
