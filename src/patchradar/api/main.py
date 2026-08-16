@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Query, Path
+from contextlib import asynccontextmanager
 from fastapi.responses import Response
 from fastapi.responses import HTMLResponse
 from pathlib import Path as FilePath
@@ -10,7 +11,13 @@ from patchradar.db.database import (
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 import aiosqlite
 
-app = FastAPI(title="PatchRadar", version="2026.8.7")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan — replaces deprecated @app.on_event"""
+    await init_db()
+    yield
+
+app = FastAPI(title="PatchRadar", version="2026.8.7", lifespan=lifespan)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
@@ -49,10 +56,6 @@ def sanitize_cve(cve: dict) -> dict:
     # Numeric fields
     safe["cvss_score"] = cve.get("cvss_score")
     return safe
-
-@app.on_event("startup")
-async def startup():
-    await init_db()
 
 @app.get("/api/watchlist")
 async def api_watchlist():
