@@ -41,11 +41,23 @@ def main():
     print("\n📤 Pushing to remote...")
     run(["git", "push", "origin", "main"])
 
+    # Genera CHANGELOG automaticamente
+    print("\n📝 Generating CHANGELOG.md...")
+    run(["git", "cliff", "--output", "CHANGELOG.md"])
+    run(["git", "add", "CHANGELOG.md"])
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        capture_output=True
+    )
+    if result.returncode != 0:
+        run(["git", "commit", "-m", "docs: update CHANGELOG"])
+        run(["git", "push", "origin", "main"])
+
     print(f"\n🚀 Creating GitHub release {version}...")
     run([
         "gh", "release", "create", version,
         "--title", version,
-        "--notes", f"See CHANGELOG.md for details.",
+        "--notes-file", "CHANGELOG.md",
         "--latest"
     ])
 

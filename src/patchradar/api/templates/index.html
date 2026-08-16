@@ -362,19 +362,33 @@ async function loadStats() {
   const total = data.total_cves || 1;
   const sevOrder = ['CRITICAL','HIGH','MEDIUM','LOW','UNKNOWN'];
   const sevColors = {'CRITICAL':'critical','HIGH':'high','MEDIUM':'medium','LOW':'low','UNKNOWN':'unknown'};
-  document.getElementById('severity-chart').innerHTML = sevOrder
+  // CWE-79 fix: build severity chart via DOM API
+  const sevChart = document.getElementById('severity-chart');
+  sevChart.innerHTML = '';
+  sevOrder
     .filter(s => sev[s])
-    .map(s => `
-      <div class="chart-bar">
-        <div class="label">${s}</div>
-        <div class="bar-wrap">
-          <div class="bar bar-${sevColors[s]}" style="width:${Math.round((sev[s]/total)*100)}%">
-            ${sev[s]}
-          </div>
-        </div>
-      </div>
+    .forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'chart-bar';
 
-    `).join('');
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = s;  // hardcoded — safe
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'bar-wrap';
+
+      const bar = document.createElement('div');
+      bar.className = `bar bar-${sevColors[s]}`;  // hardcoded — safe
+      bar.style.width = Math.round((sev[s]/total)*100) + '%';
+      bar.textContent = String(parseInt(sev[s]) || 0);  // sanitized integer
+
+      barWrap.appendChild(bar);
+      div.appendChild(label);
+      div.appendChild(barWrap);
+      sevChart.appendChild(div);
+    });
+
   const bySw = data.by_software || {};
   // CWE-79 fix: build software chart via DOM API
   const swChart = document.getElementById('software-chart');
