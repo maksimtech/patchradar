@@ -4,13 +4,25 @@ All notable changes to PatchRadar are documented here.
 
 ## Unreleased
 
+### ⚙️ CI/CD
+
+- Add Docker Hub build and push workflow ([5e4e003](https://github.com/maksimtech/patchradar/commit/5e4e003852e86356fbd0f4644f04ff830ad5fd7b))
+
 ### ✨ Features
 
 - Complete security hardening and test suite (#2) ([32323ae](https://github.com/maksimtech/patchradar/commit/32323aeda560fccabd3caeffdffed00d60b31c91))
+- Add Dockerfile, docker-compose and .dockerignore ([b4e8f8d](https://github.com/maksimtech/patchradar/commit/b4e8f8d3711317583ee8aa469df55c618d16bac0))
+- Add Docker support (#4) ([27896b0](https://github.com/maksimtech/patchradar/commit/27896b0e72cfc45d8dbe6bdff96580818ac7e080))
+- Add Docker support and RELEASING.md (#5) ([179f395](https://github.com/maksimtech/patchradar/commit/179f395e9dce82ec75e13d4189bc7f63cc288ccb))
 
 ### 🐛 Bug Fixes
 
 - Rewrite api/main.py cleanly, dynamic version in UI ([0d2331c](https://github.com/maksimtech/patchradar/commit/0d2331c297edff8385a78468dc67c9eb482bf16a))
+
+### 📄 Documentation
+
+- Update CHANGELOG ([2dd00c4](https://github.com/maksimtech/patchradar/commit/2dd00c479986b456ae9cb30aad576349b9fb9437))
+- Add RELEASING.md with pre-release checklist and process ([7466f82](https://github.com/maksimtech/patchradar/commit/7466f82621ed8fe88fe98986ca70ab1c3a6adabb))
 
 ### 🔒 Security
 
@@ -33,6 +45,7 @@ All notable changes to PatchRadar are documented here.
 - Integrate git-cliff for automatic changelog generation ([0820aca](https://github.com/maksimtech/patchradar/commit/0820aca32fb0711668c6d4a1782d638b8ea28223))
 - Integrate git-cliff for automatic changelog generation (#3) ([78f60fd](https://github.com/maksimtech/patchradar/commit/78f60fd6e7031ba6e8f84ec18ef68b426d52db2c))
 - Bump version to 2026.8.12 ([812b0a4](https://github.com/maksimtech/patchradar/commit/812b0a4fe7e75ea4221bbb0c0780b43bde3f476d))
+- Bump version to 2026.8.13 ([1c8f320](https://github.com/maksimtech/patchradar/commit/1c8f320237142d6892e1712205eab48641157f9b))
 
 ### 🧪 Tests
 
