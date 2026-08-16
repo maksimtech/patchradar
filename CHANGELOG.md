@@ -16,6 +16,8 @@ All notable changes to PatchRadar are documented here.
 - Add Dockerfile, docker-compose and .dockerignore ([b4e8f8d](https://github.com/maksimtech/patchradar/commit/b4e8f8d3711317583ee8aa469df55c618d16bac0))
 - Add Docker support (#4) ([27896b0](https://github.com/maksimtech/patchradar/commit/27896b0e72cfc45d8dbe6bdff96580818ac7e080))
 - Add Docker support and RELEASING.md (#5) ([179f395](https://github.com/maksimtech/patchradar/commit/179f395e9dce82ec75e13d4189bc7f63cc288ccb))
+- Add MSRC collector for Microsoft Patch Tuesday ([b3ae63c](https://github.com/maksimtech/patchradar/commit/b3ae63ccbf36b41540fd8dddbf18e42a466faded))
+- Add MSRC collector for Microsoft Patch Tuesday (#9) ([e64ac24](https://github.com/maksimtech/patchradar/commit/e64ac24eeac0d6e6fed9adf687f504a28ec279d1))
 
 ### 🐛 Bug Fixes
 
@@ -30,6 +32,7 @@ All notable changes to PatchRadar are documented here.
 - Update CHANGELOG ([96250ef](https://github.com/maksimtech/patchradar/commit/96250ef47d641a22e077b11a68d8d077bed4e25a))
 - Update CHANGELOG ([34dc7c2](https://github.com/maksimtech/patchradar/commit/34dc7c24ba20791f728ca0b702c8022dd3174133))
 - Update CHANGELOG ([e795abc](https://github.com/maksimtech/patchradar/commit/e795abca64bc021680e76dfcb149b78bbf5c70c5))
+- Update CHANGELOG ([20421dc](https://github.com/maksimtech/patchradar/commit/20421dc2950cf737e1c4dd00a8e525247892698d))
 
 ### 🔒 Security
 
@@ -56,6 +59,7 @@ All notable changes to PatchRadar are documented here.
 - Bump version to 2026.8.14 ([df51440](https://github.com/maksimtech/patchradar/commit/df514400c4d0d86715b7488db2881014dbcb2ffb))
 - Bump version to 2026.8.15 ([06e78a9](https://github.com/maksimtech/patchradar/commit/06e78a9000d92048f6a11ab51f96540e7bd2413d))
 - Bump version to 2026.8.16 ([6a40e98](https://github.com/maksimtech/patchradar/commit/6a40e9868778e79f2c57ab79dfff5747f4106ed1))
+- Bump version to 2026.8.17 ([9ebb4f2](https://github.com/maksimtech/patchradar/commit/9ebb4f28964efa9fe0ed8670b8b49fb93c392546))
 
 ### 🧪 Tests
 
