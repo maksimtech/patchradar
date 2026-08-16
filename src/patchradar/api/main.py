@@ -9,6 +9,7 @@ from patchradar.db.database import (
     remove_from_watchlist, get_cves
 )
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
+from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 import aiosqlite
 
 @asynccontextmanager
@@ -85,11 +86,17 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
     total = 0
     results = {}
     for sw in watchlist:
+        # NVD
         cves = await nvd_fetch(sw, days_back=days)
         for cve in cves:
             await save_cve(cve)
-        results[sw] = len(cves)
-        total += len(cves)
+        # MSRC
+        msrc_cves = await msrc_fetch(sw, days_back=days)
+        for cve in msrc_cves:
+            await save_cve(cve)
+        count = len(cves) + len(msrc_cves)
+        results[sw] = count
+        total += count
     return {"total": total, "by_software": results}
 
 @app.get("/api/stats")
