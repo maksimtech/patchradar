@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 from importlib.metadata import version as pkg_version
@@ -9,7 +10,25 @@ from patchradar.db.database import (
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 import aiosqlite
 
-app = FastAPI(title="PatchRadar", version="2026.8.6")
+app = FastAPI(title="PatchRadar", version="2026.8.7")
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    """Add security headers to all responses — defense in depth against XSS and clickjacking."""
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
 
 @app.on_event("startup")
 async def startup():
