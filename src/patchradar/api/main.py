@@ -121,6 +121,22 @@ async def api_stats():
         "by_software": by_software,
     }
 
+
+@app.get("/api/cves/{cve_id}")
+async def api_cve_detail(cve_id: str = Path(..., min_length=1, max_length=50)):
+    """Get a single CVE by ID."""
+    from patchradar.db.database import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM cves WHERE id = ?", (cve_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="CVE not found")
+    return sanitize_cve(dict(row))
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = FilePath(__file__).parent / "templates" / "index.html"
