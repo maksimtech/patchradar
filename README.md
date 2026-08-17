@@ -8,6 +8,7 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 ![CalVer](https://img.shields.io/badge/calver-2026.8.2-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square)label=pypi)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/maksimtech/patchradar?utm_source=badge)
 
 ---
 
@@ -77,6 +78,18 @@ patchradar serve
 ## 🗓️ Versioning
 
 PatchRadar uses [CalVer](https://calver.org) — `YYYY.MM.PATCH`.
+
+---
+
+## ⚡ Benchmarks
+
+Performance is tracked continuously with [CodSpeed](https://codspeed.io). The benchmarks live in `benchmarks/` and cover the CVE collectors, the SQLite layer, the API endpoints and the CLI table rendering.
+
+```bash
+poetry install --with dev
+poetry run pytest benchmarks/            # correctness check, no measurement
+codspeed run --mode simulation -- poetry run pytest benchmarks/ --codspeed
+```
 
 ---
 
