@@ -124,6 +124,30 @@ async def test_db_remove():
     removed = await remove_from_watchlist("remove-test")
     assert removed == True
 
+
+@pytest.mark.asyncio
+async def test_db_remove_cleans_orphan_cves():
+    """Verify that removing a software from watchlist also deletes its CVEs."""
+    from patchradar.db.database import save_cve, get_cves
+    await init_db()
+    await add_to_watchlist("orphan-test")
+    await save_cve({
+        "id": "CVE-2026-99999",
+        "software": "orphan-test",
+        "description": "Test CVE for orphan cleanup",
+        "cvss_score": 7.5,
+        "cvss_version": "3.1",
+        "severity": "HIGH",
+        "published_at": "2026-01-01T00:00:00",
+        "source": "NVD",
+        "url": "https://example.com"
+    })
+    cves_before = await get_cves(software="orphan-test")
+    assert len(cves_before) == 1
+    await remove_from_watchlist("orphan-test")
+    cves_after = await get_cves(software="orphan-test")
+    assert len(cves_after) == 0, "Orphan CVEs should be deleted when software is removed from watchlist"
+
 # ─── CLI Tests ──────────────────────────────────────────────────────────────
 
 from typer.testing import CliRunner

@@ -52,6 +52,9 @@ async def remove_from_watchlist(name: str) -> bool:
         cursor = await db.execute(
             "DELETE FROM watchlist WHERE name = ?", (name.lower(),)
         )
+        await db.execute(
+            "DELETE FROM cves WHERE software = ?", (name.lower(),)
+        )
         await db.commit()
         return cursor.rowcount > 0
 
