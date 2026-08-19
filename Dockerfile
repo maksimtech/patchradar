@@ -1,4 +1,4 @@
-FROM python:3.14-slim-bookworm
+FROM python:3.14-slim-trixie
 
 # Metadata OCI
 LABEL maintainer="maksimtech <github@maksimtech.com>"
@@ -16,8 +16,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Installa patchradar da PyPI
-RUN pip install --no-cache-dir --root-user-action=ignore patchradar
+# Installa patchradar da PyPI con dipendenze aggiornate
+RUN pip install --no-cache-dir --root-user-action=ignore patchradar && \
+    pip install --no-cache-dir --root-user-action=ignore "setuptools>=78.1.1" "msgpack>=1.1.5"
 
 # Volume per dati persistenti
 VOLUME ["/root/.patchradar"]
