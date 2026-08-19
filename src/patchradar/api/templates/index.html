@@ -127,6 +127,8 @@
           <button class="btn btn-primary" onclick="addSoftware()">Add</button>
         </div>
         <button class="btn btn-scan" id="scan-btn" onclick="scanAll()">🔍 Scan All</button>
+        <button class="btn" onclick="document.getElementById('import-file').click()" style="background:#1f6feb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;">📥 Import from file</button>
+        <input type="file" id="import-file" accept=".txt,.csv" style="display:none" onchange="importFromFile(event)">
       </div>
 
       <!-- Chart -->
@@ -233,6 +235,21 @@ async function removeSoftware(sw) {
   await loadWatchlist();
   await loadStats();
   await loadCves();
+}
+
+async function importFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const lines = text.split('\n')
+    .map(l => l.trim().split(/\s{2,}/)[0].trim().toLowerCase())
+    .filter(l => l && l.length > 1 && !l.startsWith('-') && l !== 'name');
+  if (!lines.length) { toast('⚠️ No software found in file', '#d29922'); return; }
+  const data = await api('/api/watchlist/import', 'POST', { software: lines });
+  toast(\`✅ Imported \${data.added.length} software, \${data.skipped.length} already in watchlist\`);
+  await loadWatchlist();
+  // Reset file input
+  event.target.value = '';
 }
 
 async function scanAll() {

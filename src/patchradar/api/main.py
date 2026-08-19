@@ -63,10 +63,31 @@ async def api_watchlist():
     items = await get_watchlist()
     return {"watchlist": items}
 
+@app.post("/api/watchlist/import")
+async def api_watchlist_import(payload: dict):
+    """Import a list of software names into the watchlist."""
+    software_list = payload.get("software", [])
+    if not isinstance(software_list, list):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Expected {'software': [...list of names...]}")
+    added = []
+    skipped = []
+    for sw in software_list:
+        sw = sw.strip().lower()[:100]
+        if not sw:
+            continue
+        result = await add_to_watchlist(sw)
+        if result:
+            added.append(sw)
+        else:
+            skipped.append(sw)
+    return {"added": added, "skipped": skipped, "total": len(added)}
+
 @app.post("/api/watchlist/{software}")
 async def api_add(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):
     added = await add_to_watchlist(software)
     return {"added": added, "software": software}
+
 
 @app.delete("/api/watchlist/{software}")
 async def api_remove(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):

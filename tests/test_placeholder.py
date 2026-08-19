@@ -148,6 +148,24 @@ async def test_db_remove_cleans_orphan_cves():
     cves_after = await get_cves(software="orphan-test")
     assert len(cves_after) == 0, "Orphan CVEs should be deleted when software is removed from watchlist"
 
+
+@pytest.mark.asyncio
+async def test_watchlist_import(client):
+    """Test bulk import of software into watchlist."""
+    response = await client.post("/api/watchlist/import", json={
+        "software": ["nginx", "apache", "redis"]
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "added" in data
+    assert "skipped" in data
+    assert "total" in data
+    assert data["total"] >= 0
+    # Cleanup
+    for sw in ["nginx", "apache", "redis"]:
+        await client.delete(f"/api/watchlist/{sw}")
+
+
 # ─── CLI Tests ──────────────────────────────────────────────────────────────
 
 from typer.testing import CliRunner
