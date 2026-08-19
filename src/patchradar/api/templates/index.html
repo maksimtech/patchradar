@@ -42,6 +42,8 @@
   .filter-btn.high.active { border-color: #e3b341; color: #e3b341; background: #2d2005; }
   .filter-btn.medium.active { border-color: #d29922; color: #d29922; background: #2d1f00; }
   .filter-btn.low.active { border-color: #3fb950; color: #3fb950; background: #0d2b1a; }
+  .search-input { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.8rem; color: #e6edf3; font-size: 0.85rem; outline: none; width: 200px; }
+  .search-input:focus { border-color: #58a6ff; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th { text-align: left; padding: 0.6rem 0.8rem; color: #8b949e; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid #30363d; }
   td { padding: 0.7rem 0.8rem; border-bottom: 1px solid #21262d; vertical-align: top; }
@@ -149,6 +151,9 @@
         <button class="filter-btn high" onclick="setFilter('HIGH', this)">High</button>
         <button class="filter-btn medium" onclick="setFilter('MEDIUM', this)">Medium</button>
         <button class="filter-btn low" onclick="setFilter('LOW', this)">Low</button>
+      </div>
+      <div style="margin-bottom:0.8rem">
+        <input class="search-input" id="search-input" type="text" placeholder="🔍 Filter by software..." oninput="renderTable()">
       </div>
       <div id="cve-table-wrap">
         <div class="empty">Run a scan to see CVEs</div>
@@ -272,13 +277,19 @@ function scoreClass(score) {
 }
 
 function renderTable() {
-  const filtered = currentFilter === 'ALL'
-    ? allCves
-    : allCves.filter(c => (c.severity||'').toUpperCase() === currentFilter);
+  const searchTerm = (document.getElementById('search-input') ? document.getElementById('search-input').value : '').toLowerCase().trim();
+  const filtered = allCves.filter(c => {
+    const matchSeverity = currentFilter === 'ALL' || (c.severity||'').toUpperCase() === currentFilter;
+    const matchSearch = !searchTerm || (c.software||'').toLowerCase().includes(searchTerm) || (c.id||'').toLowerCase().includes(searchTerm);
+    return matchSeverity && matchSearch;
+  });
 
   const wrap = document.getElementById('cve-table-wrap');
   if (!filtered.length) {
-    wrap.innerHTML = '<div class="empty">No CVEs found. Run a scan first.</div>';
+    const msg = searchTerm
+      ? `<div class="empty">No CVEs found for "<strong>${searchTerm}</strong>". Try a different search term or run a new scan.</div>`
+      : '<div class="empty">No CVEs found. Run a scan first.</div>';
+    wrap.innerHTML = msg;
     return;
   }
 
