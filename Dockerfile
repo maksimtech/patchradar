@@ -7,6 +7,9 @@ LABEL org.opencontainers.image.description="Realtime CVE intelligence for your s
 LABEL org.opencontainers.image.source="https://github.com/maksimtech/patchradar"
 LABEL org.opencontainers.image.license="MIT"
 
+# Aggiorna pacchetti di sistema per fix vulnerabilità
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Ambiente Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
