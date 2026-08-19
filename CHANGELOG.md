@@ -125,3 +125,14 @@ All notable changes to PatchRadar are documented here.
 - Add web UI, README and CalVer 2026.8.2 ([839df3d](https://github.com/maksimtech/patchradar/commit/839df3dd0bca7197b8aecfef34da6f1c72a519a3))
 
 
+
+## [2026.8.21] - 2026-08-19
+
+### Fixed
+- Delete orphan CVEs when software is removed from watchlist (#bug)
+  Previously, removing a software from the watchlist left its CVEs
+  in the database, causing stale results to appear when new searches
+  were added.
+
+### Tests
+- Added `test_db_remove_cleans_orphan_cves` to verify orphan CVE cleanup
