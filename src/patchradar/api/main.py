@@ -90,7 +90,7 @@ async def api_add(software: str = Path(..., min_length=1, max_length=100, patter
 
 
 @app.delete("/api/watchlist/{software}")
-async def api_remove(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):
+async def api_remove(software: str = Path(..., min_length=1, max_length=200)):
     removed = await remove_from_watchlist(software)
     return {"removed": removed, "software": software}
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PatchRadar 🛡️</title>
+<title>PatchRadar </title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
@@ -100,7 +100,7 @@
 </head>
 <body>
 <header>
-  <span>🛡️</span>
+  <span></span>
   <h1>PatchRadar</h1>
   <span class="badge">__VERSION__</span>
 </header>
@@ -108,45 +108,47 @@
 <main>
   <!-- Stats -->
   <div class="stats-grid" id="stats-grid">
-    <div class="stat-card total"><div class="label">Total CVEs</div><div class="value" id="stat-total">—</div></div>
-    <div class="stat-card critical"><div class="label">Critical</div><div class="value" id="stat-critical">—</div></div>
-    <div class="stat-card high"><div class="label">High</div><div class="value" id="stat-high">—</div></div>
-    <div class="stat-card medium"><div class="label">Medium</div><div class="value" id="stat-medium">—</div></div>
-    <div class="stat-card low"><div class="label">Low</div><div class="value" id="stat-low">—</div></div>
-    <div class="stat-card total"><div class="label">Watching</div><div class="value" id="stat-watched">—</div></div>
+    <div class="stat-card total"><div class="label">Total CVEs</div><div class="value" id="stat-total"></div></div>
+    <div class="stat-card critical"><div class="label">Critical</div><div class="value" id="stat-critical"></div></div>
+    <div class="stat-card high"><div class="label">High</div><div class="value" id="stat-high"></div></div>
+    <div class="stat-card medium"><div class="label">Medium</div><div class="value" id="stat-medium"></div></div>
+    <div class="stat-card low"><div class="label">Low</div><div class="value" id="stat-low"></div></div>
+    <div class="stat-card total"><div class="label">Watching</div><div class="value" id="stat-watched"></div></div>
   </div>
 
   <div class="grid">
     <!-- Watchlist -->
     <div>
       <div class="panel">
-        <h2>📋 Watchlist</h2>
+        <h2> Watchlist</h2>
         <div id="watchlist-items"></div>
         <div class="add-form">
           <input type="text" id="add-input" placeholder="Add software..." onkeydown="if(event.key==='Enter')addSoftware()">
           <button class="btn btn-primary" onclick="addSoftware()">Add</button>
         </div>
-        <button class="btn btn-scan" id="scan-btn" onclick="scanAll()">🔍 Scan All</button>
-        <button class="btn" onclick="document.getElementById('import-file').click()" style="background:#1f6feb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;">📥 Import from file</button>
-        <input type="file" id="import-file" accept=".txt,.csv" style="display:none" onchange="importFromFile(event)">
+        <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;">
+          <button class="btn btn-scan" id="scan-btn" onclick="scanAll()"> Scan All</button>
+          <button class="btn" onclick="document.getElementById('import-file').click()" style="background:#1f6feb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;"> Import from file</button>
+          <input type="file" id="import-file" accept=".txt,.csv" style="display:none" onchange="importFromFile(event)">
+        </div>
       </div>
 
       <!-- Chart -->
       <div class="panel" style="margin-top: 1rem;">
-        <h2>📊 By Severity</h2>
+        <h2> By Severity</h2>
         <div class="chart-container" id="severity-chart"></div>
       </div>
 
       <!-- By Software -->
       <div class="panel" style="margin-top: 1rem;">
-        <h2>📦 By Software</h2>
+        <h2> By Software</h2>
         <div class="chart-container" id="software-chart"></div>
       </div>
     </div>
 
     <!-- CVE Table -->
     <div class="panel">
-      <h2>🚨 CVEs</h2>
+      <h2> CVEs</h2>
       <div class="filters">
         <button class="filter-btn active" onclick="setFilter('ALL', this)">All</button>
         <button class="filter-btn critical" onclick="setFilter('CRITICAL', this)">Critical</button>
@@ -155,7 +157,7 @@
         <button class="filter-btn low" onclick="setFilter('LOW', this)">Low</button>
       </div>
       <div style="margin-bottom:0.8rem">
-        <input class="search-input" id="search-input" type="text" placeholder="🔍 Filter by software..." oninput="renderTable()">
+        <input class="search-input" id="search-input" type="text" placeholder=" Filter by software..." oninput="currentSearch=this.value;renderTable()" onkeydown="if(event.key==='Enter'){event.preventDefault();return false;}">
       </div>
       <div id="cve-table-wrap">
         <div class="empty">Run a scan to see CVEs</div>
@@ -169,6 +171,7 @@
 <script>
 let allCves = [];
 let currentFilter = 'ALL';
+let currentSearch = '';
 
 async function api(path, method='GET', body=null) {
   const opts = { method, headers: {'Content-Type': 'application/json'} };
@@ -199,12 +202,12 @@ async function loadWatchlist() {
     div.className = 'watchlist-item';
 
     const span = document.createElement('span');
-    span.textContent = '📦 ' + sw;  // textContent prevents XSS
+    span.textContent = ' ' + sw;  // textContent prevents XSS
 
     const btn = document.createElement('button');
     btn.className = 'btn-remove';
     btn.title = 'Remove';
-    btn.textContent = '✕';
+    btn.textContent = '×';  // × symbol
     btn.addEventListener('click', () => removeSoftware(sw));  // closure sicura
 
     div.appendChild(span);
@@ -220,18 +223,18 @@ async function addSoftware() {
   if (!sw) return;
   const data = await api(`/api/watchlist/${encodeURIComponent(sw)}`, 'POST');
   if (data.added) {
-    toast(`✅ Added ${sw}`);
+    toast(` Added ${sw}`);
     input.value = '';
     await loadWatchlist();
     await loadStats();
   } else {
-    toast(`⚠️ ${sw} already in watchlist`, '#d29922');
+    toast(` ${sw} already in watchlist`, '#d29922');
   }
 }
 
 async function removeSoftware(sw) {
   await api(`/api/watchlist/${encodeURIComponent(sw)}`, 'DELETE');
-  toast(`🗑️ Removed ${sw}`, '#f85149');
+  toast(`Removed ${sw}`, '#f85149');
   await loadWatchlist();
   await loadStats();
   await loadCves();
@@ -242,11 +245,11 @@ async function importFromFile(event) {
   if (!file) return;
   const text = await file.text();
   const lines = text.split('\n')
-    .map(l => l.trim().split(/\s{2,}/)[0].trim().toLowerCase())
+    .map(l => l.trim().split(/[ \t]{2,}/)[0].trim().toLowerCase())
     .filter(l => l && l.length > 1 && !l.startsWith('-') && l !== 'name');
-  if (!lines.length) { toast('⚠️ No software found in file', '#d29922'); return; }
+  if (!lines.length) { toast('No software found in file', '#d29922'); return; }
   const data = await api('/api/watchlist/import', 'POST', { software: lines });
-  toast(\`✅ Imported \${data.added.length} software, \${data.skipped.length} already in watchlist\`);
+  toast(`Imported ${data.added.length} software, ${data.skipped.length} already in watchlist`);
   await loadWatchlist();
   // Reset file input
   event.target.value = '';
@@ -258,11 +261,11 @@ async function scanAll() {
   btn.disabled = true;
   try {
     const data = await api('/api/scan?days=30', 'POST');
-    toast(`✅ Found ${data.total} CVEs`);
+    toast(` Found ${data.total} CVEs`);
     await loadCves();
     await loadStats();
   } finally {
-    btn.innerHTML = '🔍 Scan All';
+    btn.innerHTML = ' Scan All';
     btn.disabled = false;
   }
 }
@@ -294,7 +297,7 @@ function scoreClass(score) {
 }
 
 function renderTable() {
-  const searchTerm = (document.getElementById('search-input') ? document.getElementById('search-input').value : '').toLowerCase().trim();
+  const searchTerm = currentSearch.toLowerCase().trim();
   const filtered = allCves.filter(c => {
     const matchSeverity = currentFilter === 'ALL' || (c.severity||'').toUpperCase() === currentFilter;
     const matchSearch = !searchTerm || (c.software||'').toLowerCase().includes(searchTerm) || (c.id||'').toLowerCase().includes(searchTerm);
@@ -329,7 +332,7 @@ function renderTable() {
   filtered.forEach(cve => {
     const tr = document.createElement('tr');
 
-    // CVE ID — link
+    // CVE ID  link
     const tdId = document.createElement('td');
     const a = document.createElement('a');
     a.className = 'cve-link';
@@ -364,7 +367,7 @@ function renderTable() {
     tdSev.appendChild(spanSev);
     tr.appendChild(tdSev);
 
-    // Description — textContent prevents XSS
+    // Description  textContent prevents XSS
     const tdDesc = document.createElement('td');
     tdDesc.className = 'desc';
     const desc = cve.description || '';
@@ -418,13 +421,13 @@ async function loadStats() {
 
       const label = document.createElement('div');
       label.className = 'label';
-      label.textContent = s;  // hardcoded — safe
+      label.textContent = s;  // hardcoded  safe
 
       const barWrap = document.createElement('div');
       barWrap.className = 'bar-wrap';
 
       const bar = document.createElement('div');
-      bar.className = `bar bar-${sevColors[s]}`;  // hardcoded — safe
+      bar.className = `bar bar-${sevColors[s]}`;  // hardcoded  safe
       bar.style.width = Math.round((sev[s]/total)*100) + '%';
       bar.textContent = String(parseInt(sev[s]) || 0);  // sanitized integer
 
@@ -438,6 +441,7 @@ async function loadStats() {
   // CWE-79 fix: build software chart via DOM API
   const swChart = document.getElementById('software-chart');
   swChart.innerHTML = '';
+  const maxSw = Math.max(...Object.values(bySw), 1);
   Object.entries(bySw)
     .sort((a,b) => b[1]-a[1])
     .forEach(([sw, count]) => {
@@ -470,18 +474,18 @@ async function openCveDetail(cveId) {
     const data = await api(`/api/cves/${encodeURIComponent(cveId)}`);
     
     document.getElementById('modal-cve-id').textContent = data.id || cveId;
-    document.getElementById('modal-software').textContent = data.software || '—';
-    document.getElementById('modal-source').textContent = data.source || '—';
-    document.getElementById('modal-score').textContent = data.cvss_score ? data.cvss_score.toFixed(1) : '—';
-    document.getElementById('modal-cvss-version').textContent = data.cvss_version || '—';
-    document.getElementById('modal-description').textContent = data.description || '—';
+    document.getElementById('modal-software').textContent = data.software || '';
+    document.getElementById('modal-source').textContent = data.source || '';
+    document.getElementById('modal-score').textContent = data.cvss_score ? data.cvss_score.toFixed(1) : '';
+    document.getElementById('modal-cvss-version').textContent = data.cvss_version || '';
+    document.getElementById('modal-description').textContent = data.description || '';
     
     const sev = (data.severity || 'UNKNOWN').toUpperCase();
     const sevEl = document.getElementById('modal-severity');
     sevEl.textContent = sev;
     sevEl.className = `value severity-badge sev-${sev}`;
     
-    const pub = data.published_at ? data.published_at.substring(0, 10) : '—';
+    const pub = data.published_at ? data.published_at.substring(0, 10) : '';
     document.getElementById('modal-published').textContent = pub;
     
     // Links
@@ -493,7 +497,7 @@ async function openCveDetail(cveId) {
       a.href = data.url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = '🔗 View on NVD';
+      a.textContent = ' View on NVD';
       linksEl.appendChild(a);
     }
     if (data.id && data.id.startsWith('CVE-')) {
@@ -502,7 +506,7 @@ async function openCveDetail(cveId) {
       a2.href = `https://msrc.microsoft.com/update-guide/en-US/vulnerability/${data.id}`;
       a2.target = '_blank';
       a2.rel = 'noopener noreferrer';
-      a2.textContent = '🔗 View on MSRC';
+      a2.textContent = ' View on MSRC';
       linksEl.appendChild(a2);
     }
     
@@ -533,37 +537,37 @@ init();
 <!-- CVE Detail Modal -->
 <div class="modal-overlay" id="cve-modal" onclick="if(event.target===this)closeModal()">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">✕</button>
+    <button class="modal-close" onclick="closeModal()"></button>
     <h2 id="modal-cve-id">CVE-XXXX-XXXXX</h2>
     <div class="modal-grid">
       <div class="modal-field">
         <div class="label">Software</div>
-        <div class="value" id="modal-software">—</div>
+        <div class="value" id="modal-software"></div>
       </div>
       <div class="modal-field">
         <div class="label">Severity</div>
-        <div class="value" id="modal-severity">—</div>
+        <div class="value" id="modal-severity"></div>
       </div>
       <div class="modal-field">
         <div class="label">CVSS Score</div>
-        <div class="value" id="modal-score">—</div>
+        <div class="value" id="modal-score"></div>
       </div>
       <div class="modal-field">
         <div class="label">CVSS Version</div>
-        <div class="value" id="modal-cvss-version">—</div>
+        <div class="value" id="modal-cvss-version"></div>
       </div>
       <div class="modal-field">
         <div class="label">Source</div>
-        <div class="value" id="modal-source">—</div>
+        <div class="value" id="modal-source"></div>
       </div>
       <div class="modal-field">
         <div class="label">Published</div>
-        <div class="value" id="modal-published">—</div>
+        <div class="value" id="modal-published"></div>
       </div>
     </div>
     <div class="modal-desc">
       <div class="label">Description</div>
-      <div class="value" id="modal-description">—</div>
+      <div class="value" id="modal-description"></div>
     </div>
     <div class="modal-links" id="modal-links"></div>
   </div>
