@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   docker:
     runs-on: ubuntu-latest
