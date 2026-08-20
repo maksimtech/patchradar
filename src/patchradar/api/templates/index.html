@@ -176,8 +176,18 @@ let currentSearch = '';
 async function api(path, method='GET', body=null) {
   const opts = { method, headers: {'Content-Type': 'application/json'} };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(path, opts);
-  return r.json();
+  try {
+    const r = await fetch(path, opts);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      toast(`Error ${r.status}: ${err.detail || r.statusText}`, '#f85149');
+      return {};
+    }
+    return r.json();
+  } catch (e) {
+    toast('Network error — is PatchRadar running?', '#f85149');
+    return {};
+  }
 }
 
 function toast(msg, color='#238636') {
