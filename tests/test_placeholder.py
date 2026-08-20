@@ -288,6 +288,95 @@ async def test_nvd_fetch_timeout():
 
     assert cves == []
 
+
+# ─── Debian Collector Tests ──────────────────────────────────────────────────
+from patchradar.collectors.debian import fetch_cves as debian_fetch_cves
+
+@pytest.mark.asyncio
+async def test_debian_fetch_success():
+    """Mock Debian Security Tracker response with valid CVE data"""
+    mock_response = {
+        "nginx": {
+            "CVE-2026-12345": {
+                "description": "Test nginx vulnerability",
+                "scope": "local",
+                "releases": {
+                    "trixie": {
+                        "status": "open",
+                        "urgency": "grave",
+                        "repositories": {}
+                    }
+                }
+            }
+        }
+    }
+    with respx.mock:
+        respx.get("https://security-tracker.debian.org/tracker/data/json").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
+        cves = await debian_fetch_cves("nginx")
+    assert len(cves) == 1
+    assert cves[0]["id"] == "CVE-2026-12345"
+    assert cves[0]["severity"] == "HIGH"
+    assert cves[0]["software"] == "nginx"
+    assert cves[0]["source"] == "Debian"
+
+@pytest.mark.asyncio
+async def test_debian_fetch_resolved():
+    """Resolved CVEs should not be returned"""
+    mock_response = {
+        "nginx": {
+            "CVE-2026-99999": {
+                "description": "Already fixed",
+                "scope": "local",
+                "releases": {
+                    "trixie": {
+                        "status": "resolved",
+                        "urgency": "grave",
+                        "repositories": {}
+                    }
+                }
+            }
+        }
+    }
+    with respx.mock:
+        respx.get("https://security-tracker.debian.org/tracker/data/json").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
+        cves = await debian_fetch_cves("nginx")
+    assert len(cves) == 0
+
+@pytest.mark.asyncio
+async def test_debian_fetch_no_match():
+    """No matching packages should return empty list"""
+    mock_response = {
+        "apache2": {
+            "CVE-2026-11111": {
+                "description": "Apache vulnerability",
+                "scope": "local",
+                "releases": {
+                    "trixie": {"status": "open", "urgency": "low", "repositories": {}}
+                }
+            }
+        }
+    }
+    with respx.mock:
+        respx.get("https://security-tracker.debian.org/tracker/data/json").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
+        cves = await debian_fetch_cves("nginx")
+    assert len(cves) == 0
+
+@pytest.mark.asyncio
+async def test_debian_fetch_error():
+    """API error should return empty list gracefully"""
+    with respx.mock:
+        respx.get("https://security-tracker.debian.org/tracker/data/json").mock(
+            return_value=httpx.Response(500)
+        )
+        cves = await debian_fetch_cves("nginx")
+    assert cves == []
+
 # ─── Database CRUD Tests ──────────────────────────────────────────────────────
 
 from patchradar.db.database import save_cve, get_cves
