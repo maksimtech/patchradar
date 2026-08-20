@@ -1,5 +1,5 @@
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 
 MSRC_API = "https://api.msrc.microsoft.com/cvrf/v3.0"
 HEADERS = {"Accept": "application/json"}
@@ -13,7 +13,6 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
     months_to_check = set()
     
     for days in range(0, days_back + 30, 30):
-        from datetime import timedelta
         check_date = now - timedelta(days=days)
         months_to_check.add(f"{check_date.year}-{check_date.strftime('%b')}")
     
