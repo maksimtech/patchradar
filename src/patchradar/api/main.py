@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Query, Path
 from contextlib import asynccontextmanager
-from fastapi.responses import Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import Response, HTMLResponse
 from pathlib import Path as FilePath
 from importlib.metadata import version as pkg_version
 from patchradar.db.database import (
@@ -18,7 +17,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     yield
 
-app = FastAPI(title="PatchRadar", version="2026.8.7", lifespan=lifespan)
+app = FastAPI(title="PatchRadar", version=pkg_version("patchradar"), lifespan=lifespan)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
