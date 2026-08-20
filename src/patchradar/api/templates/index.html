@@ -507,7 +507,7 @@ async function openCveDetail(cveId) {
       a.href = data.url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = ' View on NVD';
+      a.textContent = 'View on NVD';
       linksEl.appendChild(a);
     }
     if (data.id && data.id.startsWith('CVE-')) {
@@ -516,7 +516,7 @@ async function openCveDetail(cveId) {
       a2.href = `https://msrc.microsoft.com/update-guide/en-US/vulnerability/${data.id}`;
       a2.target = '_blank';
       a2.rel = 'noopener noreferrer';
-      a2.textContent = ' View on MSRC';
+      a2.textContent = 'View on MSRC';
       linksEl.appendChild(a2);
     }
     
