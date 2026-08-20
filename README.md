@@ -1,3 +1,10 @@
+# PatchRadar
+
+![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13%20|%203.14%20|%203.15--dev-blue)
+[![CI](https://github.com/maksimtech/patchradar/actions/workflows/test.yml/badge.svg)](https://github.com/maksimtech/patchradar/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/patchradar)](https://pypi.org/project/patchradar/)
+[![Docker](https://img.shields.io/docker/v/maksimtech/patchradar?label=docker)](https://hub.docker.com/r/maksimtech/patchradar)
+
 # PatchRadar 🛡️
 
 > Know when your software is vulnerable — before attackers do.
