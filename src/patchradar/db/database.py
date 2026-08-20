@@ -61,7 +61,7 @@ async def remove_from_watchlist(name: str) -> bool:
 async def save_cve(cve: dict) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         try:
-            await db.execute("""
+            cursor = await db.execute("""
                 INSERT OR IGNORE INTO cves 
                 (id, software, description, cvss_score, cvss_version, 
                  severity, published_at, source, url)
