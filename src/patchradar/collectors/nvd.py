@@ -22,7 +22,7 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
             response = await client.get(NVD_API, params=params)
             response.raise_for_status()
             data = response.json()
-        except Exception as e:
+        except Exception:
             return []
 
     results = []
