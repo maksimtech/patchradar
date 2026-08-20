@@ -1,5 +1,4 @@
 import aiosqlite
-import asyncio
 from pathlib import Path
 
 DB_PATH = Path.home() / ".patchradar" / "patchradar.db"
