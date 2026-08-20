@@ -21,11 +21,12 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 
 ## ✨ Features
 
-- 🔍 **Realtime CVE monitoring** — scans NVD and other sources for new vulnerabilities
+- 🔍 **Realtime CVE monitoring** — scans NVD, MSRC and Debian Security Tracker for new vulnerabilities
 - 📋 **Personal watchlist** — add any software you want to monitor
 - 🎨 **Beautiful web UI** — dark theme dashboard with charts and filters
 - 💻 **CLI first** — full command line interface for automation
 - 📊 **CVSS scoring** — color-coded severity (Critical / High / Medium / Low)
+- 🐧 **Debian Security Tracker** — monitors open CVEs for Debian/Ubuntu packages
 - 💾 **Local SQLite** — all data stored locally, no cloud, no account needed
 - 🐍 **Python 3.11+** — modern async architecture with httpx and FastAPI
 
