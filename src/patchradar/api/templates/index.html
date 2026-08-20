@@ -271,11 +271,11 @@ async function scanAll() {
   btn.disabled = true;
   try {
     const data = await api('/api/scan?days=30', 'POST');
-    toast(` Found ${data.total} CVEs`);
+    toast(`Found ${data.total} CVEs`);
     await loadCves();
     await loadStats();
   } finally {
-    btn.innerHTML = ' Scan All';
+    btn.innerHTML = 'Scan All';
     btn.disabled = false;
   }
 }
