@@ -7,7 +7,6 @@ from httpx import AsyncClient, ASGITransport
 from patchradar.api.main import app
 from patchradar.db.database import init_db, add_to_watchlist, get_watchlist, remove_from_watchlist
 
-pytestmark = pytest.mark.asyncio
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -21,11 +20,13 @@ async def client():
         yield ac
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_index_returns_200(client):
     response = await client.get("/")
     assert response.status_code == 200
     assert "PatchRadar" in response.text
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_security_headers(client):
     response = await client.get("/")
@@ -35,11 +36,13 @@ async def test_security_headers(client):
     assert "x-content-type-options" in response.headers
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_watchlist_empty(client):
     response = await client.get("/api/watchlist")
     assert response.status_code == 200
     assert "watchlist" in response.json()
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_add_software(client):
     response = await client.post("/api/watchlist/testapp")
@@ -48,6 +51,7 @@ async def test_add_software(client):
     assert data["software"] == "testapp"
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_remove_software(client):
     await client.post("/api/watchlist/testapp2")
     response = await client.delete("/api/watchlist/testapp2")
@@ -55,31 +59,37 @@ async def test_remove_software(client):
     assert response.json()["removed"] == True
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_software_too_long(client):
     long_name = "a" * 101
     response = await client.post(f"/api/watchlist/{long_name}")
     assert response.status_code == 422
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_days_too_high(client):
     response = await client.post("/api/scan?days=999")
     assert response.status_code == 422
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_limit_too_high(client):
     response = await client.get("/api/cves?limit=9999")
     assert response.status_code == 422
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_days_minimum(client):
     response = await client.post("/api/scan?days=0")
     assert response.status_code == 422
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_limit_minimum(client):
     response = await client.get("/api/cves?limit=0")
     assert response.status_code == 422
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_cves_endpoint(client):
     response = await client.get("/api/cves")
@@ -88,6 +98,7 @@ async def test_cves_endpoint(client):
     assert "cves" in data
     assert "total" in data
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_stats_endpoint(client):
     response = await client.get("/api/stats")
@@ -98,6 +109,7 @@ async def test_stats_endpoint(client):
     assert "by_severity" in data
     assert "by_software" in data
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_add_and_get():
     await init_db()
@@ -111,12 +123,14 @@ async def test_db_add_and_get():
     await remove_from_watchlist("pytest-test-software")
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_db_duplicate():
     await init_db()
     await add_to_watchlist("duplicate-test")
     added_again = await add_to_watchlist("duplicate-test")
     assert added_again == False
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_remove():
     await init_db()
@@ -125,6 +139,7 @@ async def test_db_remove():
     assert removed == True
 
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_remove_cleans_orphan_cves():
     """Verify that removing a software from watchlist also deletes its CVEs."""
@@ -149,6 +164,7 @@ async def test_db_remove_cleans_orphan_cves():
     assert len(cves_after) == 0, "Orphan CVEs should be deleted when software is removed from watchlist"
 
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_watchlist_import(client):
     """Test bulk import of software into watchlist."""
@@ -213,6 +229,7 @@ import httpx
 from patchradar.collectors.nvd import fetch_cves
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_nvd_fetch_success():
     """Mock NVD API response with valid CVE data"""
     mock_response = {
@@ -254,6 +271,7 @@ async def test_nvd_fetch_success():
     assert cves[0]["software"] == "testsoftware"
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_nvd_fetch_empty():
     """Mock NVD API response with no CVEs"""
     mock_response = {"vulnerabilities": []}
@@ -267,6 +285,7 @@ async def test_nvd_fetch_empty():
     assert len(cves) == 0
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_nvd_fetch_error():
     """Mock NVD API error — should return empty list gracefully"""
     with respx.mock:
@@ -277,6 +296,7 @@ async def test_nvd_fetch_error():
 
     assert cves == []
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_nvd_fetch_timeout():
     """Mock NVD API timeout — should return empty list gracefully"""
@@ -292,6 +312,7 @@ async def test_nvd_fetch_timeout():
 # ─── Debian Collector Tests ──────────────────────────────────────────────────
 from patchradar.collectors.debian import fetch_cves as debian_fetch_cves
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_debian_fetch_success():
     """Mock Debian Security Tracker response with valid CVE data"""
@@ -322,6 +343,7 @@ async def test_debian_fetch_success():
     assert cves[0]["source"] == "Debian"
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_debian_fetch_resolved():
     """Resolved CVEs should not be returned"""
     mock_response = {
@@ -347,6 +369,7 @@ async def test_debian_fetch_resolved():
     assert len(cves) == 0
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_debian_fetch_no_match():
     """No matching packages should return empty list"""
     mock_response = {
@@ -368,6 +391,7 @@ async def test_debian_fetch_no_match():
     assert len(cves) == 0
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_debian_fetch_error():
     """API error should return empty list gracefully"""
     with respx.mock:
@@ -381,6 +405,7 @@ async def test_debian_fetch_error():
 
 from patchradar.db.database import save_cve, get_cves
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_save_and_get_cve():
     """Test saving and retrieving a CVE"""
@@ -400,6 +425,7 @@ async def test_db_save_and_get_cve():
     cves = await get_cves(software="test-db-software")
     assert any(c["id"] == "CVE-2026-TEST01" for c in cves)
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_save_duplicate_cve():
     """Test that duplicate CVEs are handled gracefully"""
@@ -421,6 +447,7 @@ async def test_db_save_duplicate_cve():
     count = sum(1 for c in cves if c["id"] == "CVE-2026-TEST02")
     assert count == 1  # only one copy
 
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_get_cves_with_limit():
     """Test CVE retrieval with limit"""
