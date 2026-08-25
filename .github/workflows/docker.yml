@@ -3,9 +3,6 @@ name: Build and Push Docker Image
 on:
   release:
     types: [published]
-  workflow_run:
-    workflows: ["Publish to PyPI"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -15,6 +12,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for PyPI propagation
+        run: sleep 60
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
