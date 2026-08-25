@@ -27,7 +27,11 @@ jobs:
         run: pip install --upgrade build hatchling  # NOSONAR - trusted packages
 
       - name: Build package
-        run: python -m build
+        run: python -m build --verbose
+      - name: Debug dist contents
+        run: |
+          ls -la dist/
+          python -m zipfile -l dist/*.whl
       - name: Verify wheel metadata
         run: |
           python -m zipfile -l dist/*.whl
