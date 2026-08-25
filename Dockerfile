@@ -20,8 +20,16 @@ WORKDIR /app
 RUN pip install --no-cache-dir --root-user-action=ignore patchradar && \
     pip install --no-cache-dir --root-user-action=ignore "setuptools>=78.1.1" "msgpack>=1.1.5"
 
+# Crea utente non-root per sicurezza
+RUN useradd -m -u 1000 patchradar && \
+    mkdir -p /home/patchradar/.patchradar && \
+    chown -R patchradar:patchradar /home/patchradar
+
+USER patchradar
+WORKDIR /home/patchradar
+
 # Volume per dati persistenti
-VOLUME ["/root/.patchradar"]
+VOLUME ["/home/patchradar/.patchradar"]
 
 # Porta
 EXPOSE 8000
