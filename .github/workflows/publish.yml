@@ -24,7 +24,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install build dependencies
-        run: pip install build hatchling  # NOSONAR - trusted packages, no external setup scripts
+        run: pip install --upgrade build hatchling  # NOSONAR - trusted packages
 
       - name: Build package
         run: python -m build
