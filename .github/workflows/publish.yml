@@ -28,6 +28,8 @@ jobs:
 
       - name: Build package
         run: python -m build
+      - name: Verify wheel metadata
+        run: python -m zipfile -l dist/*.whl | grep METADATA
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@ec4db0b4ddc65acdf4bff5fa45ac92d78b56bdf0 # v1.9.0
