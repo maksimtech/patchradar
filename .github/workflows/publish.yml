@@ -27,18 +27,8 @@ jobs:
         run: pip install --upgrade build hatchling  # NOSONAR - trusted packages
 
       - name: Build package
-        run: python -m build --verbose
-      - name: Debug dist contents
-        run: |
-          ls -la dist/
-          python -m zipfile -l dist/*.whl
-      - name: Verify wheel metadata
-        run: |
-          python -m zipfile -l dist/*.whl
-          python -m zipfile -e dist/*.whl /tmp/wheel_extracted
-          cat /tmp/wheel_extracted/*/METADATA | head -20
-
+        run: python -m build
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           verify-metadata: false
