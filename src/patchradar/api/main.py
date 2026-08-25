@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Query, Path
+from fastapi import FastAPI, HTTPException, Request, Query, Path
 from contextlib import asynccontextmanager
 from fastapi.responses import Response, HTMLResponse
 from pathlib import Path as FilePath
@@ -63,12 +63,11 @@ async def api_watchlist():
     items = await get_watchlist()
     return {"watchlist": items}
 
-@app.post("/api/watchlist/import")
+@app.post("/api/watchlist/import", responses={400: {"description": "Invalid payload — expected a list of software names"}})
 async def api_watchlist_import(payload: dict):
     """Import a list of software names into the watchlist."""
     software_list = payload.get("software", [])
     if not isinstance(software_list, list):
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Expected {'software': [...list of names...]}")
     added = []
     skipped = []
@@ -147,7 +146,7 @@ async def api_stats():
     }
 
 
-@app.get("/api/cves/{cve_id}")
+@app.get("/api/cves/{cve_id}", responses={404: {"description": "CVE not found"}})
 async def api_cve_detail(cve_id: str = Path(..., min_length=1, max_length=50)):
     """Get a single CVE by ID."""
     from patchradar.db.database import DB_PATH
@@ -158,7 +157,6 @@ async def api_cve_detail(cve_id: str = Path(..., min_length=1, max_length=50)):
         ) as cursor:
             row = await cursor.fetchone()
     if not row:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="CVE not found")
     return sanitize_cve(dict(row))
 
