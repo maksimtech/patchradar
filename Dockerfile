@@ -16,8 +16,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Versione PatchRadar da installare
+ARG PATCHRADAR_VERSION=2026.8.33
+
 # Installa patchradar da PyPI con dipendenze aggiornate
-RUN pip install --no-cache-dir --root-user-action=ignore --only-binary :all: patchradar && \
+RUN pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "patchradar==${PATCHRADAR_VERSION}" && \
     pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "setuptools==78.1.1" "msgpack==1.2.1"
 
 # Crea utente non-root per sicurezza
