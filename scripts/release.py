@@ -11,7 +11,7 @@ from pathlib import Path
 
 PYPROJECT = Path(__file__).parent.parent / "pyproject.toml"
 
-CHANGELOG_FILE = CHANGELOG_FILE
+CHANGELOG_FILE = "CHANGELOG.md"
 
 
 def get_current_version() -> str:
