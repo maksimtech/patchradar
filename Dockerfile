@@ -18,7 +18,7 @@ WORKDIR /app
 
 # Installa patchradar da PyPI con dipendenze aggiornate
 RUN pip install --no-cache-dir --root-user-action=ignore --only-binary :all: patchradar && \
-    pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "setuptools>=78.1.1" "msgpack>=1.2.1"
+    pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "setuptools==78.1.1" "msgpack==1.2.1"
 
 # Crea utente non-root per sicurezza
 RUN useradd -m -u 1000 patchradar && \
