@@ -11,6 +11,9 @@ from pathlib import Path
 
 PYPROJECT = Path(__file__).parent.parent / "pyproject.toml"
 
+CHANGELOG_FILE = CHANGELOG_FILE
+
+
 def get_current_version() -> str:
     content = PYPROJECT.read_text()
     match = re.search(r'^version = "(.+)"', content, re.MULTILINE)
@@ -43,8 +46,8 @@ def main():
 
     # Genera CHANGELOG automaticamente
     print("\n📝 Generating CHANGELOG.md...")
-    run(["git", "cliff", "--output", "CHANGELOG.md"])
-    run(["git", "add", "CHANGELOG.md"])
+    run(["git", "cliff", "--output", CHANGELOG_FILE])
+    run(["git", "add", CHANGELOG_FILE])
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
         capture_output=True
@@ -57,7 +60,7 @@ def main():
     run([
         "gh", "release", "create", version,
         "--title", version,
-        "--notes-file", "CHANGELOG.md",
+        "--notes-file", CHANGELOG_FILE,
         "--latest"
     ])
 
