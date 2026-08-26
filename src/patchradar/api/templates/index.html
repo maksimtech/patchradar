@@ -129,7 +129,7 @@
         <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;">
           <button class="btn btn-scan" id="scan-btn" onclick="scanAll()"> Scan All</button>
           <button class="btn" onclick="document.getElementById('import-file').click()" style="background:#1f6feb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;"> Import from file</button>
-          <input type="file" id="import-file" accept=".txt,.csv" style="display:none" onchange="importFromFile(event)">
+          <input type="file" id="import-file" accept=".txt,.csv" aria-label="Import software list from file" style="display:none" onchange="importFromFile(event)">
         </div>
       </div>
 
