@@ -56,6 +56,21 @@ def list_watchlist():
         table.add_row(item)
     console.print(table)
 
+async def _scan_target(target: str, days: int) -> int:
+    """Scan a single target for CVEs and return count."""
+    with console.status(f"[cyan]Scanning {target}...[/cyan]"):
+        nvd_cves = await fetch_cves(target, days_back=days)
+    msrc_cves = await msrc_fetch(target, days_back=days)
+    all_cves = nvd_cves + msrc_cves
+    for cve in all_cves:
+        await save_cve(cve)
+    if all_cves:
+        _print_cves(target, all_cves)
+    else:
+        console.print(f"[green]{target}[/green] — no CVEs found in last {days} days")
+    return len(all_cves)
+
+
 @app.command()
 def scan(
     software: str = typer.Argument(None, help="Software to scan (or all watchlist)"),
@@ -65,28 +80,10 @@ def scan(
     async def _scan():
         targets = [software] if software else await get_watchlist()
         if not targets:
-            console.print("📭 Nothing to scan. Add software with [bold]patchradar add[/bold]")
+            console.print("Nothing to scan. Add software with [bold]patchradar add[/bold]")
             return
-
-        total = 0
-        for target in targets:
-            with console.status(f"[cyan]Scanning {target}...[/cyan]"):
-                cves = await fetch_cves(target, days_back=days)
-            msrc_cves = await msrc_fetch(target, days_back=days)
-            all_cves = cves + msrc_cves
-
-            for cve in all_cves:
-                await save_cve(cve)
-
-            total += len(all_cves)
-            cves = all_cves
-            if cves:
-                _print_cves(target, cves)
-            else:
-                console.print(f"✅ [green]{target}[/green] — no CVEs found in last {days} days")
-
-        console.print(f"\n📊 Total: [bold]{total}[/bold] CVEs found")
-
+        total = sum([await _scan_target(t, days) for t in targets])
+        console.print(f"\n Total: [bold]{total}[/bold] CVEs found")
     run(_scan())
 
 @app.command()
