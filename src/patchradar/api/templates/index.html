@@ -439,7 +439,7 @@ async function loadStats() {
       const bar = document.createElement('div');
       bar.className = `bar bar-${sevColors[s]}`;  // hardcoded  safe
       bar.style.width = Math.round((sev[s]/total)*100) + '%';
-      bar.textContent = String(parseInt(sev[s]) || 0);  // sanitized integer
+      bar.textContent = String(Number.parseInt(sev[s]) || 0);  // sanitized integer
 
       barWrap.appendChild(bar);
       div.appendChild(label);
