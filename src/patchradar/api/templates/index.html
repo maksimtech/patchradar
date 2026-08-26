@@ -545,7 +545,7 @@ init();
 </script>
 
 <!-- CVE Detail Modal -->
-<div class="modal-overlay" id="cve-modal" onclick="if(event.target===this)closeModal()">
+<div class="modal-overlay" id="cve-modal" role="dialog" aria-modal="true" aria-label="CVE Details" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()"></button>
     <h2 id="modal-cve-id">CVE-XXXX-XXXXX</h2>
