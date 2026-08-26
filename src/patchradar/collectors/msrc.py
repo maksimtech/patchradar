@@ -54,7 +54,8 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
     now = datetime.now()
     months_to_check = set()
     
-    for days in range(0, days_back + 30, 30):
+    safe_days_back = min(max(int(days_back), 1), 90)  # clamp to safe range
+    for days in range(0, safe_days_back + 30, 30):
         check_date = now - timedelta(days=days)
         months_to_check.add(f"{check_date.year}-{check_date.strftime('%b')}")
     
