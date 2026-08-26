@@ -157,7 +157,7 @@
         <button class="filter-btn low" onclick="setFilter('LOW', this)">Low</button>
       </div>
       <div style="margin-bottom:0.8rem">
-        <input class="search-input" id="search-input" type="text" placeholder=" Filter by software..." oninput="currentSearch=this.value;renderTable()" onkeydown="if(event.key==='Enter'){event.preventDefault();return false;}">
+        <input class="search-input" id="search-input" type="text" placeholder=" Filter by software..." aria-label="Filter CVEs by software name" oninput="currentSearch=this.value;renderTable()" onkeydown="if(event.key==='Enter'){event.preventDefault();return false;}">
       </div>
       <div id="cve-table-wrap">
         <div class="empty">Run a scan to see CVEs</div>
