@@ -48,6 +48,13 @@ Issues = "https://github.com/maksimtech/patchradar/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/patchradar"]
 
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "def __repr__", "if __name__ == .__main__."]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
@@ -55,5 +62,6 @@ asyncio_mode = "auto"
 dev = [
     "pytest (>=9.1.1,<10.0.0)",
     "pytest-asyncio (>=1.4.0,<2.0.0)",
-    "pytest-codspeed (>=5.0.3,<6.0.0)"
+    "pytest-codspeed (>=5.0.3,<6.0.0)",
+    "pytest-cov (>=6.0.0,<7.0.0)"
 ]
