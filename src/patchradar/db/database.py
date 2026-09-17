@@ -1,7 +1,11 @@
 import aiosqlite
 from pathlib import Path
 
-DB_PATH = Path.home() / ".patchradar" / "patchradar.db"
+# The production location. Kept separate from DB_PATH so the running value can
+# be redirected (the test suite does) without losing the real default.
+DEFAULT_DB_PATH = Path.home() / ".patchradar" / "patchradar.db"
+
+DB_PATH = DEFAULT_DB_PATH
 
 async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -51,11 +55,16 @@ async def remove_from_watchlist(name: str) -> bool:
         cursor = await db.execute(
             "DELETE FROM watchlist WHERE name = ?", (name.lower(),)
         )
-        await db.execute(
-            "DELETE FROM cves WHERE software = ?", (name.lower(),)
-        )
+        removed = cursor.rowcount > 0
+        # Only cascade when something was actually being watched: an
+        # unconditional delete let a caller wipe the CVE history of software
+        # that was never on the list.
+        if removed:
+            await db.execute(
+                "DELETE FROM cves WHERE software = ?", (name.lower(),)
+            )
         await db.commit()
-        return cursor.rowcount > 0
+        return removed
 
 async def save_cve(cve: dict) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:

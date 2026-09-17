@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import logging
 import os
+import re
 from fastapi import Depends, FastAPI, HTTPException, Request, Query, Path
 from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
@@ -88,6 +89,35 @@ async def security_headers(request: Request, call_next) -> Response:
     return response
 
 
+# Single source of truth for what a watchlist name may be. The import endpoint
+# used to enforce none of this, so anything the path endpoint rejected could be
+# smuggled in through it and then rendered by the CLI.
+# A literal space rather than \s: \s also matches newlines and tabs, so the
+# original pattern admitted multi-line names, which break the CLI table layout
+# and open the door to log injection. Only a space is ever meant ("windows 10").
+SOFTWARE_NAME_PATTERN = r"^[\w \-\.]+$"
+SOFTWARE_NAME_MAX_LENGTH = 100
+_SOFTWARE_NAME_RE = re.compile(SOFTWARE_NAME_PATTERN)
+
+
+def normalise_software_name(value) -> str | None:
+    """Canonical watchlist name, or None when the value is not acceptable.
+
+    Accepts only strings: an import payload is arbitrary JSON, and calling
+    .strip() on an int used to surface as HTTP 500. Over-long names are
+    rejected rather than truncated — silently watching a different name than
+    the caller asked for is worse than refusing.
+    """
+    if not isinstance(value, str):
+        return None
+    name = value.strip().lower()
+    if not name or len(name) > SOFTWARE_NAME_MAX_LENGTH:
+        return None
+    if not _SOFTWARE_NAME_RE.match(name):
+        return None
+    return name
+
+
 def sanitize_cve(cve: dict) -> dict:
     """Sanitize CVE data before returning to frontend — removes null bytes and truncates long strings."""
     safe = {}
@@ -127,25 +157,36 @@ async def api_watchlist_import(payload: dict):
         raise HTTPException(status_code=400, detail="Expected {'software': [...list of names...]}")
     added = []
     skipped = []
-    for sw in software_list:
-        sw = sw.strip().lower()[:100]
-        if not sw:
+    rejected = []
+    for raw in software_list:
+        name = normalise_software_name(raw)
+        if name is None:
+            # Reported rather than dropped silently: an import file usually
+            # contains some junk lines and the caller should see which.
+            rejected.append(str(raw)[:SOFTWARE_NAME_MAX_LENGTH])
             continue
-        result = await add_to_watchlist(sw)
-        if result:
-            added.append(sw)
+        if await add_to_watchlist(name):
+            added.append(name)
         else:
-            skipped.append(sw)
-    return {"added": added, "skipped": skipped, "total": len(added)}
+            skipped.append(name)
+    return {"added": added, "skipped": skipped, "rejected": rejected, "total": len(added)}
 
 @app.post(
     "/api/watchlist/{software}",
     dependencies=[Depends(require_api_key)],
     responses={401: {"description": "Missing or invalid API key"}},
 )
-async def api_add(software: str = Path(..., min_length=1, max_length=100, pattern=r"^[\w\s\-\.]+$")):
-    added = await add_to_watchlist(software)
-    return {"added": added, "software": software}
+async def api_add(
+    software: str = Path(
+        ..., min_length=1, max_length=SOFTWARE_NAME_MAX_LENGTH, pattern=SOFTWARE_NAME_PATTERN
+    )
+):
+    # Normalise here too, so both routes store the same canonical value.
+    name = normalise_software_name(software)
+    if name is None:
+        raise HTTPException(status_code=422, detail="Invalid software name")
+    added = await add_to_watchlist(name)
+    return {"added": added, "software": name}
 
 
 @app.delete(

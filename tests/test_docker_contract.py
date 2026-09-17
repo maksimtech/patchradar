@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from patchradar.db.database import DB_PATH
+# DEFAULT_DB_PATH, not DB_PATH: the suite redirects the live value at a
+# temporary directory, and this contract is about the production location.
+from patchradar.db.database import DEFAULT_DB_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "Dockerfile"
@@ -84,11 +86,11 @@ def test_compose_does_not_mount_under_root_home():
 
 def test_data_dir_name_matches_the_application():
     """If DB_PATH's directory is ever renamed, the Docker mounts must follow."""
-    assert DB_PATH.parent.name == DATA_DIR_NAME
+    assert DEFAULT_DB_PATH.parent.name == DATA_DIR_NAME
     for volume in dockerfile_volumes():
         assert volume.endswith(f"/{DATA_DIR_NAME}"), (
             f"volume {volume!r} does not end in /{DATA_DIR_NAME}, "
-            f"but the app stores its database in {DB_PATH.parent}"
+            f"but the app stores its database in {DEFAULT_DB_PATH.parent}"
         )
 
 

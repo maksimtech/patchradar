@@ -282,7 +282,11 @@ async function importFromFile(event) {
     .filter(l => l && l.length > 1 && !l.startsWith('-') && l !== 'name');
   if (!lines.length) { toast('No software found in file', '#d29922'); return; }
   const data = await api('/api/watchlist/import', 'POST', { software: lines });
-  toast(`Imported ${data.added.length} software, ${data.skipped.length} already in watchlist`);
+  if (!data.added) { event.target.value = ''; return; }   // request failed; api() already reported it
+  const parts = [`Imported ${data.added.length}`];
+  if (data.skipped.length) parts.push(`${data.skipped.length} already present`);
+  if (data.rejected.length) parts.push(`${data.rejected.length} invalid`);
+  toast(parts.join(', '), data.rejected.length ? '#d29922' : '#238636');
   await loadWatchlist();
   // Reset file input
   event.target.value = '';
