@@ -7,10 +7,19 @@ All notable changes to PatchRadar are documented here.
 ### 🐛 Bug Fixes
 
 - G1-G4+G6 — health endpoint, markup escape, Debian cache, scan auth+timeout, pytest in CI ([8a3499c](https://github.com/maksimtech/patchradar/commit/8a3499c712236b8aecf910d49d5b7d8e1b5e1f1c))
+- G5 volume Docker path, L5 urgency Debian mapping ([ab64914](https://github.com/maksimtech/patchradar/commit/ab64914445097c2003e7c8ec39110843bf83aa4e))
+- L1-L3 — defensive NVD/MSRC parsers, per-record error isolation ([e1548d5](https://github.com/maksimtech/patchradar/commit/e1548d57218c63827dd99f7b9a0caa24fc6194a9))
+- L4 Debian release scope, L6 MSRC month stride, W5 locale ([5ec6ec0](https://github.com/maksimtech/patchradar/commit/5ec6ec00671b2209b56981da192b31350d403b57))
+- L7-L10 database hardening, watchlist import validation ([7be1c76](https://github.com/maksimtech/patchradar/commit/7be1c76b78ddcffd0370b8d211cf6f33a2b2a337))
+
+### 📄 Documentation
+
+- Update CHANGELOG ([c4c4643](https://github.com/maksimtech/patchradar/commit/c4c4643c28edffb673166f8e800182339aed6c71))
 
 ### 🔧 Maintenance
 
 - Bump version to 2026.9.1 ([9150200](https://github.com/maksimtech/patchradar/commit/915020094ac7034a7f11cfde87f3695ccbee44b5))
+- Bump version to 2026.9.2 ([f7291ac](https://github.com/maksimtech/patchradar/commit/f7291ac513d5a5e3f742c5aa98993188dd1c3ee4))
 
 ## 2026.8.34 — 2026-08-26
 
