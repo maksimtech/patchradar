@@ -1,465 +1,546 @@
 # Changelog
 
-All notable changes to PatchRadar are documented here.
+Tutte le modifiche rilevanti a PatchRadar sono documentate in questo file.
+
+Il formato segue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Il progetto usa versionamento **CalVer** (`YYYY.M.PATCH`), non SemVer.
+
+---
+
+## [2026.9.2] — 2026-09-17
+
+Chiude i difetti di logica emersi dall'audit del codice: falsi positivi e falsi
+negativi nei collector, validazione mancante sull'import e isolamento del
+database nei test.
+
+### Security
+
+- **Import della watchlist senza alcuna validazione.** `POST /api/watchlist/import`
+  applicava solo `strip().lower()[:100]`, mentre `POST /api/watchlist/{software}`
+  imponeva `^[\w\s\-\.]+$` e `max_length=100`. Tutto ciò che la route path
+  rifiutava poteva essere introdotto dall'import: `evil<script>alert(1)</script>`
+  e `evil[bold]x` finivano entrambi in database. Entrambe le route ora condividono
+  `normalise_software_name()`, quindi non possono più divergere.
+- **Nomi multi-riga ammessi dal validatore.** Il pattern usava `\s`, che include
+  newline e tab: `"a\nb"` era un nome valido su entrambe le route. Sostituito con
+  uno spazio letterale (`^[\w \-\.]+$`).
+- **`DELETE /api/watchlist/<nome>` cancellava dati mai richiesti.** La cancellazione
+  a cascata delle CVE veniva eseguita incondizionatamente, anche quando il software
+  non era in watchlist: la chiamata restituiva `false` e intanto svuotava lo storico
+  CVE di quel nome. Ora la cascata avviene solo se una riga è stata davvero rimossa.
+
+### Fixed
+
+- **Dati del container persi a ogni riavvio.** `docker-compose.yml` montava il
+  volume su `/root/.patchradar`, ma l'immagine gira come utente non privilegiato
+  `patchradar` e l'applicazione scrive in `/home/patchradar/.patchradar`. Il volume
+  restava vuoto e watchlist e storico CVE sparivano a ogni ricreazione del
+  container — in silenzio, perché il database veniva comunque creato nel filesystem
+  interno. Verificato end-to-end sull'immagine pubblicata.
+- **7.924 CVE fantasma dal Security Tracker Debian.** Quando un pacchetto non aveva
+  alcuna voce per la release target, `releases.get(release, {})` restituiva un dict
+  vuoto, lo `status` risultava `""` — che non è `"resolved"` — e la CVE veniva
+  riportata come **aperta**. Misurato sul feed reale: 7.924 CVE prive di voce
+  `trixie` su tutto il tracker. Per pacchetto: **postgresql 109 → 0** (100% rumore),
+  **python 332 → 173** (47%), **linux 2.226 → 1.631** (26%). Lo status passa inoltre
+  da blacklist a whitelist `{open, undetermined}`.
+- **Un intero Patch Tuesday mancante.** I mesi MSRC erano ricavati a passi di 30
+  giorni, che non possono enumerare mesi di calendario: da 2026-03-31 con
+  `days_back=90` la sequenza era `Dec, Jan, Mar` — **febbraio saltato del tutto**,
+  quindi un Patch Tuesday completo non veniva mai scaricato. Sostituito con una
+  camminata sui mesi di calendario, contigua per costruzione.
+- **Severity Debian sempre UNKNOWN per le urgency che contano.** La tabella di
+  mappatura era costruita sulle *bug severity* del BTS Debian (`grave`, `serious`,
+  `important`, `moderate`, `critical`), che il Security Tracker non emette mai. I
+  valori reali — verificati sul feed: `not yet assigned`, `unimportant`, `low`,
+  `medium`, `high`, `end-of-life` — cadevano su UNKNOWN, rendendo `high` e `medium`
+  invisibili ai filtri CRITICAL/HIGH e al grafico severity.
+- **Un solo campo malformato interrompeva l'intera scansione.** I collector
+  proteggevano con `try/except` solo la chiamata HTTP; tutto il parsing successivo
+  indicizzava direttamente il JSON. `d["lang"]` sollevava `KeyError` su una
+  descrizione NVD priva della chiave; `item.get("cve", {})` restituiva `None`
+  quando la chiave era presente ma nulla, perché il default non scatta;
+  `vuln.get("RevisionHistory", [{}])[0]` sollevava `IndexError` su una lista
+  presente ma vuota.
+- **Una voce MSRC malformata scartava tutto il mese.** Il `try/except` era *fuori*
+  dal ciclo sulle vulnerabilità, quindi una singola eccezione faceva perdere in
+  silenzio ogni CVE successiva di quel documento mensile. Spostato per-record.
+- **HTTP 500 su elementi non stringa nell'import.** `sw.strip()` presupponeva una
+  stringa: `{"software": [123]}` produceva `AttributeError` e un 500 anziché un
+  errore di validazione.
+- **Nomi dei mesi dipendenti dal locale.** `strftime('%b')` segue `LC_TIME`: su una
+  macchina italiana generava `set` invece di `Sep`, ogni richiesta MSRC rispondeva
+  non-200 e il collector restituiva zero CVE senza segnalare nulla. Sostituito con
+  la costante `MONTH_ABBR`.
+- **La suite di test scriveva sul database reale dell'utente.** I test giravano su
+  `~/.patchradar/patchradar.db`, lasciandovi fixture (`testapp`, `duplicate-test`,
+  un nome di 101 caratteri) e cancellandone righe. Ora una fixture di sessione
+  redirige `DB_PATH` su una directory temporanea. Verificato: il database reale
+  resta byte-identico (sha256 e mtime) dopo una suite completa.
+
+### Changed
+
+- I nomi troppo lunghi sono **rifiutati** invece che troncati silenziosamente a 100
+  caratteri: monitorare un nome diverso da quello richiesto è peggio che rifiutarlo.
+- Le CVE prive di `id` vengono scartate anziché salvate con `id=""`: l'id è la
+  chiave primaria e più record senza id collidevano tra loro.
+- `days_back` determina ora realmente i mesi MSRC interrogati. Il vecchio margine
+  fisso di 30 giorni causava circa 276 richieste HTTP superflue all'anno con
+  `days_back=7`.
+- La risposta di `/api/watchlist/import` espone un terzo insieme `rejected` accanto
+  ad `added` e `skipped`; la UI lo riporta.
+- Entrambe le route della watchlist normalizzano il nome allo stesso modo, quindi
+  scrivono lo stesso valore canonico in database.
+- `database.py` espone `DEFAULT_DB_PATH` accanto a `DB_PATH`, così la posizione di
+  produzione resta nota quando il valore attivo viene rediretto.
+- La route `DELETE` resta deliberatamente permissiva (nessun pattern,
+  `max_length=200`): irrigidirla renderebbe impossibile cancellare i nomi già
+  finiti in database prima di questo rilascio.
+
+### Added
+
+- `logger.debug`/`logger.warning` sui record scartati e sui payload di forma
+  inattesa, al posto del fallimento silenzioso.
+- Suite di test portata da 105 a **370 test**, con file dedicati per escaping,
+  hardening dello scan, contratto Docker, scope delle release Debian, enumerazione
+  dei mesi MSRC, robustezza dei parser, rimozione dalla watchlist, validazione
+  dell'import e isolamento del database.
+
+---
+
+## [2026.9.1] — 2026-09-17
+
+Primo giro di correzioni dall'audit: markup injection nella CLI, endpoint di
+health mancante, hardening di `/api/scan` e attivazione dei test in CI.
+
+### Security
+
+- **Markup injection nell'output della CLI.** Ogni valore di provenienza esterna
+  finiva in una f-string interpretata da Rich: descrizioni CVE, nomi software e
+  target di scansione. Una descrizione ostile poteva applicare colori, nascondere
+  una CVE CRITICAL o piazzare un hyperlink OSC-8 cliccabile in uno strumento di
+  sicurezza. Risolto con `escape()` sulle f-string e `Text()` sulle celle di
+  tabella, che Rich rende sempre verbatim.
+- **`/api/scan` senza autenticazione né limiti.** L'endpoint non aveva alcuna
+  dipendenza di autenticazione mentre l'immagine Docker fa bind su `0.0.0.0`.
+  Introdotta una API key opzionale via `PATCHRADAR_API_KEY`, confrontata con
+  `hmac.compare_digest`, applicata a `/api/scan` e alle route di scrittura della
+  watchlist. Quando la variabile non è impostata gli endpoint restano aperti per
+  compatibilità con l'uso locale, e un warning viene emesso all'avvio.
+- **Nessuna scadenza sulla scansione.** Un feed lento poteva occupare un worker
+  indefinitamente (MSRC 4×30s + NVD 30s + Debian 60s per pacchetto, su una
+  watchlist non limitata). Aggiunto `asyncio.timeout()` con budget configurabile
+  via `PATCHRADAR_SCAN_TIMEOUT` (default 600s) e flag `timed_out` esplicito nella
+  risposta, perché una scansione troncata non sembri completa.
+
+### Fixed
+
+- **Crash su descrizioni CVE del tutto legittime.** Percorsi Unix fra parentesi
+  quadre (`[/tmp]`, `[/etc/passwd]`) sollevavano `MarkupError` e interrompevano
+  `patchradar scan`; riferimenti come `[i]` venivano silenziosamente rimossi dal
+  testo, corrompendo la descrizione della vulnerabilità.
+- **375 MB scaricati per scansione invece di 75 MB.** Il dump del Security Tracker
+  Debian (misurato: 75.173.966 byte) veniva riscaricato **una volta per pacchetto
+  monitorato**: con 5 elementi in watchlist, 5 download identici. Introdotta una
+  cache con TTL di un'ora e `asyncio.Lock`, che riduce il costo a un solo download
+  per scansione e impedisce a scansioni concorrenti di avviarne una ciascuna. Un
+  download fallito non viene mai messo in cache.
+- **Healthcheck Docker sempre fallito.** Dockerfile e docker-compose sondavano
+  `http://localhost:8000/health`, che non esisteva: il container risultava
+  permanentemente `unhealthy`, causando loop di riavvio con
+  `restart: unless-stopped` e bloccando qualsiasi `depends_on: service_healthy`.
+- **La CI non eseguiva mai i test.** Il workflow `Tests` lanciava solo
+  `patchradar --help` e `patchradar list`; `pytest` non veniva mai invocato. In più
+  `respx`, importato dalla suite, non era dichiarato in nessun gruppo di dipendenze,
+  quindi i test non erano nemmeno installabili a partire dal `pyproject.toml`.
+- **Cinque test fallivano su macchina pulita.** `ASGITransport` non esegue
+  l'handler `lifespan`, quindi `init_db()` non veniva mai chiamato durante i test
+  API: passavano solo quando un test precedente aveva già creato il database.
+- **Crash su `description=None`.** L'espressione di troncamento chiamava `len()` su
+  un valore che il collector Debian può restituire nullo. Sostituita dall'helper
+  `_truncate()`.
 
-## Unreleased
+### Added
 
-### 🐛 Bug Fixes
+- Endpoint `GET /health` con verifica di raggiungibilità del database, che
+  risponde 503 quando il database non è scrivibile. Deliberatamente non
+  autenticato: un healthcheck non deve dover portare una credenziale.
+- Variabili d'ambiente `PATCHRADAR_API_KEY` e `PATCHRADAR_SCAN_TIMEOUT`.
+- Passo `Run test suite` nel workflow CI, su tutte e cinque le versioni di Python
+  della matrice; `respx` aggiunto al gruppo di dipendenze `dev`.
+- `tests/conftest.py` con inizializzazione del database a livello di sessione e
+  azzeramento della cache Debian fra i test.
 
-- G1-G4+G6 — health endpoint, markup escape, Debian cache, scan auth+timeout, pytest in CI ([8a3499c](https://github.com/maksimtech/patchradar/commit/8a3499c712236b8aecf910d49d5b7d8e1b5e1f1c))
-- G5 volume Docker path, L5 urgency Debian mapping ([ab64914](https://github.com/maksimtech/patchradar/commit/ab64914445097c2003e7c8ec39110843bf83aa4e))
-- L1-L3 — defensive NVD/MSRC parsers, per-record error isolation ([e1548d5](https://github.com/maksimtech/patchradar/commit/e1548d57218c63827dd99f7b9a0caa24fc6194a9))
-- L4 Debian release scope, L6 MSRC month stride, W5 locale ([5ec6ec0](https://github.com/maksimtech/patchradar/commit/5ec6ec00671b2209b56981da192b31350d403b57))
-- L7-L10 database hardening, watchlist import validation ([7be1c76](https://github.com/maksimtech/patchradar/commit/7be1c76b78ddcffd0370b8d211cf6f33a2b2a337))
+### Changed
 
-### 📄 Documentation
+- La UI conserva la API key in `localStorage` e la richiede al primo 401.
+- La UI segnala esplicitamente una scansione troncata anziché mostrarla come
+  completa.
 
-- Update CHANGELOG ([c4c4643](https://github.com/maksimtech/patchradar/commit/c4c4643c28edffb673166f8e800182339aed6c71))
+---
 
-### 🔧 Maintenance
+## [2026.8.34] — 2026-08-26
 
-- Bump version to 2026.9.1 ([9150200](https://github.com/maksimtech/patchradar/commit/915020094ac7034a7f11cfde87f3695ccbee44b5))
-- Bump version to 2026.9.2 ([f7291ac](https://github.com/maksimtech/patchradar/commit/f7291ac513d5a5e3f742c5aa98993188dd1c3ee4))
+### Fixed
 
-## 2026.8.34 — 2026-08-26
+- Documentate le risposte `HTTPException` negli endpoint API (SonarQube S8415).
+- `CHANGELOG_FILE` definito come costante invece di ripetere il letterale, e
+  corretta una auto-assegnazione (S1656).
+- `days_back` limitato a un intervallo sicuro nel collector MSRC.
+- Accessibilità della UI: `aria-label` su campo di aggiunta, import da file e
+  ricerca; `role="dialog"` e `aria-modal` sull'overlay della modale (S6848);
+  `Number.parseInt` al posto del `parseInt` globale (S7773).
 
-### ♻️ Refactoring
+### Changed
 
-- Extract _scan_target to reduce cognitive complexity (S3776) ([a9712e5](https://github.com/maksimtech/patchradar/commit/a9712e566f7724982b9a3ee89c1d3ad979b928d9))
-- Extract helpers to reduce cognitive complexity in msrc.py (S3776) ([55f8fe8](https://github.com/maksimtech/patchradar/commit/55f8fe815000aba865a71d339c67de1a16e967db))
+- Estratto `_scan_target` nella CLI e helper dedicati in `msrc.py` per ridurre la
+  complessità cognitiva (S3776).
 
-### ⚙️ CI/CD
+### Added
 
-- Add SonarCloud CI-based analysis workflow ([61729f3](https://github.com/maksimtech/patchradar/commit/61729f36424dbd81addb174b02f04ab9c7dd850a))
-- Add pytest-cov for SonarCloud coverage reporting ([1714ce3](https://github.com/maksimtech/patchradar/commit/1714ce3793381ed4847cf6d88f5104d99f33911b))
-- Exclude all files from coverage requirement in SonarCloud ([d51231e](https://github.com/maksimtech/patchradar/commit/d51231e15a43e2754381d997697e89f0aa547309))
+- Workflow di analisi SonarCloud basato su CI, con `pytest-cov` per il report di
+  copertura.
 
-### 🐛 Bug Fixes
+---
 
-- Define CHANGELOG_FILE constant instead of duplicating literal ([c016250](https://github.com/maksimtech/patchradar/commit/c016250a150cdbb1f6c64c4de63846e02efd695a))
-- Correct CHANGELOG_FILE self-assignment (S1656) ([bf84240](https://github.com/maksimtech/patchradar/commit/bf842405fb58d4da247ddf4b9b2e39866dc2e248))
-- Document HTTPException responses in API endpoints (S8415) ([4246026](https://github.com/maksimtech/patchradar/commit/4246026aa8f7ebde4fd8aa94df8db3e7d856922e))
-- Add aria-label to add-input for accessibility (S8415) ([0c5b145](https://github.com/maksimtech/patchradar/commit/0c5b145b096271e2e774d6a9bcfb80a7ccdd024d))
-- Add aria-label to file import input for accessibility ([068eb59](https://github.com/maksimtech/patchradar/commit/068eb5994b916f71dc6e949106fff55cb3c29a1a))
-- Add aria-label to search input for accessibility ([597dcc6](https://github.com/maksimtech/patchradar/commit/597dcc6d1281e8f4b94d8e69794588206ce779c7))
-- Use Number.parseInt instead of global parseInt (S7773) ([fbc73ad](https://github.com/maksimtech/patchradar/commit/fbc73ad196170ac3ddbd62c43529267648372773))
-- Add role=dialog and aria-modal to modal overlay (S6848) ([f8ff44f](https://github.com/maksimtech/patchradar/commit/f8ff44f7daf83b41c4bc96b82d25d1ba56721c45))
-- Clamp days_back to safe range in msrc collector ([b7a21f8](https://github.com/maksimtech/patchradar/commit/b7a21f88d1685039ad63e4ca6e49987adce4455b))
+## [2026.8.33] — 2026-08-25
 
-### 🔧 Maintenance
+### Security
 
-- Bump version to 2026.8.34 ([4d2d4a2](https://github.com/maksimtech/patchradar/commit/4d2d4a272c5f903a2a0c6126283b56b5e9457caa))
-- Update poetry.lock after adding pytest-cov ([9689f74](https://github.com/maksimtech/patchradar/commit/9689f74e7943a5340a479523777f916313083a4f))
-- Regenerate poetry.lock with pytest-cov ([a296c55](https://github.com/maksimtech/patchradar/commit/a296c552f03bb57200844ffc58abe3ef67d398ba))
+- Il container Docker gira come utente non-root.
+- `setuptools` e `msgpack` pinnati a versioni esatte; `msgpack` portato a 1.2.1 per
+  correggere CVE HIGH; `--only-binary :all:` sulle installazioni pip.
+- Tutte le GitHub Action dei workflow pinnate al commit SHA completo.
 
-## 2026.8.33 — 2026-08-25
+### Fixed
 
-### ⚙️ CI/CD
+- Versione di PatchRadar pinnata e passata via `ARG` dalla CI al build Docker.
+- Attesa di 60 secondi per la propagazione su PyPI prima del build Docker.
+- Corretta la pubblicazione su PyPI (`release/v1` pinnato a SHA, flag di
+  `pip install` sistemati, verifica dei metadati del wheel disabilitata).
 
-- Add sonar-project.properties for accurate Python analysis ([0a7a7ba](https://github.com/maksimtech/patchradar/commit/0a7a7ba22d82fe7f85cb42102f0b52ab235af260))
-- Add wheel metadata verification step ([c4ddd4e](https://github.com/maksimtech/patchradar/commit/c4ddd4e882be488ddef92be5e36ca1da532b104a))
-- Debug wheel metadata content ([726a21b](https://github.com/maksimtech/patchradar/commit/726a21b5aceec8511a533a1ac76189f73cf34f61))
-- Debug dist contents after build ([6b839a9](https://github.com/maksimtech/patchradar/commit/6b839a9734b375f1d2233c765c4a91b40ae20d2d))
+### Added
 
-### 🐛 Bug Fixes
+- `sonar-project.properties` per un'analisi Python accurata.
 
-- Add NOSONAR comment for poetry install SonarCloud finding ([6a8bc85](https://github.com/maksimtech/patchradar/commit/6a8bc858719bce0dadba6f19e36bb7c41ab2e282))
-- Pin CodSpeed workflow actions to full commit SHA ([291c909](https://github.com/maksimtech/patchradar/commit/291c909c1966e60373fd62da565d030237a2ce16))
-- Pin Docker workflow actions to full commit SHA ([f8c0fc0](https://github.com/maksimtech/patchradar/commit/f8c0fc00959e461f6f027196abc6b48d0d994236))
-- Pin publish workflow actions to SHA and fix pip install flags ([d6197aa](https://github.com/maksimtech/patchradar/commit/d6197aa5172ad53d67249179bacf4f252e22f39c))
-- Pin trivy and test workflow actions to full SHA ([b39a460](https://github.com/maksimtech/patchradar/commit/b39a460b081ee0695db769a6872cb7703c7807a7))
-- Revert --no-build-isolation, add NOSONAR instead ([79dc0c2](https://github.com/maksimtech/patchradar/commit/79dc0c2d572a10f77925bc6a159b2541c91b9740))
-- Pin trivy-action to full SHA (v0.36.0) ([1b60c60](https://github.com/maksimtech/patchradar/commit/1b60c60580487b2567c75160c4c6063311245cca))
-- Run as non-root user for security ([4cc875b](https://github.com/maksimtech/patchradar/commit/4cc875b28b3bd68691cc8bff5e9215f7825b5061))
-- Remove invalid --only-binary :all: from yaml ([e3dde9d](https://github.com/maksimtech/patchradar/commit/e3dde9d7e8cc6d233397a3a2272e274e401b8537))
-- Correct SHA for docker setup actions ([84db99d](https://github.com/maksimtech/patchradar/commit/84db99d9c7d709fb49dd823151e4eda5277fbd4d))
-- Bump msgpack to 1.2.1 to fix HIGH CVEs ([f6d8232](https://github.com/maksimtech/patchradar/commit/f6d8232b8d40d2c09f3ee483b6a6a6d104c820e4))
-- Add --only-binary :all: to pip installs for security ([73c67c8](https://github.com/maksimtech/patchradar/commit/73c67c8cbff64d358788f9fcd0ed35fc09572508))
-- Pin setuptools and msgpack to exact versions ([efd1f06](https://github.com/maksimtech/patchradar/commit/efd1f064e6ed593f154ac864b7318d94c7f856fa))
-- Pin patchradar version and pass via ARG from CI ([cd2fe9e](https://github.com/maksimtech/patchradar/commit/cd2fe9e808c10cec41bfe8c4495010859506169b))
-- Trigger Docker build after PyPI publish completes ([ab8dcf7](https://github.com/maksimtech/patchradar/commit/ab8dcf76285cb19ace630df88f92f1e10a860053))
-- Wait 60s for PyPI propagation before Docker build ([0018250](https://github.com/maksimtech/patchradar/commit/00182503706c2c4623884fb968b8e2b2f08a70c5))
-- Upgrade build tools before building package ([3adbbe8](https://github.com/maksimtech/patchradar/commit/3adbbe89aaf56485be4af368a1261ebf83868891))
-- Disable metadata verification in pypi publish action ([37ec220](https://github.com/maksimtech/patchradar/commit/37ec22081518a63551b08b64f2dc783f433f8c4b))
-- Use release/v1 tag for pypi-publish action ([6b42ca7](https://github.com/maksimtech/patchradar/commit/6b42ca769188c470181217cb72cdcd8a166c4e65))
-- Pin pypi-publish to release/v1 SHA and clean up debug steps ([c762b31](https://github.com/maksimtech/patchradar/commit/c762b312b31fa6a166253d80637e2f841ddef5b0))
+---
 
-### 🔧 Maintenance
+## [2026.8.32] — 2026-08-22
 
-- Bump docker/login-action from 3 to 4 (#19) ([3740f7c](https://github.com/maksimtech/patchradar/commit/3740f7cc2633cfa128f49cee107e16483c67fffc))
+### Changed
 
-## 2026.8.32 — 2026-08-22
+- Rimosso il marker `asyncio` globale dai test, applicato solo ai test asincroni.
 
-### 🔧 Maintenance
+---
 
-- Bump version to 2026.8.32 ([4c7e136](https://github.com/maksimtech/patchradar/commit/4c7e13610e505ff9dc42744273b86e3fd7d929df))
+## [2026.8.31] — 2026-08-21
 
-### 🧪 Tests
+### Added
 
-- Remove global asyncio mark and apply only to async tests ([9917f77](https://github.com/maksimtech/patchradar/commit/9917f77e8472277bac3ebe07b378d8c6d96b93d7))
+- Test per il collector Debian Security Tracker.
 
-## 2026.8.31 — 2026-08-21
+---
 
-### 🔧 Maintenance
+## [2026.8.30] — 2026-08-20
 
-- Bump actions/checkout from 5 to 7 (#20) ([09ca826](https://github.com/maksimtech/patchradar/commit/09ca8267d4c642876ebf865ee6b94447d9b31fa1))
+### Added
 
-### 🧪 Tests
+- Collector Debian Security Tracker.
 
-- Add Debian Security Tracker collector tests ([e87a087](https://github.com/maksimtech/patchradar/commit/e87a0875756ef729d6c3e2589bd5585290f14f61))
+---
 
-## 2026.8.30 — 2026-08-20
+## [2026.8.29] — 2026-08-20
 
-### ✨ Features
+### Fixed
 
-- Add Debian Security Tracker collector ([461ee1f](https://github.com/maksimtech/patchradar/commit/461ee1f39f16a5b533f58c1daac594cf67124d44))
+- Gestione degli errori nella funzione `api()` della UI.
 
-### 📄 Documentation
+---
 
-- Update README with Debian Security Tracker collector ([cec1852](https://github.com/maksimtech/patchradar/commit/cec18527c19ab3f155e9ebb1b1ba321d3595fad5))
+## [2026.8.28] — 2026-08-20
 
-### 🔧 Maintenance
+### Security
 
-- Bump version to 2026.8.30 ([141bbe7](https://github.com/maksimtech/patchradar/commit/141bbe7e53c3e7e99d6742e59fb072fbe59ef34c))
+- Aggiunto workflow dello scanner di sicurezza Trivy.
+- Aggiunte configurazione Dependabot e security policy.
 
-## 2026.8.29 — 2026-08-20
+### Fixed
 
-### 🐛 Bug Fixes
+- `pkg_version` usato per la versione dell'applicazione, rimossi import duplicati.
+- `save_cve` assegna il cursore, così `rowcount` viene restituito correttamente.
 
-- Add proper error handling to api() fetch function ([9e06f47](https://github.com/maksimtech/patchradar/commit/9e06f47a2fe02554bf32b14bf7cdfd384af4c3c3))
+### Added
 
-### 🔧 Maintenance
+- Python 3.14 nella matrice CI e 3.15-dev come sperimentale.
+- Configurazione Renovate.
 
-- Remove stale whitespace from button labels ([c60838c](https://github.com/maksimtech/patchradar/commit/c60838c8e6cc5a4fb5ab35f183b1784485997d4f))
-- Remove stale whitespace from modal link labels ([18ffea7](https://github.com/maksimtech/patchradar/commit/18ffea741fa1c047a91a52c909385e272410e083))
-- Bump version to 2026.8.29 ([b6d80cd](https://github.com/maksimtech/patchradar/commit/b6d80cd6fb3050e3c41f01d0e0fc35b5b645d971))
+### Changed
 
-## 2026.8.28 — 2026-08-20
+- Versioni minime delle dipendenze portate all'ultima stabile.
+- Cinque GitHub Action aggiornate alla major successiva (Dependabot #14-#18).
 
-### ⚙️ CI/CD
+---
 
-- Add Python 3.14 to matrix and test 3.15-dev as experimental ([ceb0d10](https://github.com/maksimtech/patchradar/commit/ceb0d10ccb5c936795f6fa2e4fd31b0d13a41570))
-- Add Renovate configuration ([a033dc3](https://github.com/maksimtech/patchradar/commit/a033dc3cfc29c0f1ef76e6bdc594ba5d68e0abf0))
-- Remove schedule - let Renovate run on its own cadence ([c062d58](https://github.com/maksimtech/patchradar/commit/c062d589dcc537c4abf4e957300c2fc583b3b333))
-- Add Dependabot config and security policy ([f7abe39](https://github.com/maksimtech/patchradar/commit/f7abe3997f35f39d6fa0963551d81d30c7d144fe))
-- Add Trivy security scanner workflow ([65a0edd](https://github.com/maksimtech/patchradar/commit/65a0edd8705e38f388036d60335bca380ad4de22))
+## [2026.8.27] — 2026-08-19
 
-### 🐛 Bug Fixes
+### Fixed
 
-- Use pkg_version for app version and clean up duplicate imports ([849b71f](https://github.com/maksimtech/patchradar/commit/849b71f6fd6e5195577741183ec0633ae888ae9d))
-- Assign cursor in save_cve to correctly return rowcount ([47a23ed](https://github.com/maksimtech/patchradar/commit/47a23edb1054d873d77ba431144ed4c2bf693875))
+- Correzioni varie alla UI.
 
-### 📄 Documentation
+### Added
 
-- Add Python version badges including 3.14 and 3.15-dev ([a4f585d](https://github.com/maksimtech/patchradar/commit/a4f585dc2acbe261170761e01dff7249329cb219))
-- Add security policy ([9457a81](https://github.com/maksimtech/patchradar/commit/9457a8175f534b4eeddbc05e50ab053ee7a77634))
+- Script PowerShell per l'integrazione con winget.
 
-### 🔧 Maintenance
+---
 
-- Bump minimum dependency versions to latest stable ([d1454f7](https://github.com/maksimtech/patchradar/commit/d1454f79b084e11b296da2098e233a6b9325f764))
-- Update poetry.lock after dependency version bump ([9f63db5](https://github.com/maksimtech/patchradar/commit/9f63db5aa690de870fb7c75813f943cc08ab2035))
-- Bump github/codeql-action from 3 to 4 (#14) ([d8da563](https://github.com/maksimtech/patchradar/commit/d8da5633b66339fe9cd2d4baa4e3a19d16040be6))
-- Bump docker/setup-qemu-action from 3 to 4 (#15) ([507ba7f](https://github.com/maksimtech/patchradar/commit/507ba7f581739f18274fc22648a56ef6294be1b5))
-- Bump actions/setup-python from 6 to 7 (#16) ([e420359](https://github.com/maksimtech/patchradar/commit/e420359be34c1db813c29e058b7396c527239672))
-- Bump docker/setup-buildx-action from 3 to 4 (#17) ([6965719](https://github.com/maksimtech/patchradar/commit/6965719435293fce0ce912b82700cdd84ca70535))
-- Bump docker/build-push-action from 6 to 7 (#18) ([d0f638d](https://github.com/maksimtech/patchradar/commit/d0f638de0f659a53d27465e374b18304bbdfc29c))
-- Remove unused asyncio import from database.py ([542d418](https://github.com/maksimtech/patchradar/commit/542d418e47e088c2986cd294d6f1221d6f37b6c7))
-- Move timedelta import to top of msrc.py ([50a461c](https://github.com/maksimtech/patchradar/commit/50a461c9c446202fdbc3d8256f257fb35daea902))
-- Clean up nvd.py ([8b7660f](https://github.com/maksimtech/patchradar/commit/8b7660ff322da269849451cbaf23ad353a998388))
-- Bump version to 2026.8.28 ([92695f9](https://github.com/maksimtech/patchradar/commit/92695f9fc8e240c202f5e6dec736032bccb54338))
+## [2026.8.26] — 2026-08-19
 
-## 2026.8.27 — 2026-08-19
+### Added
 
-### ✨ Features
+- Import massivo di software nella watchlist da file.
 
-- Add PowerShell script for winget integration ([39ac929](https://github.com/maksimtech/patchradar/commit/39ac9299b245b216584dc1cfa248861f500718e3))
+---
 
-### 🐛 Bug Fixes
+## [2026.8.25] — 2026-08-19
 
-- Multiple UI fixes ([2a3585b](https://github.com/maksimtech/patchradar/commit/2a3585be11b4ea510f61cb4b59cb17387fba0efe))
+### Added
 
-### 🔧 Maintenance
+- Filtro di ricerca sulla tabella delle CVE.
 
-- Bump version to 2026.8.27 ([b1d2849](https://github.com/maksimtech/patchradar/commit/b1d2849be804ec84367d2b769d0024b555bc9058))
+---
 
-## 2026.8.26 — 2026-08-19
+## [2026.8.24] — 2026-08-19
 
-### ✨ Features
+### Security
 
-- Bulk import software from file into watchlist ([dbd38b4](https://github.com/maksimtech/patchradar/commit/dbd38b4d5e489c86631e46221104d2ff536614b0))
+- Scansione CVE con Docker Scout nel workflow Docker.
+- Permessi espliciti nei workflow per compatibilità con CodeQL.
 
-### 🔧 Maintenance
+---
 
-- Bump version to 2026.8.26 ([a99f789](https://github.com/maksimtech/patchradar/commit/a99f78910717dffea4b8444f5eb545324b1cec92))
+## [2026.8.23] — 2026-08-19
 
-## 2026.8.25 — 2026-08-19
+### Security
 
-### 🐛 Bug Fixes
+- Immagine base portata a Debian trixie e dipendenze PyPI pinnate a versioni sicure.
 
-- Add search filter for CVEs table ([7267a5f](https://github.com/maksimtech/patchradar/commit/7267a5f24d7d053543b94d8956e885e387a973da))
+---
 
-## 2026.8.24 — 2026-08-19
+## [2026.8.22] — 2026-08-19
 
-### ⚙️ CI/CD
+### Security
 
-- Add Docker Scout CVE scan to Docker workflow ([098e700](https://github.com/maksimtech/patchradar/commit/098e700c02bed54829ad4bd56792c1ded9424e0b))
-- Add explicit permissions to workflows for CodeQL compatibility ([ba78788](https://github.com/maksimtech/patchradar/commit/ba787884bbca168ff77923b3a13e06f5103e5229))
+- `apt-get upgrade` nel Dockerfile per correggere una vulnerabilità HIGH di OpenSSL.
 
-### 🔧 Maintenance
+---
 
-- Remove __pycache__ files and add to .gitignore ([701d4b6](https://github.com/maksimtech/patchradar/commit/701d4b65015b501fce79b12fe8bc256cf0204dba))
-- Bump version to 2026.8.24 ([87465d9](https://github.com/maksimtech/patchradar/commit/87465d919eac90ec994e0a70cc2244ddb3183297))
+## [2026.8.21] — 2026-08-19
 
-## 2026.8.23 — 2026-08-19
+### Fixed
 
-### 🐛 Bug Fixes
+- Le CVE orfane vengono cancellate quando il software è rimosso dalla watchlist.
 
-- Switch to trixie and pin secure PyPI deps ([42e0965](https://github.com/maksimtech/patchradar/commit/42e09655d342127de9db25e3147eafd5db422d37))
+### Added
 
-## 2026.8.22 — 2026-08-19
+- Benchmark di performance CodSpeed.
 
-### 🐛 Bug Fixes
+---
 
-- Apt-get upgrade to patch OpenSSL HIGH vulnerability ([9f0a007](https://github.com/maksimtech/patchradar/commit/9f0a00788d427f0dd4f826da8e616b25a2a5da08))
+## [2026.8.20] — 2026-08-16
 
-## 2026.8.21 — 2026-08-19
+### Changed
 
-### ⚙️ CI/CD
+- CHANGELOG riscritto con la cronologia completa da 2026.8.4 a 2026.8.19.
 
-- Add CodSpeed performance benchmarks ([2df2e5f](https://github.com/maksimtech/patchradar/commit/2df2e5f1bde681d078e3741612367f46f3b4e2ed))
+---
 
-### 🐛 Bug Fixes
+## [2026.8.19] — 2026-08-16
 
-- Delete orphan CVEs when software is removed from watchlist ([5753d42](https://github.com/maksimtech/patchradar/commit/5753d421f485544d3db78c00a9957f7d909ac06c))
+### Added
 
-### 🔧 Maintenance
+- Modale di dettaglio CVE nella UI.
 
-- Bump version to 2026.8.21 ([19dde99](https://github.com/maksimtech/patchradar/commit/19dde997d581ffe955983806abda9c0aa708f1ad))
+### Fixed
 
-## 2026.8.20 — 2026-08-16
+- Overflow della watchlist nella UI.
 
-### 📄 Documentation
+---
 
-- Rewrite CHANGELOG with all versions from 2026.8.4 to 2026.8.19 ([e274514](https://github.com/maksimtech/patchradar/commit/e274514c7fe52982a65b6486a9b201a319451832))
-- Rewrite CHANGELOG with complete version history (#12) ([f5c4ef6](https://github.com/maksimtech/patchradar/commit/f5c4ef6b149f49736b3a946b0bdf0951d6217558))
-- Update CHANGELOG ([a74de43](https://github.com/maksimtech/patchradar/commit/a74de4311e6d0c5d8b825fb4b7540a809ed346bb))
+## [2026.8.18] — 2026-08-16
 
-### 🔧 Maintenance
+### Changed
 
-- Bump version to 2026.8.20 ([ed029af](https://github.com/maksimtech/patchradar/commit/ed029af63d51e9b5c5251727579342f6ed72c419))
+- README aggiornato: MSRC attivo, rimosso il changelog inline.
 
-## 2026.8.19 — 2026-08-16
+---
 
-### ✨ Features
+## [2026.8.17] — 2026-08-16
 
-- Add CVE detail modal and fix watchlist overflow ([2526977](https://github.com/maksimtech/patchradar/commit/252697730d65948f835096eb1f826f4232f8b6d0))
-- Add CVE detail modal and fix watchlist overflow (#11) ([5ca963a](https://github.com/maksimtech/patchradar/commit/5ca963afbbd346940fcb5d0c1432e9b6b258fa92))
+### Added
 
-### 📄 Documentation
+- Collector MSRC per il Patch Tuesday Microsoft.
 
-- Update CHANGELOG ([5858edc](https://github.com/maksimtech/patchradar/commit/5858edc707e36a8440bdb5e14f51b0ce54c0855c))
+---
 
-### 🔧 Maintenance
+## [2026.8.16] — 2026-08-16
 
-- Bump version to 2026.8.19 ([7c17e50](https://github.com/maksimtech/patchradar/commit/7c17e5010a90c9a6415a9b5ed13498da92e78141))
+### Changed
 
-## 2026.8.18 — 2026-08-16
+- GitHub Action aggiornate a versioni compatibili con Node.js 24.
 
-### 📄 Documentation
+---
 
-- Update README — MSRC active, remove inline changelog ([544e72f](https://github.com/maksimtech/patchradar/commit/544e72fb54cf857a6ddde8a941727dcd3ba8685f))
-- Update README with MSRC status and remove inline changelog (#10) ([083e9bb](https://github.com/maksimtech/patchradar/commit/083e9bbaf823bc1cdd5da648b98e22ca1d7a50d4))
-- Update CHANGELOG ([51d1078](https://github.com/maksimtech/patchradar/commit/51d1078c988cf0a4bd158889e9378d2bf6ae7681))
+## [2026.8.15] — 2026-08-16
 
-### 🔧 Maintenance
+### Fixed
 
-- Bump version to 2026.8.18 ([090dd45](https://github.com/maksimtech/patchradar/commit/090dd4513f8f9f3c1d048970e13b186cc567fd74))
+- Sostituito il deprecato `@app.on_event` con l'handler `lifespan`.
 
-## 2026.8.17 — 2026-08-16
+---
 
-### ✨ Features
+## [2026.8.14] — 2026-08-16
 
-- Add MSRC collector for Microsoft Patch Tuesday ([b3ae63c](https://github.com/maksimtech/patchradar/commit/b3ae63ccbf36b41540fd8dddbf18e42a466faded))
-- Add MSRC collector for Microsoft Patch Tuesday (#9) ([e64ac24](https://github.com/maksimtech/patchradar/commit/e64ac24eeac0d6e6fed9adf687f504a28ec279d1))
+### Added
 
-### 📄 Documentation
+- Suite di test completa: CLI, mock del collector NVD, CRUD del database.
 
-- Update CHANGELOG ([6b69230](https://github.com/maksimtech/patchradar/commit/6b692307020d914a8e632d6aa2b50bbaa793c63e))
+---
 
-### 🔧 Maintenance
+## [2026.8.13] — 2026-08-16
 
-- Bump version to 2026.8.17 ([9ebb4f2](https://github.com/maksimtech/patchradar/commit/9ebb4f28964efa9fe0ed8670b8b49fb93c392546))
+### Added
 
-## 2026.8.16 — 2026-08-16
+- Supporto Docker: Dockerfile, docker-compose e `.dockerignore`.
+- Workflow di build e push su Docker Hub.
+- `RELEASING.md` con checklist e processo di rilascio.
 
-### ⚙️ CI/CD
+---
 
-- Update GitHub Actions to Node.js 24 compatible versions ([66a985b](https://github.com/maksimtech/patchradar/commit/66a985b884e14b19efc5166046b075a857ea71ab))
-- Update GitHub Actions to Node.js 24 compatible versions (#8) ([2d04f55](https://github.com/maksimtech/patchradar/commit/2d04f55f4528bd9400dc3cfd2c9db8202dec1fe5))
+## [2026.8.12] — 2026-08-16
 
-### 📄 Documentation
+### Security
 
-- Update CHANGELOG ([20421dc](https://github.com/maksimtech/patchradar/commit/20421dc2950cf737e1c4dd00a8e525247892698d))
+- Corretta una DOM XSS (CWE-79) nel grafico severity della UI.
 
-### 🔧 Maintenance
+### Added
 
-- Bump version to 2026.8.16 ([6a40e98](https://github.com/maksimtech/patchradar/commit/6a40e9868778e79f2c57ab79dfff5747f4106ed1))
+- Integrazione di git-cliff per la generazione automatica del changelog.
 
-## 2026.8.15 — 2026-08-16
+---
 
-### 🐛 Bug Fixes
+## [2026.8.11] — 2026-08-16
 
-- Replace deprecated on_event with lifespan handler ([7827afb](https://github.com/maksimtech/patchradar/commit/7827afb57ef0c0741b5c9b55c399bb359f92f3ee))
-- Replace deprecated on_event with lifespan handler (#7) ([9c8fcf0](https://github.com/maksimtech/patchradar/commit/9c8fcf044402d3c7a7f047f73370896184a1c4ae))
+Rilascio di sola versione, nessuna modifica al codice.
 
-### 📄 Documentation
+---
 
-- Update CHANGELOG ([e795abc](https://github.com/maksimtech/patchradar/commit/e795abca64bc021680e76dfcb149b78bbf5c70c5))
+## [2026.8.10] — 2026-08-16
 
-### 🔧 Maintenance
+### Security
 
-- Bump version to 2026.8.15 ([06e78a9](https://github.com/maksimtech/patchradar/commit/06e78a9000d92048f6a11ab51f96540e7bd2413d))
+- Middleware con Content-Security-Policy e header di sicurezza.
+- Validazione degli input su tutti gli endpoint.
+- Sanitizzazione dell'output per i dati CVE.
 
-## 2026.8.14 — 2026-08-16
+### Added
 
-### 📄 Documentation
+- Suite di test reale al posto del placeholder.
+- Script `bump_version.py` e `release.py`.
 
-- Update CHANGELOG ([34dc7c2](https://github.com/maksimtech/patchradar/commit/34dc7c24ba20791f728ca0b702c8022dd3174133))
+---
 
-### 🔧 Maintenance
+## [2026.8.7] — 2026-08-15
 
-- Bump version to 2026.8.14 ([df51440](https://github.com/maksimtech/patchradar/commit/df514400c4d0d86715b7488db2881014dbcb2ffb))
+### Security
 
-### 🧪 Tests
+- Corretta una DOM XSS (CWE-79) nella UI: `innerHTML` sostituito da
+  `createElement`/`textContent`.
 
-- Complete test suite — CLI, NVD collector mock, database CRUD ([82c96fe](https://github.com/maksimtech/patchradar/commit/82c96fe444c6a993a578439bfdfc5bd63e8933a2))
-- Complete test suite with CLI, NVD mock and database CRUD (#6) ([2acd294](https://github.com/maksimtech/patchradar/commit/2acd294a4f00bb69612b5ecd9a42398ad52c0d7c))
+### Fixed
 
-## 2026.8.13 — 2026-08-16
+- `api/main.py` riscritto, versione dinamica nella UI.
 
-### ⚙️ CI/CD
+---
 
-- Add Docker Hub build and push workflow ([5e4e003](https://github.com/maksimtech/patchradar/commit/5e4e003852e86356fbd0f4644f04ff830ad5fd7b))
+## [2026.8.6] — 2026-08-14
 
-### ✨ Features
+### Fixed
 
-- Add Dockerfile, docker-compose and .dockerignore ([b4e8f8d](https://github.com/maksimtech/patchradar/commit/b4e8f8d3711317583ee8aa469df55c618d16bac0))
-- Add Docker support (#4) ([27896b0](https://github.com/maksimtech/patchradar/commit/27896b0e72cfc45d8dbe6bdff96580818ac7e080))
-- Add Docker support and RELEASING.md (#5) ([179f395](https://github.com/maksimtech/patchradar/commit/179f395e9dce82ec75e13d4189bc7f63cc288ccb))
+- Versione dinamica nella UI e badge di versione aggiornato.
 
-### 📄 Documentation
+---
 
-- Add RELEASING.md with pre-release checklist and process ([7466f82](https://github.com/maksimtech/patchradar/commit/7466f82621ed8fe88fe98986ca70ab1c3a6adabb))
-- Update CHANGELOG ([96250ef](https://github.com/maksimtech/patchradar/commit/96250ef47d641a22e077b11a68d8d077bed4e25a))
+## [2026.8.5] — 2026-08-14
 
-### 🔧 Maintenance
+### Fixed
 
-- Bump version to 2026.8.13 ([1c8f320](https://github.com/maksimtech/patchradar/commit/1c8f320237142d6892e1712205eab48641157f9b))
+- Encoding UTF-8 per il template HTML su Windows.
 
-## 2026.8.12 — 2026-08-16
+---
 
-### 📄 Documentation
+## [2026.8.4] — 2026-08-14
 
-- Update CHANGELOG ([2dd00c4](https://github.com/maksimtech/patchradar/commit/2dd00c479986b456ae9cb30aad576349b9fb9437))
+### Changed
 
-### 🔒 Security
+- Badge del README aggiornati.
 
-- Fix CWE-79 DOM XSS in severity chart ([5c4f305](https://github.com/maksimtech/patchradar/commit/5c4f305580bac7145790f5f891476e86ba8c2071))
+---
 
-### 🔧 Maintenance
+## [2026.8.3] — 2026-08-14
 
-- Integrate git-cliff for automatic changelog generation ([0820aca](https://github.com/maksimtech/patchradar/commit/0820aca32fb0711668c6d4a1782d638b8ea28223))
-- Integrate git-cliff for automatic changelog generation (#3) ([78f60fd](https://github.com/maksimtech/patchradar/commit/78f60fd6e7031ba6e8f84ec18ef68b426d52db2c))
-- Bump version to 2026.8.12 ([812b0a4](https://github.com/maksimtech/patchradar/commit/812b0a4fe7e75ea4221bbb0c0780b43bde3f476d))
+Rilascio di sola versione, nessuna modifica al codice.
 
-## 2026.8.11 — 2026-08-16
+---
 
-### 🔧 Maintenance
+## [2026.8.2] — 2026-08-14
 
-- Bump version to 2026.8.11 ([b4c0f6a](https://github.com/maksimtech/patchradar/commit/b4c0f6a7789c9ac4dd9ace47a89183c34eb2e555))
+Primo rilascio pubblico.
 
-## 2026.8.10 — 2026-08-16
+### Added
 
-### ✨ Features
+- Prima release funzionante: CLI, collector NVD, database SQLite.
+- UI web con dashboard, watchlist, tabella CVE e grafici.
+- GitHub Actions per la pubblicazione su PyPI e per i test.
 
-- Complete security hardening and test suite (#2) ([32323ae](https://github.com/maksimtech/patchradar/commit/32323aeda560fccabd3caeffdffed00d60b31c91))
+---
 
-### 🔒 Security
+### Nota sulle versioni
 
-- Add CSP and security headers middleware ([7fc5af6](https://github.com/maksimtech/patchradar/commit/7fc5af6b0d0a2ac058d88800e7c4e2f4738420be))
-- Add input validation to all endpoints ([268bbf0](https://github.com/maksimtech/patchradar/commit/268bbf0ead173339356e4eb3ce046b4df55bb83e))
-- Add output sanitization for CVE data ([d65cc89](https://github.com/maksimtech/patchradar/commit/d65cc89e9b81ac7ecffb88f435f5be6ad8227768))
+Le versioni `2026.8.1`, `2026.8.8` e `2026.8.9` non sono mai state rilasciate: il
+numero in `pyproject.toml` è stato incrementato ma non è stato creato alcun tag.
+Il salto da `2026.8.34` a `2026.9.1` segue lo schema CalVer, che azzera la patch
+al cambio di mese.
 
-### 🔧 Maintenance
-
-- Bump version to 2026.8.8 ([6394602](https://github.com/maksimtech/patchradar/commit/639460277e8d7d8c9777d4f7b6dd0abf040c9687))
-- Add bump_version.py script ([e61eb2e](https://github.com/maksimtech/patchradar/commit/e61eb2e0a08dae3461f064558d71d30ed1d8d813))
-- Bump version to 2026.8.9 ([188ccf7](https://github.com/maksimtech/patchradar/commit/188ccf756105a80e73c9650b50919480e3f48a2f))
-- Bump version to 2026.8.10 ([07d775f](https://github.com/maksimtech/patchradar/commit/07d775ffa2f4c8f397048c7bec1d634a0f1ee557))
-- Add release.py script ([4c15240](https://github.com/maksimtech/patchradar/commit/4c1524053f090d57dd040caca17bbc48f38590af))
-
-### 🧪 Tests
-
-- Add real test suite replacing placeholder ([a24105d](https://github.com/maksimtech/patchradar/commit/a24105d3455c5bedfde82bd7c4d7d811666ed02c))
-
-## 2026.8.7 — 2026-08-15
-
-### 🐛 Bug Fixes
-
-- Rewrite api/main.py cleanly, dynamic version in UI ([0d2331c](https://github.com/maksimtech/patchradar/commit/0d2331c297edff8385a78468dc67c9eb482bf16a))
-
-### 🔒 Security
-
-- Fix CWE-79 DOM XSS — replace innerHTML with createElement/textContent ([b5ead88](https://github.com/maksimtech/patchradar/commit/b5ead88ef49a16af49d6f857d70cd14fc188b94c))
-- Fix CWE-79 DOM XSS in web UI (#1) ([9d76260](https://github.com/maksimtech/patchradar/commit/9d762609424ff26ee3356b364fce5dcfc1608762))
-
-### 🔧 Maintenance
-
-- Bump version to 2026.8.7 ([ff031d7](https://github.com/maksimtech/patchradar/commit/ff031d7fd51fa38848fe59fa4761cb1c237162c8))
-
-## 2026.8.6 — 2026-08-14
-
-### 🐛 Bug Fixes
-
-- Dynamic version in UI + update version badge ([c88fd52](https://github.com/maksimtech/patchradar/commit/c88fd526b66794d5886c49465bff2a3c48013d74))
-
-## 2026.8.5 — 2026-08-14
-
-### 🐛 Bug Fixes
-
-- Use UTF-8 encoding for HTML template on Windows ([cb7a7f8](https://github.com/maksimtech/patchradar/commit/cb7a7f88e9fbaa1ca944ef923325630c1f5f60a6))
-
-### 📄 Documentation
-
-- Add changelog to README ([1199114](https://github.com/maksimtech/patchradar/commit/1199114bd67423c653013e618f2b1fe86e6d70cb))
-
-## 2026.8.4 — 2026-08-14
-
-### 📄 Documentation
-
-- Update README badges ([8ae31c0](https://github.com/maksimtech/patchradar/commit/8ae31c023c867e00fafe05025067b04bd531a4c8))
-
-### 🔧 Maintenance
-
-- Bump version to 2026.8.4 ([c7bc88f](https://github.com/maksimtech/patchradar/commit/c7bc88f5b92029120b8547c036d095b8d4cbe398))
-
-## 2026.8.3 — 2026-08-14
-
-### 🔧 Maintenance
-
-- Bump version to 2026.8.2 ([6553017](https://github.com/maksimtech/patchradar/commit/65530170f0045bd732fb15464cf7bbac9c92a167))
-- Bump version to 2026.8.3 ([4bd63e9](https://github.com/maksimtech/patchradar/commit/4bd63e95f95936dfd3b01c7d047428d16b3eb69e))
-
-## 2026.8.2 — 2026-08-14
-
-### ⚙️ CI/CD
-
-- Add GitHub Actions for PyPI publish and tests ([682e1f7](https://github.com/maksimtech/patchradar/commit/682e1f7c6a38548066aa724c01a453c72ab94fd0))
-
-### ✨ Features
-
-- Initial working release ([9f1da3f](https://github.com/maksimtech/patchradar/commit/9f1da3f8f46a73f2366491edf9df6de5c7b031d1))
-- Add web UI with dashboard, watchlist, CVE table and charts ([9a3bad7](https://github.com/maksimtech/patchradar/commit/9a3bad7924506441978bd084ecab35c35c35c52b))
-- Add web UI, README and CalVer 2026.8.2 ([839df3d](https://github.com/maksimtech/patchradar/commit/839df3dd0bca7197b8aecfef34da6f1c72a519a3))
-
-
+[2026.9.2]: https://github.com/maksimtech/patchradar/compare/2026.9.1...2026.9.2
+[2026.9.1]: https://github.com/maksimtech/patchradar/compare/2026.8.34...2026.9.1
+[2026.8.34]: https://github.com/maksimtech/patchradar/compare/2026.8.33...2026.8.34
+[2026.8.33]: https://github.com/maksimtech/patchradar/compare/2026.8.32...2026.8.33
+[2026.8.32]: https://github.com/maksimtech/patchradar/compare/2026.8.31...2026.8.32
+[2026.8.31]: https://github.com/maksimtech/patchradar/compare/2026.8.30...2026.8.31
+[2026.8.30]: https://github.com/maksimtech/patchradar/compare/2026.8.29...2026.8.30
+[2026.8.29]: https://github.com/maksimtech/patchradar/compare/2026.8.28...2026.8.29
+[2026.8.28]: https://github.com/maksimtech/patchradar/compare/2026.8.27...2026.8.28
+[2026.8.27]: https://github.com/maksimtech/patchradar/compare/2026.8.26...2026.8.27
+[2026.8.26]: https://github.com/maksimtech/patchradar/compare/2026.8.25...2026.8.26
+[2026.8.25]: https://github.com/maksimtech/patchradar/compare/2026.8.24...2026.8.25
+[2026.8.24]: https://github.com/maksimtech/patchradar/compare/2026.8.23...2026.8.24
+[2026.8.23]: https://github.com/maksimtech/patchradar/compare/2026.8.22...2026.8.23
+[2026.8.22]: https://github.com/maksimtech/patchradar/compare/2026.8.21...2026.8.22
+[2026.8.21]: https://github.com/maksimtech/patchradar/compare/2026.8.20...2026.8.21
+[2026.8.20]: https://github.com/maksimtech/patchradar/compare/2026.8.19...2026.8.20
+[2026.8.19]: https://github.com/maksimtech/patchradar/compare/2026.8.18...2026.8.19
+[2026.8.18]: https://github.com/maksimtech/patchradar/compare/2026.8.17...2026.8.18
+[2026.8.17]: https://github.com/maksimtech/patchradar/compare/2026.8.16...2026.8.17
+[2026.8.16]: https://github.com/maksimtech/patchradar/compare/2026.8.15...2026.8.16
+[2026.8.15]: https://github.com/maksimtech/patchradar/compare/2026.8.14...2026.8.15
+[2026.8.14]: https://github.com/maksimtech/patchradar/compare/2026.8.13...2026.8.14
+[2026.8.13]: https://github.com/maksimtech/patchradar/compare/2026.8.12...2026.8.13
+[2026.8.12]: https://github.com/maksimtech/patchradar/compare/2026.8.11...2026.8.12
+[2026.8.11]: https://github.com/maksimtech/patchradar/compare/2026.8.10...2026.8.11
+[2026.8.10]: https://github.com/maksimtech/patchradar/compare/2026.8.7...2026.8.10
+[2026.8.7]: https://github.com/maksimtech/patchradar/compare/2026.8.6...2026.8.7
+[2026.8.6]: https://github.com/maksimtech/patchradar/compare/2026.8.5...2026.8.6
+[2026.8.5]: https://github.com/maksimtech/patchradar/compare/2026.8.4...2026.8.5
+[2026.8.4]: https://github.com/maksimtech/patchradar/compare/2026.8.3...2026.8.4
+[2026.8.3]: https://github.com/maksimtech/patchradar/compare/2026.8.2...2026.8.3
+[2026.8.2]: https://github.com/maksimtech/patchradar/releases/tag/2026.8.2
