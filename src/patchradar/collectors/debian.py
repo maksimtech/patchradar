@@ -1,10 +1,17 @@
 import asyncio
+import logging
 import time
 import httpx
 from datetime import datetime, timezone
 
+logger = logging.getLogger(__name__)
+
 DEBIAN_TRACKER_URL = "https://security-tracker.debian.org/tracker/data/json"
 DEBIAN_RELEASE = "trixie"  # default: Debian 13
+
+# The tracker emits exactly three status values: resolved, open, undetermined.
+# "undetermined" means the release may be affected, so it is reported.
+UNRESOLVED_STATUSES = frozenset({"open", "undetermined"})
 
 # The tracker dump is a single ~75 MB JSON document covering every package, so
 # it is fetched once and filtered in memory rather than re-downloaded per
@@ -95,12 +102,26 @@ def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> l
             if not cve_id.startswith("CVE-"):
                 continue
 
-            releases = cve_data.get("releases", {})
-            release_data = releases.get(release, {})
+            releases = cve_data.get("releases")
+            if not isinstance(releases, dict):
+                continue
+            release_data = releases.get(release)
+            # No entry for this release means the tracker says nothing about
+            # it — the package is not in that release, or the CVE does not
+            # apply. Treating that silence as "open" produced 7,924 phantom
+            # vulnerabilities tracker-wide (100% of postgresql's, 47% of
+            # python's), so such CVEs are now out of scope.
+            if not isinstance(release_data, dict):
+                continue
 
-            # Solo CVE aperte (non risolte)
-            status = release_data.get("status", "")
-            if status == "resolved":
+            # Whitelist rather than "anything that is not resolved": an empty
+            # or unrecognised status is exactly what caused the false positives.
+            status = release_data.get("status")
+            if status not in UNRESOLVED_STATUSES:
+                if status != "resolved":
+                    logger.debug(
+                        "skipping %s/%s: unrecognised status %r", package_name, cve_id, status
+                    )
                 continue
 
             urgency = release_data.get("urgency", "unimportant")

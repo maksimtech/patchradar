@@ -7,6 +7,35 @@ logger = logging.getLogger(__name__)
 MSRC_API = "https://api.msrc.microsoft.com/cvrf/v3.0"
 HEADERS = {"Accept": "application/json"}
 
+# MSRC addresses its monthly CVRF documents as e.g. "2026-Sep", always in
+# English. strftime("%b") follows LC_TIME, so on a non-English machine every
+# request would 404 and the collector would silently return nothing.
+MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+MAX_DAYS_BACK = 90
+
+
+def _months_in_range(now: datetime, days_back: int) -> list[str]:
+    """Every calendar month overlapping [now - days_back, now], oldest first.
+
+    Walks months directly instead of stepping by 30 days: a fixed stride skips
+    short months outright (from 2026-03-31 over 90 days it produced Dec, Jan,
+    Mar — February, and its Patch Tuesday, never fetched).
+    """
+    days = min(max(int(days_back), 1), MAX_DAYS_BACK)
+    start = now - timedelta(days=days)
+
+    months = []
+    year, month = start.year, start.month
+    while (year, month) <= (now.year, now.month):
+        months.append(f"{year}-{MONTH_ABBR[month - 1]}")
+        if month == 12:
+            year, month = year + 1, 1
+        else:
+            month += 1
+    return months
+
 
 def _notes(vuln: dict) -> list[dict]:
     notes = vuln.get("Notes")
@@ -83,15 +112,7 @@ def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
 async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
     """Fetch CVEs from Microsoft MSRC for a given keyword."""
     results = []
-
-    # Determina i mesi da controllare
-    now = datetime.now()
-    months_to_check = set()
-
-    safe_days_back = min(max(int(days_back), 1), 90)  # clamp to safe range
-    for days in range(0, safe_days_back + 30, 30):
-        check_date = now - timedelta(days=days)
-        months_to_check.add(f"{check_date.year}-{check_date.strftime('%b')}")
+    months_to_check = _months_in_range(datetime.now(), days_back)
 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for month in months_to_check:
