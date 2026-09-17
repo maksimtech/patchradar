@@ -6,7 +6,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - patchradar_data:/root/.patchradar
+      # must match the Dockerfile VOLUME: the image runs as the unprivileged
+      # `patchradar` user, so the app writes to /home/patchradar/.patchradar
+      - patchradar_data:/home/patchradar/.patchradar
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s

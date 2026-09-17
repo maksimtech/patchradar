@@ -60,18 +60,26 @@ async def get_tracker_snapshot() -> dict | None:
         return _snapshot
 
 
-def _urgency_to_severity(urgency: str) -> str:
-    mapping = {
-        "critical": "CRITICAL",
-        "grave": "HIGH",
-        "serious": "HIGH",
-        "important": "MEDIUM",
-        "moderate": "MEDIUM",
-        "low": "LOW",
-        "unimportant": "LOW",
-        "end-of-life": "LOW",
-    }
-    return mapping.get(urgency.lower(), "UNKNOWN")
+# The tracker's `urgency` field only ever takes these six values. The table
+# used to be keyed on Debian BTS *bug severities* (grave, serious, important,
+# moderate, critical), which the security tracker never emits — so `high` and
+# `medium` fell through to UNKNOWN and vanished from the severity filters.
+URGENCY_TO_SEVERITY = {
+    "high": "HIGH",
+    "medium": "MEDIUM",
+    "low": "LOW",
+    "unimportant": "LOW",
+    "end-of-life": "LOW",
+    # "not yet assigned" is the most common value by far (~77% of entries);
+    # reporting it as LOW would be a false reassurance, so it stays UNKNOWN.
+    "not yet assigned": "UNKNOWN",
+}
+
+
+def _urgency_to_severity(urgency: str | None) -> str:
+    if not urgency:
+        return "UNKNOWN"
+    return URGENCY_TO_SEVERITY.get(str(urgency).strip().lower(), "UNKNOWN")
 
 
 def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> list[dict]:

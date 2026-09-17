@@ -324,7 +324,9 @@ async def test_debian_fetch_success():
                 "releases": {
                     "trixie": {
                         "status": "open",
-                        "urgency": "grave",
+                        # "high" is a real tracker urgency; the previous "grave"
+                        # is a Debian BTS bug severity the tracker never emits.
+                        "urgency": "high",
                         "repositories": {}
                     }
                 }
@@ -354,7 +356,7 @@ async def test_debian_fetch_resolved():
                 "releases": {
                     "trixie": {
                         "status": "resolved",
-                        "urgency": "grave",
+                        "urgency": "high",
                         "repositories": {}
                     }
                 }
