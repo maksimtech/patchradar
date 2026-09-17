@@ -3,6 +3,7 @@ import asyncio
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from rich.markup import escape
 from rich.text import Text
 from patchradar.db.database import (
     init_db, add_to_watchlist, get_watchlist,
@@ -21,6 +22,17 @@ console = Console()
 def run(coro):
     return asyncio.run(coro)
 
+def _truncate(text, limit: int) -> str:
+    """Coerce to str and cap at `limit`, appending an ellipsis when cut.
+
+    Collectors may yield None for a field (the Debian tracker does for
+    `description`), so this must never assume a string.
+    """
+    if not text:
+        return ""
+    text = str(text)
+    return text if len(text) <= limit else text[:limit] + "..."
+
 @app.callback()
 def startup():
     run(init_db())
@@ -29,19 +41,21 @@ def startup():
 def add(software: str = typer.Argument(..., help="Software to monitor")):
     """Add software to your watchlist."""
     added = run(add_to_watchlist(software))
+    safe = escape(software)
     if added:
-        console.print(f"✅ [green]Added[/green] [bold]{software}[/bold] to watchlist")
+        console.print(f"✅ [green]Added[/green] [bold]{safe}[/bold] to watchlist")
     else:
-        console.print(f"⚠️  [yellow]{software}[/yellow] is already in your watchlist")
+        console.print(f"⚠️  [yellow]{safe}[/yellow] is already in your watchlist")
 
 @app.command()
 def remove(software: str = typer.Argument(..., help="Software to remove")):
     """Remove software from your watchlist."""
     removed = run(remove_from_watchlist(software))
+    safe = escape(software)
     if removed:
-        console.print(f"🗑️  [red]Removed[/red] [bold]{software}[/bold] from watchlist")
+        console.print(f"🗑️  [red]Removed[/red] [bold]{safe}[/bold] from watchlist")
     else:
-        console.print(f"❌ [red]{software}[/red] not found in watchlist")
+        console.print(f"❌ [red]{safe}[/red] not found in watchlist")
 
 @app.command(name="list")
 def list_watchlist():
@@ -53,21 +67,22 @@ def list_watchlist():
     table = Table(title="🛡️ PatchRadar Watchlist", box=box.ROUNDED)
     table.add_column("Software", style="cyan bold")
     for item in items:
-        table.add_row(item)
+        table.add_row(Text(str(item)))
     console.print(table)
 
 async def _scan_target(target: str, days: int) -> int:
     """Scan a single target for CVEs and return count."""
-    with console.status(f"[cyan]Scanning {target}...[/cyan]"):
+    safe_target = escape(target)
+    with console.status(f"[cyan]Scanning {safe_target}...[/cyan]"):
         nvd_cves = await fetch_cves(target, days_back=days)
-    msrc_cves = await msrc_fetch(target, days_back=days)
+        msrc_cves = await msrc_fetch(target, days_back=days)
     all_cves = nvd_cves + msrc_cves
     for cve in all_cves:
         await save_cve(cve)
     if all_cves:
         _print_cves(target, all_cves)
     else:
-        console.print(f"[green]{target}[/green] — no CVEs found in last {days} days")
+        console.print(f"[green]{safe_target}[/green] — no CVEs found in last {days} days")
     return len(all_cves)
 
 
@@ -99,7 +114,7 @@ def status():
 
 def _print_cves(software: str, cves: list):
     table = Table(
-        title=f"🚨 CVEs for [bold]{software}[/bold]",
+        title=f"🚨 CVEs for [bold]{escape(software)}[/bold]",
         box=box.ROUNDED,
         show_lines=True
     )
@@ -119,11 +134,13 @@ def _print_cves(software: str, cves: list):
             "LOW": "green",
         }.get(severity.upper(), "white")
 
+        # Text() renders verbatim — CVE data is untrusted and must never be
+        # parsed as Rich markup (forged styles, OSC-8 links, MarkupError).
         table.add_row(
-            cve["id"],
+            Text(str(cve.get("id", ""))),
             score_str,
             Text(severity, style=severity_color),
-            cve.get("description", "")[:120] + "..." if len(cve.get("description", "")) > 120 else cve.get("description", ""),
+            Text(_truncate(cve.get("description"), 120)),
         )
     console.print(table)
 
@@ -147,11 +164,11 @@ def _print_cves_table(cves: list):
         }.get(severity.upper(), "white")
 
         table.add_row(
-            cve["id"],
-            cve.get("software", ""),
+            Text(str(cve.get("id", ""))),
+            Text(str(cve.get("software") or "")),
             score_str,
             Text(severity, style=severity_color),
-            cve.get("source", ""),
+            Text(str(cve.get("source") or "")),
         )
     console.print(table)
 

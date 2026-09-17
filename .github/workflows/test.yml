@@ -31,7 +31,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e .  # NOSONAR - trusted internal project, no external setup scripts
+        # --group needs pip >= 25.1 to read PEP 735 [dependency-groups]
+        run: |
+          python -m pip install --upgrade pip
+          pip install --group dev -e .  # NOSONAR - trusted internal project, no external setup scripts
+
+      - name: Run test suite
+        run: pytest tests/ -v
 
       - name: Test CLI
         run: |

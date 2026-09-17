@@ -173,11 +173,34 @@ let allCves = [];
 let currentFilter = 'ALL';
 let currentSearch = '';
 
-async function api(path, method='GET', body=null) {
-  const opts = { method, headers: {'Content-Type': 'application/json'} };
+// The key is only needed for write/scan endpoints; reads stay public.
+// Stored per-browser so it is never baked into the served HTML.
+function apiKey() {
+  try { return localStorage.getItem('patchradar_api_key') || ''; }
+  catch (e) { return ''; }
+}
+
+function setApiKey(v) {
+  try { localStorage.setItem('patchradar_api_key', v); } catch (e) { /* private mode */ }
+}
+
+async function api(path, method='GET', body=null, retryOn401=true) {
+  const headers = {'Content-Type': 'application/json'};
+  const key = apiKey();
+  if (key) headers['X-API-Key'] = key;
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   try {
     const r = await fetch(path, opts);
+    if (r.status === 401 && retryOn401) {
+      const entered = prompt('This PatchRadar instance requires an API key (PATCHRADAR_API_KEY):', key);
+      if (entered) {
+        setApiKey(entered.trim());
+        return api(path, method, body, false);
+      }
+      toast('API key required', '#f85149');
+      return {};
+    }
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       toast(`Error ${r.status}: ${err.detail || r.statusText}`, '#f85149');
@@ -271,7 +294,11 @@ async function scanAll() {
   btn.disabled = true;
   try {
     const data = await api('/api/scan?days=30', 'POST');
-    toast(`Found ${data.total} CVEs`);
+    if (data.timed_out) {
+      toast(`Scan timed out — ${data.scanned}/${data.watched} scanned, ${data.total} CVEs so far`, '#d29922');
+    } else if (data.total !== undefined) {
+      toast(`Found ${data.total} CVEs`);
+    }
     await loadCves();
     await loadStats();
   } finally {
