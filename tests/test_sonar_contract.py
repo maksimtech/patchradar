@@ -132,3 +132,75 @@ def test_generated_report_points_at_real_source_files(tmp_path):
     # Sonar resolves each filename against the <source> entries
     resolved = {(REPO / s / n).resolve() for s in sources for n in files if (REPO / s / n).is_file()}
     assert (REPO / "src/patchradar/db/database.py").resolve() in resolved
+
+
+# ─── runs without the token (Dependabot PRs, forks) ─────────────────────────
+#
+# GitHub does not pass Actions secrets to workflows triggered by Dependabot or
+# by pull requests from forks: SONAR_TOKEN arrives empty, the scanner answers
+# "Not authorized or project not found" and exits 3. Every Dependabot PR was red
+# for a reason unrelated to its change.
+
+def workflow_steps() -> list[str]:
+    """Each step of the job as its own text block."""
+    text = WORKFLOW.read_text()
+    body = text[text.index("    steps:\n") + len("    steps:\n"):]
+    return [b for b in re.split(r"(?m)^(?=      - )", body) if b.strip()]
+
+
+def step(marker: str) -> str:
+    matches = [s for s in workflow_steps() if marker in s]
+    assert len(matches) == 1, f"expected one step containing {marker!r}"
+    return matches[0]
+
+
+TOKEN_PRESENT = re.compile(r"^\s{8}if: \$\{\{ env\.SONAR_ENABLED == 'true' \}\}\s*$", re.M)
+TOKEN_ABSENT = re.compile(r"^\s{8}if: \$\{\{ env\.SONAR_ENABLED != 'true' \}\}\s*$", re.M)
+TOKEN_REF = "${{ secrets.SONAR_TOKEN }}"
+
+
+def job_header() -> str:
+    text = WORKFLOW.read_text()
+    return text[text.index("  sonarcloud:"):text.index("    steps:")]
+
+
+def test_step_parser_sees_every_step():
+    names = [re.search(r"(?:name|uses): (.*)", s).group(1) for s in workflow_steps()]
+    assert any("checkout" in n for n in names)
+    assert "Run tests with coverage" in names
+
+
+def test_token_availability_is_exposed_at_job_level():
+    """A step's `if:` cannot read the `secrets` context, so the job publishes
+    whether the token exists — only that, as a boolean."""
+    assert re.search(r"^    env:\n\s{6}SONAR_ENABLED: \$\{\{ secrets\.SONAR_TOKEN != '' \}\}\s*$",
+                     job_header(), re.M)
+
+
+def test_token_itself_reaches_only_the_scanner():
+    """Least privilege: pytest runs the checked-out code and must not see it."""
+    assert TOKEN_REF not in job_header()
+    assert TOKEN_REF not in WORKFLOW.read_text().split("    steps:")[0]
+    holders = [s for s in workflow_steps() if TOKEN_REF in s]
+    assert len(holders) == 1 and "sonarqube-scan-action" in holders[0]
+
+
+def test_scan_is_skipped_without_a_token():
+    assert TOKEN_PRESENT.search(step("sonarqube-scan-action"))
+
+
+def test_skipped_scan_is_reported_not_silent():
+    notice = step("::notice")
+    assert TOKEN_ABSENT.search(notice)
+    assert "SONAR_TOKEN" in notice
+
+
+def test_tests_and_coverage_still_run_without_a_token():
+    """Dependabot bumps pytest-cov too: the coverage run must still be exercised."""
+    for marker in ("pip install --group dev", "--cov-report=xml"):
+        assert not re.search(r"^\s{8}if:", step(marker), re.M), marker
+
+
+def test_workflow_never_uses_pull_request_target():
+    """The classic 'fix' — running PR code with the base repo's secrets."""
+    assert "pull_request_target" not in WORKFLOW.read_text()
