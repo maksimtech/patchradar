@@ -2,10 +2,15 @@ import logging
 import httpx
 from datetime import datetime, timedelta
 
+from patchradar.collectors.errors import (
+    BAD_PAYLOAD, NETWORK, CollectorError, reason_for_status,
+)
+
 logger = logging.getLogger(__name__)
 
 MSRC_API = "https://api.msrc.microsoft.com/cvrf/v3.0"
 HEADERS = {"Accept": "application/json"}
+SOURCE = "MSRC"
 
 # MSRC addresses its monthly CVRF documents as e.g. "2026-Sep", always in
 # English. strftime("%b") follows LC_TIME, so on a non-English machine every
@@ -112,17 +117,26 @@ def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
 async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
     """Fetch CVEs from Microsoft MSRC for a given keyword."""
     results = []
+    failures: list[tuple[str, str, int | None]] = []   # (month, reason, status)
     months_to_check = _months_in_range(datetime.now(), days_back)
 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for month in months_to_check:
             try:
                 response = await client.get(f"{MSRC_API}/cvrf/{month}")
-                if response.status_code != 200:
-                    continue
-                data = response.json()
-            except Exception:
+            except httpx.HTTPError:
                 logger.debug("MSRC request failed for %s", month, exc_info=True)
+                failures.append((month, NETWORK, None))
+                continue
+            if response.status_code == 404:
+                continue   # no CVRF document for that month yet — not a failure
+            if response.status_code != 200:
+                failures.append((month, reason_for_status(response.status_code), response.status_code))
+                continue
+            try:
+                data = response.json()
+            except ValueError:
+                failures.append((month, BAD_PAYLOAD, response.status_code))
                 continue
 
             if not isinstance(data, dict):
@@ -142,6 +156,11 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
                 if parsed:
                     results.append(parsed)
 
+    if failures:
+        # Months that did answer are kept in `partial`; the caller decides.
+        _, reason, status = failures[0]
+        raise CollectorError(SOURCE, reason, status=status, partial=results,
+                             detail="failed months: " + ", ".join(m for m, _, _ in failures))
     return results
 
 

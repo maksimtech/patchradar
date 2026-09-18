@@ -104,10 +104,21 @@ async def test_malformed_entry_does_not_hide_a_later_english_one():
 # ─── L2: payload shape ───────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [[1, 2], "a string", 42, None, {"vulnerabilities": None},
+@pytest.mark.parametrize("payload", [[1, 2], "a string", 42, {"vulnerabilities": None},
                                      {"vulnerabilities": "nope"}, {}])
 async def test_unexpected_top_level_payload_returns_empty(payload):
     assert await fetch_nvd(payload) == []
+
+
+@pytest.mark.asyncio
+async def test_empty_body_is_an_error_not_an_empty_result():
+    """httpx.Response(200, json=None) has no body at all. That used to be
+    listed above as "returns empty"; since W10 a body that is not JSON is a
+    failed fetch, not a clean answer with zero CVEs."""
+    from patchradar.collectors.errors import CollectorError
+    with pytest.raises(CollectorError) as exc:
+        await fetch_nvd(None)
+    assert exc.value.reason == "bad_payload"
 
 
 @pytest.mark.asyncio
@@ -291,7 +302,7 @@ async def test_one_bad_vuln_does_not_discard_the_rest_of_the_month():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [[1, 2], "string", None, {"Vulnerability": None},
+@pytest.mark.parametrize("payload", [[1, 2], "string", {"Vulnerability": None},
                                      {"Vulnerability": "nope"}, {}])
 async def test_unexpected_msrc_payload_returns_empty(payload):
     with respx.mock:
@@ -315,3 +326,13 @@ async def test_msrc_good_record_still_parses_fully():
     assert cves[0]["severity"] == "HIGH"
     assert cves[0]["description"] == "nginx description"
     assert cves[0]["source"] == "MSRC"
+
+
+@pytest.mark.asyncio
+async def test_msrc_empty_body_is_an_error_not_an_empty_result():
+    from patchradar.collectors.errors import CollectorError
+    with respx.mock:
+        respx.get(url__startswith=MSRC_PREFIX).mock(return_value=httpx.Response(200))
+        with pytest.raises(CollectorError) as exc:
+            await msrc_fetch("nginx", days_back=7)
+    assert exc.value.reason == "bad_payload"

@@ -140,9 +140,12 @@ async def test_concurrent_fetches_share_one_download():
 @pytest.mark.asyncio
 async def test_failed_download_is_not_cached():
     """An error response must not poison the cache with an empty snapshot."""
+    from patchradar.collectors.errors import CollectorError
     with respx.mock:
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(500))
-        assert await debian.fetch_cves("nginx") == []
+        # raises since W10; used to return [] indistinguishable from "no CVEs"
+        with pytest.raises(CollectorError):
+            await debian.fetch_cves("nginx")
     with respx.mock:
         counter = mock_collectors()
         await debian.fetch_cves("nginx")

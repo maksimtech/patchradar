@@ -4,10 +4,13 @@ import time
 import httpx
 from datetime import datetime, timezone
 
+from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+
 logger = logging.getLogger(__name__)
 
 DEBIAN_TRACKER_URL = "https://security-tracker.debian.org/tracker/data/json"
 DEBIAN_RELEASE = "trixie"  # default: Debian 13
+SOURCE = "Debian"
 
 # The tracker emits exactly three status values: resolved, open, undetermined.
 # "undetermined" means the release may be affected, so it is reported.
@@ -34,23 +37,29 @@ def _is_fresh() -> bool:
     return _snapshot is not None and (time.monotonic() - _snapshot_at) < CACHE_TTL_SECONDS
 
 
-async def _download_tracker() -> dict | None:
-    """Fetch the tracker dump. Returns None on any failure — never a partial."""
+async def _download_tracker() -> dict:
+    """Fetch the tracker dump, raising CollectorError on any failure."""
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.get(DEBIAN_TRACKER_URL)
             response.raise_for_status()
-            data = response.json()
-        except Exception:
-            return None
-    return data if isinstance(data, dict) else None
+        except httpx.HTTPError as exc:
+            raise from_http_error(SOURCE, exc) from exc
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code) from exc
+    if not isinstance(data, dict):
+        raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code,
+                             detail=f"expected an object, got {type(data).__name__}")
+    return data
 
 
-async def get_tracker_snapshot() -> dict | None:
+async def get_tracker_snapshot() -> dict:
     """Return the cached tracker dump, downloading it at most once per TTL.
 
     The lock collapses a stampede of concurrent scans into a single download;
-    a failed download is never cached, so the next call retries.
+    a failed download raises and is never cached, so the next call retries.
     """
     global _snapshot, _snapshot_at
     if _is_fresh():
@@ -60,8 +69,6 @@ async def get_tracker_snapshot() -> dict | None:
         if _is_fresh():
             return _snapshot
         data = await _download_tracker()
-        if data is None:
-            return None
         _snapshot = data
         _snapshot_at = time.monotonic()
         return _snapshot
@@ -144,7 +151,4 @@ def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> l
 
 async def fetch_cves(keyword: str, days_back: int = 30, release: str = DEBIAN_RELEASE) -> list[dict]:
     """Fetch CVEs from Debian Security Tracker for a given package keyword."""
-    data = await get_tracker_snapshot()
-    if data is None:
-        return []
-    return filter_tracker(data, keyword, release)
+    return filter_tracker(await get_tracker_snapshot(), keyword, release)

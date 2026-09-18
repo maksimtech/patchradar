@@ -7,6 +7,110 @@ Il progetto usa versionamento **CalVer** (`YYYY.M.PATCH`), non SemVer.
 
 ---
 
+## [2026.9.3] — 2026-09-18
+
+Chiude i warning dell'audit: una scansione fallita non si presenta più come
+"nessuna CVE", la CSP blocca davvero gli script iniettati, le date di fonti
+diverse si ordinano cronologicamente e SonarCloud misura di nuovo la coverage.
+
+### Security
+
+- **CSP con `'unsafe-inline'` su `script-src`.** La pagina usava handler inline
+  (`onclick=`, `onkeydown=`, `oninput=`, `onchange=`) e un blocco `<script>`
+  inline, quindi la policy doveva ammettere script inline e non fermava nulla:
+  un attributo `on*=` sfuggito all'escaping sarebbe stato eseguito. Lo script è
+  stato spostato in `/static/app.js` e ogni handler è collegato con
+  `addEventListener`, così `script-src` è ora solo `'self'`. Aggiunti anche
+  `object-src 'none'` e `base-uri 'none'`. Togliere i soli handler non sarebbe
+  bastato: con `script-src 'self'` anche il blocco `<script>` inline viene
+  rifiutato, e la pagina non avrebbe eseguito nulla.
+- **Caratteri di controllo nelle risposte API.** `sanitize_cve` dichiarava di
+  rimuovere "null bytes and control characters" ma rimuoveva solo `\x00`. ESC,
+  BEL, backspace e i controlli C1 (incluso `\x9b`, il CSI a 8 bit) arrivavano
+  nella risposta, e gli stessi record sono stampati a terminale dalla CLI, dove
+  ESC apre una sequenza ANSI. Ora vengono rimossi tutti i controlli C0, DEL e C1,
+  tranne tab e a capo; `\r\n` e `\r` sono normalizzati in `\n`.
+
+### Fixed
+
+- **Un errore della fonte appariva come "nessuna CVE".** Ogni collector catturava
+  qualsiasi eccezione e restituiva `[]`: un 403/429 di NVD (che limita i client
+  senza chiave a 5 richieste ogni 30 secondi), un 503 di Debian, un errore DNS o
+  un proxy che risponde in HTML producevano lo stesso output di una scansione
+  pulita: `nginx — no CVEs found`. Per un monitor di vulnerabilità è il modo
+  peggiore di fallire. Ora i collector sollevano `CollectorError` con fonte,
+  motivo (`rate_limited`, `forbidden`, `server_error`, `http_error`, `network`,
+  `bad_payload`) e codice HTTP; la CLI indica quale fonte è fallita e dichiara i
+  risultati incompleti, e la UI mostra "Scan incomplete" invece di "Found 0 CVEs".
+- **Ordinamento delle CVE non cronologico.** Ogni fonte salvava la data nel
+  proprio formato: NVD `2026-08-15T00:00:00.000` senza fuso, Debian con
+  `+00:00` e microsecondi, MSRC senza fuso, con `Z` o con un offset. La colonna è
+  TEXT, quindi `ORDER BY published_at DESC` confrontava stringhe:
+  `…T20:00:00-07:00` (le 03:00 UTC del giorno dopo) finiva dopo
+  `…T23:00:00+00:00`, e con `LIMIT` le CVE più recenti potevano uscire dalla
+  pagina. Le date sono ora normalizzate al salvataggio in un unico formato UTC a
+  larghezza fissa, `YYYY-MM-DDTHH:MM:SSZ`; gli orari senza fuso sono letti come
+  UTC, come li pubblicano NVD e MSRC, indipendentemente dal fuso della macchina.
+- **La UI si bloccava su qualsiasi errore dell'API.** `api()` segnalava l'errore e
+  poi restituiva `{}`, e quasi ogni chiamante lo dereferenziava: `loadWatchlist`
+  sollevava `TypeError` e interrompeva il caricamento della pagina, `loadStats`
+  scriveva `undefined` nelle card, `addSoftware` sovrascriveva l'errore reale con
+  "already in watchlist", `removeSoftware` confermava "Removed" anche se nulla era
+  stato rimosso, `openCveDetail` apriva una modale vuota su un 404. Una risposta
+  200 non JSON sfuggiva come rejection non gestita perché `r.json()` non era
+  atteso dentro il `try`.
+- **Crash di `patchradar status` su severity nulla.** `cve.get("severity",
+  "UNKNOWN").upper()` usa il default solo se la chiave manca; la colonna è
+  nullable, quindi una riga con severity `NULL` sollevava `AttributeError`.
+- **Punteggio CVSS 0.0 mostrato come "N/A".** Nella CLI e nella UI il test era
+  sulla veridicità del valore, e `0.0` è falso: un punteggio reale di zero era
+  indistinguibile da "nessun punteggio". Un punteggio arrivato come stringa
+  sollevava inoltre `ValueError` nella CLI.
+
+### Changed
+
+- **Nuovo contratto dei collector:** una lista vuota significa solo che la fonte ha
+  risposto senza CVE. I risultati già raccolti prima di un errore sono conservati
+  in `CollectorError.partial` e salvati; se MSRC fallisce su un mese, i mesi già
+  scaricati non vanno persi.
+- Una risposta 200 con corpo vuoto o non JSON è ora un errore `bad_payload`, non
+  zero CVE.
+- Un 404 di MSRC continua a indicare un mese non ancora pubblicato e non è un
+  errore.
+- Il 403 di NVD è classificato `forbidden` e non `rate_limited`: NVD lo usa per il
+  superamento della quota senza chiave, ma lo stesso codice può indicare una
+  chiave non valida.
+- La risposta di `POST /api/scan` include un campo `errors` con software, fonte,
+  motivo e codice HTTP di ogni fonte fallita.
+- All'avvio, `init_db()` riscrive nel formato canonico le date salvate prima di
+  questo rilascio; i valori non interpretabili diventano `NULL` e finiscono in
+  fondo all'ordinamento. L'operazione è idempotente.
+- La pagina web carica lo script da `/static/app.js`, servito dalla stessa origine.
+  `style-src` mantiene `'unsafe-inline'`: la pagina usa attributi `style=`, e il
+  CSS non può eseguire script.
+
+### CI
+
+- **SonarCloud non misurava alcuna coverage.** `sonar.coverage.exclusions=**/*`
+  escludeva ogni file, e il workflow non generava comunque un report: rimuovere
+  solo l'esclusione avrebbe mostrato 0%. Il workflow ora esegue la suite con
+  `pytest --cov` e produce `coverage.xml` prima della scansione, Sonar lo legge
+  tramite `sonar.python.coverage.reportPaths`, e l'esclusione è limitata a
+  `static/**` e `templates/**` (JS e HTML, esercitati dall'harness Node che non
+  produce un report di coverage). `relative_files = true` rende i percorsi del
+  report relativi al checkout, così SonarCloud li risolve. Il quality gate
+  potrebbe diventare rosso alla prima analisi, ora che vede la coverage reale.
+
+### Added
+
+- Harness Node (`tests/js/ui_harness.js`) che esegue lo script reale della pagina
+  su un DOM minimo con `fetch` simulato. Non esegue gli attributi `on*=`, come un
+  browser sotto la nuova CSP, quindi un controllo risulta funzionante solo se lo
+  script lo ha davvero collegato.
+- Suite di test portata da 370 a **912 test**.
+
+---
+
 ## [2026.9.2] — 2026-09-17
 
 Chiude i difetti di logica emersi dall'audit del codice: falsi positivi e falsi

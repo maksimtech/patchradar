@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Query, Path
 from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
 from fastapi.responses import Response, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path as FilePath
 from importlib.metadata import version as pkg_version
 from patchradar.db.database import (
@@ -16,6 +17,7 @@ from patchradar.db.database import (
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.debian import fetch_cves as debian_fetch
+from patchradar.collectors.errors import CollectorError
 import aiosqlite
 
 logger = logging.getLogger("patchradar")
@@ -69,6 +71,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="PatchRadar", version=pkg_version("patchradar"), lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=FilePath(__file__).parent / "static"), name="static")
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
@@ -76,10 +79,16 @@ async def security_headers(request: Request, call_next) -> Response:
     response = await call_next(request)
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
+        # No 'unsafe-inline' for scripts: the page script lives in
+        # /static/app.js and binds its handlers with addEventListener, so an
+        # injected on*= attribute or <script> block is refused by the browser.
+        "script-src 'self'; "
+        # Styles still need it (style= attributes); CSS cannot run script.
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
         "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'none'; "
         "frame-ancestors 'none';"
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -118,15 +127,29 @@ def normalise_software_name(value) -> str | None:
     return name
 
 
+# C0 controls except tab and newline, DEL, and the C1 block (which includes
+# \x9b, the single-byte CSI). Carriage returns are normalised to \n first.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
+def _strip_control_chars(value: str) -> str:
+    """Remove terminal control characters, keeping ordinary line structure.
+
+    Only \x00 used to be removed, so ESC/BEL/BS reached the API response and,
+    through the same stored rows, the CLI's terminal output.
+    """
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    return _CONTROL_CHARS_RE.sub("", value)
+
+
 def sanitize_cve(cve: dict) -> dict:
-    """Sanitize CVE data before returning to frontend — removes null bytes and truncates long strings."""
+    """Sanitize CVE data before returning to frontend — removes control characters and truncates long strings."""
     safe = {}
     str_fields = ["id", "software", "description", "severity", "source", "url", "published_at", "cvss_version"]
     for field in str_fields:
         val = cve.get(field)
         if isinstance(val, str):
-            # Remove null bytes and control characters
-            val = val.replace("\x00", "").strip()
+            val = _strip_control_chars(val).strip()
             # Truncate excessively long strings
             if field == "description" and len(val) > 2000:
                 val = val[:2000] + "..."
@@ -204,17 +227,29 @@ async def api_cves(software: str = Query(None, min_length=1, max_length=100), li
     sanitized = [sanitize_cve(c) for c in cves]
     return {"cves": sanitized, "total": len(sanitized)}
 
-async def _scan_one(sw: str, days: int) -> int:
-    """Collect and persist every source for a single package."""
+async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
+    """Collect and persist every source for a single package.
+
+    A source that fails is recorded in `errors` rather than silently counted
+    as zero, and whatever it managed to return before failing is still saved.
+    """
     from patchradar.db.database import save_cve
     count = 0
     # Debian is served from a process-wide snapshot, so this costs one
     # download per scan rather than one per package.
-    for cves in (
-        await nvd_fetch(sw, days_back=days),
-        await msrc_fetch(sw, days_back=days),
-        await debian_fetch(sw),
-    ):
+    fetches = (
+        lambda: nvd_fetch(sw, days_back=days),
+        lambda: msrc_fetch(sw, days_back=days),
+        lambda: debian_fetch(sw),
+    )
+    for fetch in fetches:
+        try:
+            cves = await fetch()
+        except CollectorError as exc:
+            logger.warning("scan of %r incomplete: %s", sw, exc)
+            errors.append({"software": sw, "source": exc.source,
+                           "reason": exc.reason, "status": exc.status})
+            cves = exc.partial
         for cve in cves:
             await save_cve(cve)
         count += len(cves)
@@ -230,13 +265,14 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
     watchlist = await get_watchlist()
     total = 0
     results = {}
+    errors: list[dict] = []
     timed_out = False
     try:
         # A whole-scan deadline: upstream feeds are slow and unbounded, and a
         # scan that never returns pins a worker indefinitely.
         async with asyncio.timeout(SCAN_TIMEOUT_SECONDS):
             for sw in watchlist:
-                count = await _scan_one(sw, days)
+                count = await _scan_one(sw, days, errors)
                 results[sw] = count
                 total += count
     except TimeoutError:
@@ -253,6 +289,8 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
         "timed_out": timed_out,
         "scanned": len(results),
         "watched": len(watchlist),
+        # Non-empty means some counts above are lower bounds, not answers.
+        "errors": errors,
     }
 
 @app.get("/api/stats")

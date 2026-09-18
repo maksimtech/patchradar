@@ -11,6 +11,7 @@ from patchradar.db.database import (
 )
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
+from patchradar.collectors.errors import CollectorError
 
 app = typer.Typer(
     name="patchradar",
@@ -21,6 +22,42 @@ console = Console()
 
 def run(coro):
     return asyncio.run(coro)
+
+SEVERITY_STYLES = {
+    "CRITICAL": "red bold",
+    "HIGH": "red",
+    "MEDIUM": "yellow",
+    "LOW": "green",
+}
+
+
+def _normalise_severity(value) -> str:
+    """Upper-cased severity, or UNKNOWN for anything that is not a usable string.
+
+    `cve.get("severity", "UNKNOWN")` only falls back when the key is absent; the
+    column is nullable, and .upper() on None crashed `patchradar status`.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return "UNKNOWN"
+    return value.strip().upper()
+
+
+def _format_score(value) -> str:
+    """One-decimal CVSS score, or N/A when there is no usable number.
+
+    Tests `is None`/type rather than truthiness: 0.0 is a real score and used
+    to be shown as N/A.
+    """
+    if isinstance(value, bool):
+        return "N/A"
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            return "N/A"
+    if not isinstance(value, (int, float)) or value != value:  # NaN
+        return "N/A"
+    return f"{value:.1f}"
 
 def _truncate(text, limit: int) -> str:
     """Coerce to str and cap at `limit`, appending an ellipsis when cut.
@@ -73,15 +110,26 @@ def list_watchlist():
 async def _scan_target(target: str, days: int) -> int:
     """Scan a single target for CVEs and return count."""
     safe_target = escape(target)
+    all_cves: list[dict] = []
+    failures: list[CollectorError] = []
     with console.status(f"[cyan]Scanning {safe_target}...[/cyan]"):
-        nvd_cves = await fetch_cves(target, days_back=days)
-        msrc_cves = await msrc_fetch(target, days_back=days)
-    all_cves = nvd_cves + msrc_cves
+        for fetch in (fetch_cves, msrc_fetch):
+            try:
+                all_cves += await fetch(target, days_back=days)
+            except CollectorError as exc:
+                failures.append(exc)
+                all_cves += exc.partial
     for cve in all_cves:
         await save_cve(cve)
     if all_cves:
         _print_cves(target, all_cves)
-    else:
+    for exc in failures:
+        console.print(
+            f"⚠️  [yellow]{escape(str(exc))}[/yellow] — "
+            f"results for [bold]{safe_target}[/bold] are incomplete"
+        )
+    # Only an answer from every source may be reported as an all-clear.
+    if not all_cves and not failures:
         console.print(f"[green]{safe_target}[/green] — no CVEs found in last {days} days")
     return len(all_cves)
 
@@ -124,15 +172,9 @@ def _print_cves(software: str, cves: list):
     table.add_column("Description", max_width=60)
 
     for cve in cves:
-        score = cve.get("cvss_score")
-        severity = cve.get("severity", "UNKNOWN")
-        score_str = f"{score:.1f}" if score else "N/A"
-        severity_color = {
-            "CRITICAL": "red bold",
-            "HIGH": "red",
-            "MEDIUM": "yellow",
-            "LOW": "green",
-        }.get(severity.upper(), "white")
+        score_str = _format_score(cve.get("cvss_score"))
+        severity = _normalise_severity(cve.get("severity"))
+        severity_color = SEVERITY_STYLES.get(severity, "white")
 
         # Text() renders verbatim — CVE data is untrusted and must never be
         # parsed as Rich markup (forged styles, OSC-8 links, MarkupError).
@@ -153,15 +195,9 @@ def _print_cves_table(cves: list):
     table.add_column("Source", width=6)
 
     for cve in cves:
-        score = cve.get("cvss_score")
-        severity = cve.get("severity", "UNKNOWN")
-        score_str = f"{score:.1f}" if score else "N/A"
-        severity_color = {
-            "CRITICAL": "red bold",
-            "HIGH": "red",
-            "MEDIUM": "yellow",
-            "LOW": "green",
-        }.get(severity.upper(), "white")
+        score_str = _format_score(cve.get("cvss_score"))
+        severity = _normalise_severity(cve.get("severity"))
+        severity_color = SEVERITY_STYLES.get(severity, "white")
 
         table.add_row(
             Text(str(cve.get("id", ""))),

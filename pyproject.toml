@@ -50,6 +50,8 @@ packages = ["src/patchradar"]
 
 [tool.coverage.run]
 source = ["src"]
+# Paths in coverage.xml relative to the checkout, so SonarCloud can map them.
+relative_files = true
 omit = ["tests/*"]
 
 [tool.coverage.report]

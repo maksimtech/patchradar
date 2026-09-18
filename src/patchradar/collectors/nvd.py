@@ -2,9 +2,12 @@ import logging
 import httpx
 from datetime import datetime, timedelta, timezone
 
+from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+
 logger = logging.getLogger(__name__)
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+SOURCE = "NVD"
 
 # Preferred first: newer CVSS revisions carry the more accurate score.
 CVSS_METRIC_KEYS = ["cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"]
@@ -88,13 +91,18 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
         "resultsPerPage": 50,
     }
 
+    # Failures raise instead of returning []: an empty list must only ever
+    # mean "NVD answered and had nothing", never "NVD could not be reached".
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.get(NVD_API, params=params)
             response.raise_for_status()
-            data = response.json()
-        except Exception:
-            return []
+        except httpx.HTTPError as exc:
+            raise from_http_error(SOURCE, exc) from exc
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code) from exc
 
     if not isinstance(data, dict):
         logger.warning("NVD returned %s, expected an object", type(data).__name__)

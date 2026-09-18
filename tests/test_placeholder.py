@@ -287,26 +287,31 @@ async def test_nvd_fetch_empty():
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_nvd_fetch_error():
-    """Mock NVD API error — should return empty list gracefully"""
+    """NVD API error must raise, not masquerade as "no CVEs" (W10).
+
+    This test used to assert `cves == []`, i.e. it pinned the bug.
+    """
+    from patchradar.collectors.errors import CollectorError
     with respx.mock:
         respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
             return_value=httpx.Response(500)
         )
-        cves = await fetch_cves("testsoftware", days_back=7)
-
-    assert cves == []
+        with pytest.raises(CollectorError) as exc:
+            await fetch_cves("testsoftware", days_back=7)
+    assert exc.value.reason == "server_error"
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_nvd_fetch_timeout():
-    """Mock NVD API timeout — should return empty list gracefully"""
+    """NVD timeout must raise, not masquerade as "no CVEs" (W10)."""
+    from patchradar.collectors.errors import CollectorError
     with respx.mock:
         respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
             side_effect=httpx.TimeoutException("timeout")
         )
-        cves = await fetch_cves("testsoftware", days_back=7)
-
-    assert cves == []
+        with pytest.raises(CollectorError) as exc:
+            await fetch_cves("testsoftware", days_back=7)
+    assert exc.value.reason == "network"
 
 
 # ─── Debian Collector Tests ──────────────────────────────────────────────────
@@ -395,13 +400,15 @@ async def test_debian_fetch_no_match():
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_debian_fetch_error():
-    """API error should return empty list gracefully"""
+    """Tracker error must raise, not masquerade as "no CVEs" (W10)."""
+    from patchradar.collectors.errors import CollectorError
     with respx.mock:
         respx.get("https://security-tracker.debian.org/tracker/data/json").mock(
             return_value=httpx.Response(500)
         )
-        cves = await debian_fetch_cves("nginx")
-    assert cves == []
+        with pytest.raises(CollectorError) as exc:
+            await debian_fetch_cves("nginx")
+    assert exc.value.reason == "server_error"
 
 # ─── Database CRUD Tests ──────────────────────────────────────────────────────
 

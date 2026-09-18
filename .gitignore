@@ -3,3 +3,7 @@ __pycache__/
 __pycache__/
 *.pyc
 *.pyo
+
+# coverage artefacts (the Sonar workflow writes coverage.xml)
+.coverage
+coverage.xml
