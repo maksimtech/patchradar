@@ -1,5 +1,6 @@
 import typer
 import asyncio
+import patchradar
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -70,8 +71,19 @@ def _truncate(text, limit: int) -> str:
     text = str(text)
     return text if len(text) <= limit else text[:limit] + "..."
 
+def _print_version(value: bool) -> None:
+    # Looked up at call time so it always reflects patchradar.__version__.
+    if value:
+        typer.echo(f"PatchRadar {patchradar.__version__}")
+        raise typer.Exit()
+
 @app.callback()
-def startup():
+def startup(
+    version: bool = typer.Option(
+        False, "--version", callback=_print_version, is_eager=True,
+        help="Show the PatchRadar version and exit.",
+    ),
+):
     run(init_db())
 
 @app.command()

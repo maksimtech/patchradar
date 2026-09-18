@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 PYPROJECT = Path(__file__).parent.parent / "pyproject.toml"
+INIT = Path(__file__).parent.parent / "src" / "patchradar" / "__init__.py"
 
 def get_current_version() -> str:
     content = PYPROJECT.read_text()
@@ -46,8 +47,14 @@ def update_pyproject(old: str, new: str) -> None:
     PYPROJECT.write_text(updated)
     print(f"✅ pyproject.toml: {old} → {new}")
 
+def update_init(old: str, new: str) -> None:
+    content = INIT.read_text()
+    updated = content.replace(f'__version__ = "{old}"', f'__version__ = "{new}"')
+    INIT.write_text(updated)
+    print(f"✅ __init__.py: {old} → {new}")
+
 def git_commit(version: str) -> None:
-    subprocess.run(["git", "add", "pyproject.toml"], check=True)
+    subprocess.run(["git", "add", "pyproject.toml", str(INIT)], check=True)
     subprocess.run(
         ["git", "commit", "-m", f"chore: bump version to {version}"],
         check=True
@@ -73,6 +80,7 @@ def main():
         sys.exit(0)
 
     update_pyproject(current, new)
+    update_init(current, new)
     git_commit(new)
 
     push = input("Push to remote? [y/N] ").strip().lower()
