@@ -1,13 +1,12 @@
 """
-PatchRadar — EU law provisions for audit findings.
+PatchRadar — EU and Italian law provisions for audit findings.
 
 Maps what an audit found to the provisions it concerns, and cites each one
 with the SHA-256 of the exact text applied and the date of that wording. The
-text is downloaded from EUR-Lex on every audit and compared with the local
-cache; without network the cached copy is cited.
+text is downloaded on every audit (EUR-Lex, or Normattiva for Italian law)
+and compared with the local cache; without network the cached copy is cited.
 
-Adapted from APKRadar's law_checker: only the mapping section is specific to
-PatchRadar.
+Shared by the Radar tools: only the mapping section is specific to PatchRadar.
 """
 from __future__ import annotations
 
@@ -17,7 +16,7 @@ from typing import Optional
 
 from patchradar import law_fetcher
 from patchradar.law_cache import LawCache
-from patchradar.law_fetcher import GDPR, Act, LawFetchError
+from patchradar.law_fetcher import GDPR, NIS2, Act, LawFetchError
 
 # ─── Mapping: PatchRadar findings → provisions ────────────────────────────────
 
@@ -25,14 +24,29 @@ from patchradar.law_fetcher import GDPR, Act, LawFetchError
 FINDING_ARTICLES = {
     "critical": ((GDPR, "32(2)"),),
     "unpatched": ((GDPR, "25"),),
+    "critical_unpatched": ((NIS2, "21"),),
     "personal_data": ((GDPR, "32"),),
 }
 
 FINDING_TITLES = {
     "critical": "CVE critiche",
     "unpatched": "CVE senza patch",
+    "critical_unpatched": "CVE critiche senza patch",
     "personal_data": "CVE con impatto sui dati personali",
 }
+
+# Articles downloaded and cached even when not cited, by act
+ALSO_FETCH: dict = {}
+
+NIS2_SCOPE_NOTE = (
+    "NIS2 art. 21 obbliga i soggetti essenziali e importanti (art. 3 della direttiva): "
+    "verificare che l'organizzazione rientri nell'ambito"
+)
+
+
+def _is_critical(cve: dict) -> bool:
+    severity = cve.get("severity")
+    return isinstance(severity, str) and severity.strip().upper() == "CRITICAL"
 
 
 def findings_of(cves: list[dict]) -> dict[str, list[str]]:
@@ -43,6 +57,7 @@ def findings_of(cves: list[dict]) -> dict[str, list[str]]:
     - unpatched: `patch_available` is False, i.e. NVD analysed the CVE and
       tagged none of its references as a patch. None (not analysed yet, or
       MSRC without a vendor fix listed) is not counted: it is unknown.
+    - critical_unpatched: both at once, the NIS2 case
     - personal_data: CVSS confidentiality impact HIGH — the vulnerability
       discloses the data the software processes, which PatchRadar cannot tell
       apart from personal data.
@@ -50,21 +65,30 @@ def findings_of(cves: list[dict]) -> dict[str, list[str]]:
     ids: dict[str, list[str]] = {finding: [] for finding in FINDING_ARTICLES}
     for cve in cves:
         cve_id = str(cve.get("id") or "?")
-        severity = cve.get("severity")
-        if isinstance(severity, str) and severity.strip().upper() == "CRITICAL":
+        critical = _is_critical(cve)
+        unpatched = cve.get("patch_available") is False
+        if critical:
             ids["critical"].append(cve_id)
-        if cve.get("patch_available") is False:
+        if unpatched:
             ids["unpatched"].append(cve_id)
+        if critical and unpatched:
+            ids["critical_unpatched"].append(cve_id)
         if cve.get("confidentiality_impact") == "HIGH":
             ids["personal_data"].append(cve_id)
     return {finding: sorted(set(found)) for finding, found in ids.items() if found}
 
 
 def notes_of(cves: list[dict]) -> list[str]:
+    notes = []
     unknown = sum(1 for cve in cves if cve.get("patch_available") is None)
-    if not unknown:
-        return []
-    return [f"{unknown} CVE senza informazioni sulla patch (non ancora analizzate da NVD): non valutate per l'art. 25"]
+    if unknown:
+        notes.append(
+            f"{unknown} CVE senza informazioni sulla patch (non ancora analizzate da NVD): "
+            "non valutate per l'art. 25 GDPR e l'art. 21 NIS2"
+        )
+    if any(_is_critical(cve) and cve.get("patch_available") is False for cve in cves):
+        notes.append(NIS2_SCOPE_NOTE)
+    return notes
 
 
 # ─── Citations ────────────────────────────────────────────────────────────────
@@ -81,8 +105,8 @@ class Citation:
 @dataclass(frozen=True)
 class ActStatus:
     act: Act
-    # "eur-lex": verified now; "cache": EUR-Lex unreachable, cached copy;
-    # "unavailable": no text at all
+    # "verified": downloaded now from the act's source (EUR-Lex or Normattiva);
+    # "cache": source unreachable, cached copy; "unavailable": no text at all
     source: str
     error: Optional[str] = None
 
@@ -100,10 +124,21 @@ class LawCheckResult:
     notes: list[str] = field(default_factory=list)
 
 
-def check(subject, *, cache: Optional[LawCache] = None, now: Optional[datetime] = None) -> LawCheckResult:
-    """Cite the provisions that apply to the findings about `subject`."""
-    evidence = findings_of(subject)
-    notes = notes_of(subject)
+def check(
+    subject,
+    *,
+    cache: Optional[LawCache] = None,
+    now: Optional[datetime] = None,
+    **context,
+) -> LawCheckResult:
+    """
+    Cite the provisions that apply to the findings about `subject`.
+
+    `context` is passed on to findings_of and notes_of: what the audit found
+    besides `subject` itself.
+    """
+    evidence = findings_of(subject, **context)
+    notes = notes_of(subject, **context)
     cited = [
         (finding, act, ref)
         for finding in evidence
@@ -119,8 +154,10 @@ def check(subject, *, cache: Optional[LawCache] = None, now: Optional[datetime] 
     fresh = {}
     errors = {}
     for act in acts:
-        # Only the articles cited: "32(1)(a)" is part of article 32
-        articles = tuple(dict.fromkeys(ref.split("(")[0] for _, a, ref in cited if a == act))
+        # The articles cited ("32(1)(a)" is part of article 32) and ALSO_FETCH
+        articles = tuple(dict.fromkeys(
+            [ref.split("(")[0] for _, a, ref in cited if a == act] + list(ALSO_FETCH.get(act, ()))
+        ))
         try:
             provisions = law_fetcher.fetch_provisions(act, articles, now=now)
         except LawFetchError as e:
@@ -140,7 +177,7 @@ def check(subject, *, cache: Optional[LawCache] = None, now: Optional[datetime] 
     statuses = []
     for act in acts:
         if act not in errors:
-            statuses.append(ActStatus(act, "eur-lex"))
+            statuses.append(ActStatus(act, "verified"))
         else:
             cached = any((act.celex, ref) in provisions for _, a, ref in cited if a == act)
             statuses.append(ActStatus(act, "cache" if cached else "unavailable", errors[act]))

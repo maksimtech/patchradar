@@ -7,7 +7,9 @@ from typer.testing import CliRunner
 
 from patchradar import cli, law_fetcher
 
-FIXTURE = Path(__file__).parent / "fixtures" / "gdpr_it_excerpt.html"
+FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURE = FIXTURES / "gdpr_it_excerpt.html"
+NIS2_PAGE = FIXTURES / "nis2_it_excerpt.html"
 runner = CliRunner()
 
 
@@ -20,8 +22,8 @@ def cve(cve_id, severity="MEDIUM", patch=True, confidentiality="NONE"):
     }
 
 
-def _sha(ref):
-    text = law_fetcher.parse_articles(FIXTURE.read_text(encoding="utf-8"), ("25", "32"))[ref]
+def _sha(ref, page=FIXTURE):
+    text = law_fetcher.parse_articles(page.read_text(encoding="utf-8"), (ref.split("(")[0],))[ref]
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -31,7 +33,8 @@ def eurlex(monkeypatch):
 
     def fake_fetch_html(url, **kwargs):
         calls.append(url)
-        return FIXTURE.read_text(encoding="utf-8")
+        page = NIS2_PAGE if "32022L2555" in url else FIXTURE
+        return page.read_text(encoding="utf-8")
 
     monkeypatch.setattr(law_fetcher, "fetch_html", fake_fetch_html)
     return calls
@@ -68,6 +71,16 @@ def test_scan_cites_articles(monkeypatch, eurlex):
         assert f"SHA256: {_sha(ref)}" in out.output
         assert cve_id in out.output
     assert eurlex == ["https://eur-lex.europa.eu/legal-content/IT/TXT/HTML/?uri=CELEX:32016R0679"]
+
+
+def test_critical_unpatched_cites_nis2(monkeypatch, eurlex):
+    out = _scan(monkeypatch, [cve("CVE-2026-1006", severity="CRITICAL", patch=False)])
+
+    assert "CVE critiche senza patch" in out.output
+    assert "Norma applicata: NIS2 dir. 2022/2555 art. 21\n" in out.output
+    assert f"SHA256: {_sha('21', NIS2_PAGE)}" in out.output
+    assert "soggetti essenziali e importanti" in out.output
+    assert eurlex[-1] == "https://eur-lex.europa.eu/legal-content/IT/TXT/HTML/?uri=CELEX:32022L2555"
 
 
 def test_scan_of_whole_watchlist_cites_once(monkeypatch, eurlex):

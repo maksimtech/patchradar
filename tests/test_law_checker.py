@@ -8,11 +8,12 @@ from patchradar.law_cache import LawCache
 from patchradar.law_checker import (
     FINDING_ARTICLES,
     FINDING_TITLES,
+    NIS2_SCOPE_NOTE,
     check,
     findings_of,
     notes_of,
 )
-from patchradar.law_fetcher import GDPR, LawFetchError, Provision
+from patchradar.law_fetcher import GDPR, NIS2, LawFetchError, Provision
 
 DAY1 = datetime(2026, 9, 19, 14, 0, tzinfo=timezone.utc)
 DAY2 = datetime(2026, 10, 1, 9, 30, tzinfo=timezone.utc)
@@ -59,6 +60,7 @@ def test_mapping():
     assert FINDING_ARTICLES == {
         "critical": ((GDPR, "32(2)"),),
         "unpatched": ((GDPR, "25"),),
+        "critical_unpatched": ((NIS2, "21"),),
         "personal_data": ((GDPR, "32"),),
     }
     assert set(FINDING_TITLES) == set(FINDING_ARTICLES)
@@ -80,9 +82,26 @@ def test_unpatched_only_when_known():
 
 def test_unknown_patch_status_is_noted():
     assert notes_of([cve(patch=None), cve(patch=None), cve()]) == [
-        "2 CVE senza informazioni sulla patch (non ancora analizzate da NVD): non valutate per l'art. 25"
+        "2 CVE senza informazioni sulla patch (non ancora analizzate da NVD): "
+        "non valutate per l'art. 25 GDPR e l'art. 21 NIS2"
     ]
     assert notes_of([cve()]) == []
+
+
+def test_critical_unpatched_needs_both():
+    cves = [
+        cve("CVE-2026-0010", severity="CRITICAL", patch=False),
+        cve("CVE-2026-0011", severity="CRITICAL", patch=True),
+        cve("CVE-2026-0012", severity="CRITICAL", patch=None),
+        cve("CVE-2026-0013", severity="HIGH", patch=False),
+    ]
+    assert findings_of(cves)["critical_unpatched"] == ["CVE-2026-0010"]
+
+
+def test_nis2_scope_is_noted_only_when_nis2_is_cited():
+    assert notes_of([cve(severity="CRITICAL", patch=False)]) == [NIS2_SCOPE_NOTE]
+    assert notes_of([cve(severity="CRITICAL"), cve(patch=False)]) == []
+    assert "soggetti essenziali e importanti" in NIS2_SCOPE_NOTE
 
 
 def test_personal_data_is_high_confidentiality_impact():
@@ -95,6 +114,7 @@ def test_findings_in_report_order_and_ids_deduplicated():
     assert findings_of([bad, bad]) == {
         "critical": ["CVE-2026-0007"],
         "unpatched": ["CVE-2026-0007"],
+        "critical_unpatched": ["CVE-2026-0007"],
         "personal_data": ["CVE-2026-0007"],
     }
 
@@ -117,9 +137,12 @@ def test_citations(cache, online):
     assert [(c.finding, c.law, c.article) for c in law.citations] == [
         ("critical", "GDPR", "32(2)"),
         ("unpatched", "GDPR", "25"),
+        ("critical_unpatched", "NIS2 dir. 2022/2555", "21"),
         ("personal_data", "GDPR", "32"),
     ]
-    assert online == [(GDPR, ("32", "25"))]
+    assert online == [(GDPR, ("32", "25")), (NIS2, ("21",))]
+    assert [s.source for s in law.acts] == ["verified", "verified"]
+    assert NIS2_SCOPE_NOTE in law.notes
     assert all(c.sha256 and c.version_date == "2026-09-19" for c in law.citations)
     assert law.evidence["unpatched"] == ["CVE-2026-0007"]
 
