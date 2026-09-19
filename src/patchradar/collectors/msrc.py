@@ -1,4 +1,5 @@
 import logging
+import re
 import httpx
 from datetime import datetime, timedelta
 
@@ -82,6 +83,34 @@ def _base_score(vuln: dict) -> float | None:
     return score if isinstance(score, (int, float)) else None
 
 
+# CVRF remediation type of a security update
+VENDOR_FIX = 2
+_CONFIDENTIALITY = re.compile(r"(?:^|/)C:([HLN])(?:/|$)")
+_CONFIDENTIALITY_LEVELS = {"H": "HIGH", "L": "LOW", "N": "NONE"}
+
+
+def _patch_available(vuln: dict) -> bool | None:
+    """True when MSRC lists a security update, else None: third-party CVEs
+    listed for information carry no remediation at all, so a missing one
+    does not mean there is no patch."""
+    remediations = vuln.get("Remediations")
+    if isinstance(remediations, list) and any(
+        isinstance(r, dict) and r.get("Type") == VENDOR_FIX for r in remediations
+    ):
+        return True
+    return None
+
+
+def _confidentiality(vuln: dict) -> str | None:
+    """HIGH/LOW/NONE from the C: metric of the CVSS vector."""
+    score_sets = vuln.get("CVSSScoreSets")
+    if not isinstance(score_sets, list) or not score_sets or not isinstance(score_sets[0], dict):
+        return None
+    vector = score_sets[0].get("Vector")
+    match = _CONFIDENTIALITY.search(vector) if isinstance(vector, str) else None
+    return _CONFIDENTIALITY_LEVELS[match.group(1)] if match else None
+
+
 def _matches_keyword(vuln: dict, keyword: str) -> bool:
     """Check if vulnerability matches keyword in title or notes."""
     notes = " ".join([n.get("Value") or "" for n in _notes(vuln)])
@@ -111,6 +140,8 @@ def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
         "published_at": _published_at(vuln),
         "source": "MSRC",
         "url": f"https://msrc.microsoft.com/update-guide/en-US/vulnerability/{cve_id}",
+        "patch_available": _patch_available(vuln),
+        "confidentiality_impact": _confidentiality(vuln),
     }
 
 

@@ -50,6 +50,44 @@ def _extract_metrics(cve: dict) -> tuple[float | None, str | None, str]:
     return None, None, "UNKNOWN"
 
 
+# NVD tags references only once it has analysed a CVE
+ANALYSED_STATUSES = {"Analyzed", "Modified"}
+
+# CVSS v2 says COMPLETE/PARTIAL where v3 and v4 say HIGH/LOW
+CONFIDENTIALITY_LEVELS = {"HIGH": "HIGH", "LOW": "LOW", "NONE": "NONE", "COMPLETE": "HIGH", "PARTIAL": "LOW"}
+
+
+def _extract_patch_available(cve: dict) -> bool | None:
+    """True if a reference is tagged "Patch", False if NVD analysed the CVE
+    and tagged none, None while it is not analysed: no tags yet says nothing."""
+    references = cve.get("references")
+    tags: set[str] = set()
+    if isinstance(references, list):
+        for reference in references:
+            if isinstance(reference, dict) and isinstance(reference.get("tags"), list):
+                tags.update(tag for tag in reference["tags"] if isinstance(tag, str))
+    if "Patch" in tags:
+        return True
+    return False if cve.get("vulnStatus") in ANALYSED_STATUSES else None
+
+
+def _extract_confidentiality(cve: dict) -> str | None:
+    """CVSS confidentiality impact (HIGH/LOW/NONE) of the metric the score comes from."""
+    metrics = cve.get("metrics")
+    if not isinstance(metrics, dict):
+        return None
+    for key in CVSS_METRIC_KEYS:
+        entries = metrics.get(key)
+        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+            continue
+        cvss_data = entries[0].get("cvssData")
+        if not isinstance(cvss_data, dict):
+            return None
+        value = cvss_data.get("confidentialityImpact") or cvss_data.get("vulnConfidentialityImpact")
+        return CONFIDENTIALITY_LEVELS.get(value) if isinstance(value, str) else None
+    return None
+
+
 def _parse_item(item: dict, keyword: str) -> dict | None:
     """Turn one `vulnerabilities[]` entry into a CVE dict, or None if unusable."""
     if not isinstance(item, dict):
@@ -74,6 +112,8 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
         "published_at": cve.get("published"),
         "source": "NVD",
         "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+        "patch_available": _extract_patch_available(cve),
+        "confidentiality_impact": _extract_confidentiality(cve),
     }
 
 

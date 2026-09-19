@@ -53,3 +53,17 @@ def reset_debian_snapshot():
     debian.clear_cache()
     yield
     debian.clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_law_checker(tmp_path, monkeypatch):
+    """No test may reach EUR-Lex or write to ~/.patchradar: the law cache goes
+    to a temporary folder and every download fails."""
+    from patchradar import law_fetcher
+
+    monkeypatch.setenv("PATCHRADAR_HOME", str(tmp_path / "patchradar-home"))
+
+    def no_network(*args, **kwargs):
+        raise law_fetcher.LawFetchError("network disabled in tests")
+
+    monkeypatch.setattr(law_fetcher, "fetch_html", no_network)
