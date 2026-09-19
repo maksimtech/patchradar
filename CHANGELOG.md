@@ -7,6 +7,29 @@ Il progetto usa versionamento **CalVer** (`YYYY.M.PATCH`), non SemVer.
 
 ---
 
+## [2026.9.5] — 2026-09-19
+
+### Added
+
+- **Norme applicate.** `patchradar scan` termina con le norme che riguardano
+  le CVE trovate, ciascuna con lo SHA-256 del testo esatto applicato e la data
+  di quella versione. Il testo è scaricato da EUR-Lex a ogni scansione e
+  salvato in `~/.patchradar/law_cache.json` (`PATCHRADAR_HOME` cambia la
+  cartella); un testo cambiato viene segnalato con l'hash precedente. Senza
+  rete si cita la copia in cache, oppure "SHA256: non disponibile". Un errore
+  del controllo non fa mai fallire la scansione.
+  - GDPR art. 32(2): CVE critiche; art. 25: CVE senza patch (analizzate da NVD
+    e senza riferimenti marcati "Patch"); art. 32: CVE con impatto alto sulla
+    riservatezza (CVSS `C:H`).
+  - NIS2, direttiva (UE) 2022/2555, art. 21: CVE critiche e senza patch. Il
+    report ricorda che la NIS2 si applica solo ai soggetti essenziali e
+    importanti.
+- **Collector NVD e MSRC**: nuovi campi `patch_available` (patch presente,
+  assente o non nota) e `confidentiality_impact` (HIGH/LOW/NONE dal CVSS).
+  Non sono salvati nel database.
+
+---
+
 ## [2026.9.4] — 2026-09-19
 
 ### Added
