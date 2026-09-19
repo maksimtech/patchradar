@@ -7,6 +7,17 @@ Il progetto usa versionamento **CalVer** (`YYYY.M.PATCH`), non SemVer.
 
 ---
 
+## [2026.9.4] — 2026-09-19
+
+### Added
+
+- **Opzione `--version`.** `patchradar --version` stampa `PatchRadar <versione>`
+  ed esce senza inizializzare il database. La versione è letta da
+  `patchradar.__version__`, che `scripts/bump_version.py` mantiene allineato a
+  `pyproject.toml`.
+
+---
+
 ## [2026.9.3] — 2026-09-18
 
 Chiude i warning dell'audit: una scansione fallita non si presenta più come
