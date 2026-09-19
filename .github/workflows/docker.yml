@@ -3,6 +3,11 @@ name: Build and Push Docker Image
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Already published version to rebuild (e.g. 2026.9.4)'
+        required: true
 
 permissions:
   contents: read
@@ -20,9 +25,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Extract version from tag
+      - name: Extract version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        env:
+          RAW: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
 
       # publish.yml runs in parallel on the same release event: a fixed sleep
       # raced with it (2026.9.4 failed), so poll until pip can fetch the version.
