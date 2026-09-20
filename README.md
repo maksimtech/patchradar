@@ -94,9 +94,9 @@ PatchRadar uses [CalVer](https://calver.org) — `YYYY.MM.PATCH`.
 Performance is tracked continuously with [CodSpeed](https://codspeed.io). The benchmarks live in `benchmarks/` and cover the CVE collectors, the SQLite layer, the API endpoints and the CLI table rendering.
 
 ```bash
-poetry install --with dev
-poetry run pytest benchmarks/            # correctness check, no measurement
-codspeed run --mode simulation -- poetry run pytest benchmarks/ --codspeed
+pip install --group dev -e .
+pytest benchmarks/                       # correctness check, no measurement
+codspeed run --mode simulation -- pytest benchmarks/ --codspeed
 ```
 
 ---
