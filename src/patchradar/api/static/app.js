@@ -202,10 +202,24 @@ function renderTable() {
 
   const wrap = document.getElementById('cve-table-wrap');
   if (!filtered.length) {
-    const msg = searchTerm
-      ? `<div class="empty">No CVEs found for "<strong>${searchTerm}</strong>". Try a different search term or run a new scan.</div>`
-      : '<div class="empty">No CVEs found. Run a scan first.</div>';
-    wrap.innerHTML = msg;
+    // CWE-79 fix: the search term is user input, so build the message via DOM API
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    if (searchTerm) {
+      const before = document.createElement('span');
+      before.textContent = 'No CVEs found for "';
+      const term = document.createElement('strong');
+      term.textContent = searchTerm;
+      const after = document.createElement('span');
+      after.textContent = '". Try a different search term or run a new scan.';
+      empty.appendChild(before);
+      empty.appendChild(term);
+      empty.appendChild(after);
+    } else {
+      empty.textContent = 'No CVEs found. Run a scan first.';
+    }
+    wrap.innerHTML = '';
+    wrap.appendChild(empty);
     return;
   }
 
