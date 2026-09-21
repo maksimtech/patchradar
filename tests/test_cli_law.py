@@ -70,7 +70,7 @@ def test_scan_cites_articles(monkeypatch, eurlex):
         assert f"Norma applicata: GDPR art. {ref}\n" in out.output
         assert f"SHA256: {_sha(ref)}" in out.output
         assert cve_id in out.output
-    assert eurlex == ["https://eur-lex.europa.eu/legal-content/IT/TXT/HTML/?uri=CELEX:32016R0679"]
+    assert eurlex == ["https://publications.europa.eu/resource/celex/32016R0679"]
 
 
 def test_critical_unpatched_cites_nis2(monkeypatch, eurlex):
@@ -80,7 +80,7 @@ def test_critical_unpatched_cites_nis2(monkeypatch, eurlex):
     assert "Norma applicata: NIS2 dir. 2022/2555 art. 21\n" in out.output
     assert f"SHA256: {_sha('21', NIS2_PAGE)}" in out.output
     assert "soggetti essenziali e importanti" in out.output
-    assert eurlex[-1] == "https://eur-lex.europa.eu/legal-content/IT/TXT/HTML/?uri=CELEX:32022L2555"
+    assert eurlex[-1] == "https://publications.europa.eu/resource/celex/32022L2555"
 
 
 def test_scan_of_whole_watchlist_cites_once(monkeypatch, eurlex):
