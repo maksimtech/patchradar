@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import aiosqlite
@@ -32,8 +32,8 @@ def normalize_timestamp(value) -> str | None:
         logger.debug("unparseable timestamp %r stored as NULL", value)
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc).strftime(TIMESTAMP_FORMAT)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).strftime(TIMESTAMP_FORMAT)
 
 
 async def _normalize_stored_timestamps(db) -> None:
@@ -90,10 +90,9 @@ async def add_to_watchlist(name: str) -> bool:
             return False
 
 async def get_watchlist() -> list[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT name FROM watchlist ORDER BY name") as cursor:
-            rows = await cursor.fetchall()
-            return [row[0] for row in rows]
+    async with aiosqlite.connect(DB_PATH) as db, db.execute("SELECT name FROM watchlist ORDER BY name") as cursor:
+        rows = await cursor.fetchall()
+        return [row[0] for row in rows]
 
 async def remove_from_watchlist(name: str) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -115,8 +114,8 @@ async def save_cve(cve: dict) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         try:
             cursor = await db.execute("""
-                INSERT OR IGNORE INTO cves 
-                (id, software, description, cvss_score, cvss_version, 
+                INSERT OR IGNORE INTO cves
+                (id, software, description, cvss_score, cvss_version,
                  severity, published_at, source, url)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -130,7 +129,7 @@ async def save_cve(cve: dict) -> bool:
         except Exception:
             return False
 
-async def get_cves(software: str = None, limit: int = 50) -> list[dict]:
+async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         if software:

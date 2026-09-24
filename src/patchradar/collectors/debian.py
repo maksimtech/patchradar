@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import time
+from datetime import UTC, datetime
+
 import httpx
-from datetime import datetime, timezone
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
 
@@ -33,8 +34,15 @@ def clear_cache() -> None:
     _snapshot_at = 0.0
 
 
-def _is_fresh() -> bool:
-    return _snapshot is not None and (time.monotonic() - _snapshot_at) < CACHE_TTL_SECONDS
+def _fresh_snapshot() -> dict | None:
+    """The cached dump while it is still within the TTL, else None.
+
+    This returns the value rather than a boolean so that "fresh" and "present"
+    cannot drift apart: a caller cannot act on one without holding the other.
+    """
+    if _snapshot is None or (time.monotonic() - _snapshot_at) >= CACHE_TTL_SECONDS:
+        return None
+    return _snapshot
 
 
 async def _download_tracker() -> dict:
@@ -62,12 +70,14 @@ async def get_tracker_snapshot() -> dict:
     a failed download raises and is never cached, so the next call retries.
     """
     global _snapshot, _snapshot_at
-    if _is_fresh():
-        return _snapshot
+    cached = _fresh_snapshot()
+    if cached is not None:
+        return cached
     async with _lock:
         # Re-check: another coroutine may have populated it while we waited.
-        if _is_fresh():
-            return _snapshot
+        cached = _fresh_snapshot()
+        if cached is not None:
+            return cached
         data = await _download_tracker()
         _snapshot = data
         _snapshot_at = time.monotonic()
@@ -141,7 +151,7 @@ def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> l
                 "cvss_score": None,
                 "cvss_version": None,
                 "severity": severity,
-                "published_at": datetime.now(timezone.utc).isoformat(),
+                "published_at": datetime.now(UTC).isoformat(),
                 "source": "Debian",
                 "url": f"https://security-tracker.debian.org/tracker/{cve_id}",
             })

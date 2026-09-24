@@ -19,7 +19,7 @@ CHANGELOG_PATH = REPO_ROOT / CHANGELOG_FILE
 
 
 def get_current_version() -> str:
-    content = PYPROJECT.read_text()
+    content = PYPROJECT.read_text(encoding="utf-8")
     match = re.search(r'^version = "(.+)"', content, re.MULTILINE)
     if not match:
         raise ValueError("Version not found in pyproject.toml")

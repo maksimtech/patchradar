@@ -14,7 +14,7 @@ PYPROJECT = Path(__file__).parent.parent / "pyproject.toml"
 INIT = Path(__file__).parent.parent / "src" / "patchradar" / "__init__.py"
 
 def get_current_version() -> str:
-    content = PYPROJECT.read_text()
+    content = PYPROJECT.read_text(encoding="utf-8")
     match = re.search(r'^version = "(.+)"', content, re.MULTILINE)
     if not match:
         raise ValueError("Version not found in pyproject.toml")
@@ -42,15 +42,15 @@ def bump_version(current: str) -> str:
     return new_version
 
 def update_pyproject(old: str, new: str) -> None:
-    content = PYPROJECT.read_text()
+    content = PYPROJECT.read_text(encoding="utf-8")
     updated = content.replace(f'version = "{old}"', f'version = "{new}"')
-    PYPROJECT.write_text(updated)
+    PYPROJECT.write_text(updated, encoding="utf-8")
     print(f"✅ pyproject.toml: {old} → {new}")
 
 def update_init(old: str, new: str) -> None:
-    content = INIT.read_text()
+    content = INIT.read_text(encoding="utf-8")
     updated = content.replace(f'__version__ = "{old}"', f'__version__ = "{new}"')
-    INIT.write_text(updated)
+    INIT.write_text(updated, encoding="utf-8")
     print(f"✅ __init__.py: {old} → {new}")
 
 def git_commit(version: str) -> None:

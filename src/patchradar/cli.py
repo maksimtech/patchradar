@@ -1,19 +1,19 @@
-import typer
 import asyncio
-import patchradar
-from rich.console import Console
-from rich.table import Table
-from rich import box
-from rich.markup import escape
-from rich.text import Text
-from patchradar.db.database import (
-    init_db, add_to_watchlist, get_watchlist,
-    remove_from_watchlist, get_cves, save_cve
-)
-from patchradar.collectors.nvd import fetch_cves
-from patchradar.collectors.msrc import fetch_cves as msrc_fetch
-from patchradar.collectors.errors import CollectorError
+import contextlib
 import sys
+
+import typer
+from rich import box
+from rich.console import Console
+from rich.markup import escape
+from rich.table import Table
+from rich.text import Text
+
+import patchradar
+from patchradar.collectors.errors import CollectorError
+from patchradar.collectors.msrc import fetch_cves as msrc_fetch
+from patchradar.collectors.nvd import fetch_cves
+from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
 
 
 def enable_utf8_output() -> None:
@@ -39,10 +39,8 @@ def enable_utf8_output() -> None:
         encoding = (getattr(stream, "encoding", "") or "").lower().replace("-", "")
         if encoding == "utf8":
             continue
-        try:
+        with contextlib.suppress(ValueError, OSError):
             reconfigure(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):
-            pass
 
 enable_utf8_output()
 
@@ -146,9 +144,19 @@ def _print_law_check(law, out=None) -> None:
         if status.source == "verified":
             out.print(f"[dim]{name}: verificato su {source} ({act.id_label} {escape(act.celex)})[/dim]")
         elif status.source == "cache":
-            out.print(f"[yellow]{name}: {source} non raggiungibile, testo dalla copia in cache non riverificato[/yellow]")
+            out.print(
+                f"[yellow]{name}: {source} non raggiungibile, "
+                "testo dalla copia in cache non riverificato[/yellow]"
+            )
         else:
-            out.print(f"[yellow]{name}: {source} non raggiungibile e nessuna copia in cache, testo non verificabile[/yellow]")
+            # The missing SHA-256 below is the consequence of this line, and
+            # the two used to sit apart: a reader who saw the gap went looking
+            # for a bug in the hashing. There is no verified text to hash, and
+            # printing one anyway would assert a verification never made.
+            out.print(
+                f"[yellow]{name}: {source} non raggiungibile e nessuna copia in cache, "
+                "testo non verificabile: le citazioni che seguono restano senza SHA-256[/yellow]"
+            )
         if act.note:
             out.print(f"[dim]  {escape(act.note)}[/dim]")
         if status.error:
@@ -226,9 +234,9 @@ async def _scan_target(target: str, days: int, collected: list | None = None) ->
         collected.extend(all_cves)
     if all_cves:
         _print_cves(target, all_cves)
-    for exc in failures:
+    for failure in failures:
         console.print(
-            f"⚠️  [yellow]{escape(str(exc))}[/yellow] — "
+            f"⚠️  [yellow]{escape(str(failure))}[/yellow] — "
             f"results for [bold]{safe_target}[/bold] are incomplete"
         )
     # Only an answer from every source may be reported as an all-clear.
