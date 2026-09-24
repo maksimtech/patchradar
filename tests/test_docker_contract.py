@@ -14,8 +14,6 @@ the container user's home) without needing a Docker daemon.
 import re
 from pathlib import Path
 
-import pytest
-
 # DEFAULT_DB_PATH, not DB_PATH: the suite redirects the live value at a
 # temporary directory, and this contract is about the production location.
 from patchradar.db.database import DEFAULT_DB_PATH
@@ -29,14 +27,14 @@ DATA_DIR_NAME = ".patchradar"
 
 def container_user() -> str:
     """The user the image finally runs as."""
-    users = re.findall(r"^\s*USER\s+(\S+)", DOCKERFILE.read_text(), re.MULTILINE)
+    users = re.findall(r"^\s*USER\s+(\S+)", DOCKERFILE.read_text(encoding="utf-8"), re.MULTILINE)
     assert users, "Dockerfile declares no USER — the image would run as root"
     return users[-1]
 
 
 def dockerfile_volumes() -> list[str]:
     """Paths declared by the Dockerfile VOLUME instruction."""
-    content = DOCKERFILE.read_text()
+    content = DOCKERFILE.read_text(encoding="utf-8")
     match = re.search(r"^\s*VOLUME\s+(.+)$", content, re.MULTILINE)
     assert match, "Dockerfile declares no VOLUME"
     return re.findall(r'"([^"]+)"', match.group(1)) or [match.group(1).strip()]
@@ -44,7 +42,7 @@ def dockerfile_volumes() -> list[str]:
 
 def compose_mount_targets(service: str = "patchradar") -> list[str]:
     """Container-side targets of the compose volume mounts."""
-    content = COMPOSE.read_text()
+    content = COMPOSE.read_text(encoding="utf-8")
     # entries look like `- <source>:<target>` under a `volumes:` key
     targets = re.findall(r"^\s*-\s+[\w./-]+:(/\S+)\s*$", content, re.MULTILINE)
     assert targets, "no volume mount found in docker-compose.yml"
@@ -95,7 +93,7 @@ def test_data_dir_name_matches_the_application():
 
 
 def test_compose_declares_a_named_volume_for_persistence():
-    content = COMPOSE.read_text()
+    content = COMPOSE.read_text(encoding="utf-8")
     assert re.search(r"^volumes:", content, re.MULTILINE), (
         "no top-level volumes: block — data would not survive `docker compose down`"
     )

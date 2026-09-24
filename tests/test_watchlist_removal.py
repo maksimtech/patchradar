@@ -11,13 +11,10 @@ So it reported False for a name that was never watched while still wiping every
 CVE stored under that name. DELETE /api/watchlist/<anything> was therefore a
 data-destruction primitive that worked on software the caller had never added.
 """
-import httpx
 import pytest
-import respx
 from httpx import ASGITransport, AsyncClient
 
 import patchradar.api.main as api
-from patchradar.db import database
 from patchradar.db.database import (
     add_to_watchlist,
     get_cves,

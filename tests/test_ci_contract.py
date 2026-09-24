@@ -14,8 +14,6 @@ import sys
 import tomllib
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -27,7 +25,7 @@ IMPORT_TO_DIST = {
 
 
 def _pyproject() -> dict:
-    return tomllib.loads(PYPROJECT.read_text())
+    return tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
 
 
 def _declared_distributions() -> set[str]:
@@ -44,7 +42,7 @@ def _declared_distributions() -> set[str]:
 def _third_party_imports(directory: Path) -> set[str]:
     found = set()
     for path in sorted(directory.glob("*.py")):
-        tree = ast.parse(path.read_text(), filename=str(path))
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]
@@ -64,20 +62,20 @@ def _third_party_imports(directory: Path) -> set[str]:
 # ─── the workflow must actually run the suite ────────────────────────────────
 
 def test_ci_workflow_invokes_pytest():
-    content = TEST_WORKFLOW.read_text()
+    content = TEST_WORKFLOW.read_text(encoding="utf-8")
     assert re.search(r"\bpytest\b", content), (
         "the Tests workflow never invokes pytest — the suite cannot fail the build"
     )
 
 
 def test_ci_workflow_runs_the_tests_directory():
-    content = TEST_WORKFLOW.read_text()
+    content = TEST_WORKFLOW.read_text(encoding="utf-8")
     assert re.search(r"pytest[^\n]*\btests/?\b", content), "pytest is not pointed at tests/"
 
 
 def test_ci_workflow_installs_the_dev_group():
     """Installing only the runtime deps leaves the suite unimportable."""
-    content = TEST_WORKFLOW.read_text()
+    content = TEST_WORKFLOW.read_text(encoding="utf-8")
     assert "--group dev" in content, "the dev dependency group is never installed in CI"
 
 

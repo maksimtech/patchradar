@@ -1,5 +1,5 @@
 """Tests for mapping PatchRadar findings to GDPR provisions."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -15,8 +15,8 @@ from patchradar.law_checker import (
 )
 from patchradar.law_fetcher import GDPR, NIS2, LawFetchError, Provision
 
-DAY1 = datetime(2026, 9, 19, 14, 0, tzinfo=timezone.utc)
-DAY2 = datetime(2026, 10, 1, 9, 30, tzinfo=timezone.utc)
+DAY1 = datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
+DAY2 = datetime(2026, 10, 1, 9, 30, tzinfo=UTC)
 
 
 def cve(cve_id="CVE-2026-0001", severity="MEDIUM", patch=True, confidentiality="NONE"):

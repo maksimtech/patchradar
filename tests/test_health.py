@@ -6,7 +6,6 @@ The Dockerfile HEALTHCHECK and docker-compose both probe
 unhealthy forever, causing restart loops under `restart: unless-stopped` and
 blocking any `depends_on: condition: service_healthy`.
 """
-import asyncio
 import re
 from pathlib import Path
 
@@ -69,7 +68,7 @@ async def test_health_degrades_when_database_unreachable(client, monkeypatch, tm
 
 def test_dockerfile_healthcheck_targets_an_existing_route():
     """Pin the contract: the probed path must be a registered route."""
-    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     probed = set(re.findall(r"localhost:8000(/[\w/\-]*)", dockerfile))
     assert probed, "no healthcheck URL found in Dockerfile"
     routes = {r.path for r in api.app.routes}
@@ -77,7 +76,7 @@ def test_dockerfile_healthcheck_targets_an_existing_route():
 
 
 def test_compose_healthcheck_targets_an_existing_route():
-    compose = (REPO_ROOT / "docker-compose.yml").read_text()
+    compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     probed = set(re.findall(r"localhost:8000(/[\w/\-]*)", compose))
     assert probed, "no healthcheck URL found in docker-compose.yml"
     routes = {r.path for r in api.app.routes}

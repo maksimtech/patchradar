@@ -18,7 +18,8 @@ work.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 
 import pytest
 
@@ -26,7 +27,7 @@ from patchradar.collectors import nvd
 
 
 def windows(days: int) -> list[tuple[datetime, datetime]]:
-    return nvd.date_windows(days, now=datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc))
+    return nvd.date_windows(days, now=datetime(2026, 9, 23, 12, 0, tzinfo=UTC))
 
 
 def span_days(start: datetime, end: datetime) -> float:
@@ -60,11 +61,11 @@ def test_no_chunk_is_ever_wide_enough_to_be_refused(days):
 def test_the_chunks_cover_the_whole_period_without_a_gap(days):
     """A gap would silently drop CVEs published inside it."""
     chunks = windows(days)
-    now = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 23, 12, 0, tzinfo=UTC)
 
     assert chunks[0][0] <= now - timedelta(days=days)
     assert chunks[-1][1] >= now
-    for (_, earlier_end), (later_start, _) in zip(chunks, chunks[1:]):
+    for (_, earlier_end), (later_start, _) in pairwise(chunks):
         assert later_start <= earlier_end, "gap between chunks"
 
 

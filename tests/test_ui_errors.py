@@ -46,9 +46,9 @@ ALL_500 = {"status": 500, "json": {"detail": "boom"}}
 
 def run_page(tmp_path, **scenario):
     spec = tmp_path / "scenario.json"
-    spec.write_text(json.dumps(scenario))
+    spec.write_text(json.dumps(scenario), encoding="utf-8")
     out = subprocess.run(["node", str(HARNESS), str(HTML), str(spec)],
-                         capture_output=True, text=True, timeout=30)
+                         capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 

@@ -9,12 +9,10 @@ Three separate defects on one endpoint:
 * the endpoint was unauthenticated while the Docker image binds 0.0.0.0.
 """
 import asyncio
-from pathlib import Path
 
 import httpx
 import pytest
 import respx
-
 from httpx import ASGITransport, AsyncClient
 
 import patchradar.api.main as api

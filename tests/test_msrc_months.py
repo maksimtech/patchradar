@@ -17,6 +17,7 @@ construction.
 import ast
 import inspect
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import httpx
 import pytest
@@ -69,7 +70,7 @@ def test_months_are_contiguous_across_three_years():
                 for days_back in (1, 7, 14, 30, 45, 60, 90):
                     now = datetime(year, month, day)
                     months = [to_tuple(m) for m in _months_in_range(now, days_back)]
-                    for earlier, later in zip(months, months[1:]):
+                    for earlier, later in pairwise(months):
                         assert next_month(*earlier) == later, (
                             f"gap between {earlier} and {later} "
                             f"for now={now.date()} days_back={days_back}"
@@ -131,9 +132,9 @@ def test_no_locale_dependent_month_formatting():
                 and node.func.attr == "strftime"):
             continue
         for arg in node.args:
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                if "%b" in arg.value or "%B" in arg.value:
-                    offenders.append(arg.value)
+            if (isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                    and ("%b" in arg.value or "%B" in arg.value)):
+                offenders.append(arg.value)
     assert not offenders, f"locale-dependent month format {offenders}; use MONTH_ABBR"
 
 

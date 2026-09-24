@@ -21,7 +21,7 @@ from patchradar.db import database
 
 def test_default_path_still_points_at_the_user_home():
     """The production default must be unchanged — only tests get redirected."""
-    assert database.DEFAULT_DB_PATH == Path.home() / ".patchradar" / "patchradar.db"
+    assert Path.home() / ".patchradar" / "patchradar.db" == database.DEFAULT_DB_PATH
 
 
 def test_db_path_is_redirected_during_tests():

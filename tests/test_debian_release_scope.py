@@ -98,7 +98,7 @@ def test_status_whitelist_covers_every_real_status():
     from patchradar.collectors import debian
 
     handled = debian.UNRESOLVED_STATUSES | {"resolved"}
-    assert REAL_STATUSES <= handled, (
+    assert handled >= REAL_STATUSES, (
         f"tracker statuses not accounted for: {sorted(REAL_STATUSES - handled)}"
     )
     assert debian.UNRESOLVED_STATUSES <= REAL_STATUSES

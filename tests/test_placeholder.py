@@ -1,11 +1,13 @@
 """
 PatchRadar — Test Suite
 """
-import pytest
 import asyncio
-from httpx import AsyncClient, ASGITransport
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from patchradar.api.main import app
-from patchradar.db.database import init_db, add_to_watchlist, get_watchlist, remove_from_watchlist
+from patchradar.db.database import add_to_watchlist, get_watchlist, init_db, remove_from_watchlist
 
 
 @pytest.fixture(scope="session")
@@ -56,7 +58,7 @@ async def test_remove_software(client):
     await client.post("/api/watchlist/testapp2")
     response = await client.delete("/api/watchlist/testapp2")
     assert response.status_code == 200
-    assert response.json()["removed"] == True
+    assert response.json()["removed"]
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
@@ -116,7 +118,7 @@ async def test_db_add_and_get():
     # Remove first in case it exists from previous test run
     await remove_from_watchlist("pytest-test-software")
     added = await add_to_watchlist("pytest-test-software")
-    assert added == True
+    assert added
     watchlist = await get_watchlist()
     assert "pytest-test-software" in watchlist
     # Cleanup
@@ -128,7 +130,7 @@ async def test_db_duplicate():
     await init_db()
     await add_to_watchlist("duplicate-test")
     added_again = await add_to_watchlist("duplicate-test")
-    assert added_again == False
+    assert not added_again
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
@@ -136,14 +138,14 @@ async def test_db_remove():
     await init_db()
     await add_to_watchlist("remove-test")
     removed = await remove_from_watchlist("remove-test")
-    assert removed == True
+    assert removed
 
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_db_remove_cleans_orphan_cves():
     """Verify that removing a software from watchlist also deletes its CVEs."""
-    from patchradar.db.database import save_cve, get_cves
+    from patchradar.db.database import get_cves, save_cve
     await init_db()
     await add_to_watchlist("orphan-test")
     await save_cve({
@@ -185,6 +187,7 @@ async def test_watchlist_import(client):
 # ─── CLI Tests ──────────────────────────────────────────────────────────────
 
 from typer.testing import CliRunner
+
 from patchradar.cli import app as cli_app
 
 runner = CliRunner()
@@ -224,9 +227,11 @@ def test_cli_add_invalid():
 
 # ─── NVD Collector Tests ─────────────────────────────────────────────────────
 
-import respx
 import httpx
+import respx
+
 from patchradar.collectors.nvd import fetch_cves
+
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
@@ -316,6 +321,7 @@ async def test_nvd_fetch_timeout():
 
 # ─── Debian Collector Tests ──────────────────────────────────────────────────
 from patchradar.collectors.debian import fetch_cves as debian_fetch_cves
+
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
@@ -412,7 +418,8 @@ async def test_debian_fetch_error():
 
 # ─── Database CRUD Tests ──────────────────────────────────────────────────────
 
-from patchradar.db.database import save_cve, get_cves
+from patchradar.db.database import get_cves, save_cve
+
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio

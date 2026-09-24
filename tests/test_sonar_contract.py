@@ -28,7 +28,7 @@ PYPROJECT = REPO / "pyproject.toml"
 
 def sonar_properties() -> dict[str, str]:
     props = {}
-    for line in PROPERTIES.read_text().splitlines():
+    for line in PROPERTIES.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith(("#", "!")) and "=" in line:
             key, value = line.split("=", 1)
@@ -83,7 +83,7 @@ def test_sonar_reads_a_python_coverage_report():
 # ─── the workflow produces that report before scanning ──────────────────────
 
 def test_workflow_generates_coverage_before_the_scan():
-    text = WORKFLOW.read_text()
+    text = WORKFLOW.read_text(encoding="utf-8")
     scan = text.find("sonarqube-scan-action")
     run = re.search(r"pytest\b[^\n]*--cov\b[^\n]*--cov-report[= ]xml(?::coverage\.xml)?(?=\s|$)", text)
     assert run, "the Sonar workflow never runs pytest with an XML coverage report"
@@ -92,12 +92,12 @@ def test_workflow_generates_coverage_before_the_scan():
 
 def test_workflow_installs_the_dev_group():
     """pytest-cov lives in the dev dependency group."""
-    assert re.search(r"pip install --group dev", WORKFLOW.read_text())
+    assert re.search(r"pip install --group dev", WORKFLOW.read_text(encoding="utf-8"))
 
 
 def test_workflow_does_not_fail_the_scan_on_a_red_suite_silently():
     """A failing suite must fail the job, not upload a partial report."""
-    text = WORKFLOW.read_text()
+    text = WORKFLOW.read_text(encoding="utf-8")
     line = re.search(r"^.*pytest\b.*--cov.*$", text, re.M).group(0)
     assert "|| true" not in line and "continue-on-error" not in text
 
@@ -107,7 +107,7 @@ def test_workflow_does_not_fail_the_scan_on_a_red_suite_silently():
 def test_coverage_uses_relative_paths():
     """Absolute paths in coverage.xml only resolve if the scanner runs in the
     exact same directory; relative ones resolve against the checkout."""
-    run = tomllib.loads(PYPROJECT.read_text())["tool"]["coverage"]["run"]
+    run = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["coverage"]["run"]
     assert run.get("relative_files") is True
 
 
@@ -143,7 +143,7 @@ def test_generated_report_points_at_real_source_files(tmp_path):
 
 def workflow_steps() -> list[str]:
     """Each step of the job as its own text block."""
-    text = WORKFLOW.read_text()
+    text = WORKFLOW.read_text(encoding="utf-8")
     body = text[text.index("    steps:\n") + len("    steps:\n"):]
     return [b for b in re.split(r"(?m)^(?=      - )", body) if b.strip()]
 
@@ -160,7 +160,7 @@ TOKEN_REF = "${{ secrets.SONAR_TOKEN }}"
 
 
 def job_header() -> str:
-    text = WORKFLOW.read_text()
+    text = WORKFLOW.read_text(encoding="utf-8")
     return text[text.index("  sonarcloud:"):text.index("    steps:")]
 
 
@@ -180,7 +180,7 @@ def test_token_availability_is_exposed_at_job_level():
 def test_token_itself_reaches_only_the_scanner():
     """Least privilege: pytest runs the checked-out code and must not see it."""
     assert TOKEN_REF not in job_header()
-    assert TOKEN_REF not in WORKFLOW.read_text().split("    steps:")[0]
+    assert TOKEN_REF not in WORKFLOW.read_text(encoding="utf-8").split("    steps:")[0]
     holders = [s for s in workflow_steps() if TOKEN_REF in s]
     assert len(holders) == 1 and "sonarqube-scan-action" in holders[0]
 
@@ -203,4 +203,4 @@ def test_tests_and_coverage_still_run_without_a_token():
 
 def test_workflow_never_uses_pull_request_target():
     """The classic 'fix' — running PR code with the base repo's secrets."""
-    assert "pull_request_target" not in WORKFLOW.read_text()
+    assert "pull_request_target" not in WORKFLOW.read_text(encoding="utf-8")

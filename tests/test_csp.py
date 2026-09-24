@@ -75,7 +75,7 @@ class _Collector(HTMLParser):
 
 def parse_template() -> _Collector:
     c = _Collector()
-    c.feed(HTML.read_text())
+    c.feed(HTML.read_text(encoding="utf-8"))
     return c
 
 
@@ -125,7 +125,7 @@ def test_template_has_no_inline_script_bodies():
 def test_static_script_does_not_generate_inline_handlers():
     """Markup built in JS (innerHTML) is parsed by the browser just the same."""
     for js in STATIC.glob("*.js"):
-        src = js.read_text()
+        src = js.read_text(encoding="utf-8")
         assert not re.search(r"""\son[a-z]+\s*=\s*['"\\]""", src), f"{js.name} builds an on*= attribute"
         assert "setAttribute('on" not in src and 'setAttribute("on' not in src
         assert "javascript:" not in src
@@ -175,9 +175,9 @@ OK_ROUTES = {
 
 def run_page(tmp_path, actions, inputs=None):
     spec = tmp_path / "scenario.json"
-    spec.write_text(json.dumps({"routes": OK_ROUTES, "actions": actions, "inputs": inputs or {}}))
+    spec.write_text(json.dumps({"routes": OK_ROUTES, "actions": actions, "inputs": inputs or {}}), encoding="utf-8")
     out = subprocess.run(["node", str(HARNESS), str(HTML), str(spec)],
-                         capture_output=True, text=True, timeout=30)
+                         capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
     assert out.returncode == 0, out.stderr
     result = json.loads(out.stdout)
     assert result["errors"] == [], "\n".join(result["errors"])

@@ -14,6 +14,8 @@ and with LIMIT the newest CVEs could fall off the page entirely.
 The fix normalises every timestamp to one fixed-width UTC form,
 YYYY-MM-DDTHH:MM:SSZ, when it is saved — and rewrites rows saved before.
 """
+import time
+
 import aiosqlite
 import pytest
 
@@ -156,16 +158,34 @@ async def test_migration_is_idempotent_and_keeps_other_columns():
     assert {r["source"] for r in first} == {"NVD", "MSRC", "Debian"}
 
 
+def _assert_naive_values_are_utc():
+    assert database.normalize_timestamp("2026-08-15T00:00:00.000") == "2026-08-15T00:00:00Z"
+    assert database.normalize_timestamp("2026-08-12") == "2026-08-12T00:00:00Z"
+
+
+def test_naive_values_are_read_as_utc():
+    """NVD and MSRC send UTC without a zone, and it must be read as UTC.
+
+    Split out from the host-zone case below so that the assertion itself runs
+    everywhere: time.tzset() exists only on POSIX, and on Windows the whole
+    case used to fail with AttributeError — which also took down the Sonar
+    contract test, since that one runs this file in a subprocess.
+    """
+    _assert_naive_values_are_utc()
+
+
+@pytest.mark.skipif(
+    not hasattr(time, "tzset"),
+    reason="time.tzset() is POSIX only; the assertion itself runs in the case above",
+)
 @pytest.mark.parametrize("zone", ["Asia/Tokyo", "America/Los_Angeles"])
 def test_naive_values_are_utc_whatever_the_host_zone(monkeypatch, zone):
-    """NVD and MSRC send UTC without a zone. Reading them as local time is
-    invisible on a UTC server and shifts every date on anyone else's machine."""
-    import time
+    """The stronger form: reading them as local time is invisible on a UTC
+    server and shifts every date on anyone else's machine."""
     monkeypatch.setenv("TZ", zone)
     time.tzset()
     try:
-        assert database.normalize_timestamp("2026-08-15T00:00:00.000") == "2026-08-15T00:00:00Z"
-        assert database.normalize_timestamp("2026-08-12") == "2026-08-12T00:00:00Z"
+        _assert_naive_values_are_utc()
     finally:
         monkeypatch.undo()
         time.tzset()
