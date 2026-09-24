@@ -67,5 +67,55 @@ dev = [
     "pytest-asyncio (>=1.4.0,<2.0.0)",
     "pytest-codspeed (>=5.0.3,<6.0.0)",
     "pytest-cov (>=6.0.0,<8.0.0)",
-    "respx (>=0.22.0,<0.23.0)"
+    "respx (>=0.22.0,<0.23.0)",
+    "ruff (>=0.16,<1.0)",
+    "mypy (>=1.18,<3.0)",
+    "hypothesis (>=6.140,<7.0)",
+    "mutmut (>=3.8,<4.0)",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Useful without being noisy. The security ruleset S is deliberately absent:
+# ruff's S rules *are* flake8-bandit — measured on 2026-09-24, S110 and B110
+# reported the same four try-except-pass — so selecting it here would report
+# every finding twice, under two ids, in two places to be archived.
+select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 objects to a function call in an argument default, and Typer's entire
+# API is exactly that: `def cmd(x: str = typer.Option(...))`. There is no fix
+# on this side — moving the call into the body would stop Typer seeing the
+# option at all — so the two calls are declared immutable instead.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+[tool.ruff.lint.per-file-ignores]
+# A test may import for a side effect, or redefine a fixture name to make the
+# case read; neither is a defect there.
+"tests/*" = ["F811", "E402"]
+
+[tool.mypy]
+python_version = "3.11"
+# Not strict mode: apscheduler ships no py.typed, so strict would spend its
+# errors on the untyped edge rather than on this code — and an error that cannot
+# be acted on teaches the reader to ignore the tool.
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# Tests assert against deliberately malformed input; annotating that would
+# describe the fixtures rather than check the code.
+module = "tests.*"
+ignore_errors = true
+
+[tool.mutmut]
+source_paths = ["src"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# mutmut 3.8 refuses to run on Windows and points at WSL, so this is a CI-only
+# configuration: the scheduled workflow runs it on ubuntu.
+do_not_mutate = ["src/patchradar/__init__.py"]
