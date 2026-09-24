@@ -43,3 +43,25 @@ jobs:
         run: |
           patchradar --help
           patchradar list
+
+  summary:
+    # The branch ruleset needs one check name that survives a change to the
+    # matrix. The matrix job cannot be it: its contexts carry the Python version
+    # and the experimental flag — "test (3.11, false)" — so they move whenever
+    # the matrix does, and a ruleset pinned to them silently stops matching.
+    #
+    # always(): a skipped required check counts as passed, so this has to run
+    # even when the matrix fails, and fail explicitly in that case.
+    name: Tests
+    needs: [test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All test jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || { echo "::error::A required test job ended with: $result"; exit 1; }
+          done

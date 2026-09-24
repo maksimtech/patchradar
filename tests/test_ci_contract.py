@@ -21,6 +21,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # import name -> distribution name, where they differ
 IMPORT_TO_DIST = {
     "patchradar": None,  # the project itself
+    "yaml": "pyyaml",    # imported as yaml, distributed as pyyaml
 }
 
 
@@ -108,3 +109,39 @@ def test_every_benchmark_import_is_declared():
 def test_respx_is_declared():
     """Named explicitly — this is the dependency that was actually missing."""
     assert "respx" in _declared_distributions()
+
+
+# ─── the one check name branch protection can require ────────────────────────
+
+def test_tests_workflow_publishes_one_check_name_for_branch_protection():
+    """A ruleset needs a context that survives a change to the matrix.
+
+    Verified against the live repository on 2026-09-24: the workflow published
+    `test (3.11, false)` through `test (3.15-dev, true)` and nothing else, so the
+    ruleset had been given those five strings as required contexts — and then, at
+    some point, the same strings were pasted into the field that takes *branch*
+    patterns, where they matched no branch at all and main went unprotected.
+
+    One summary job whose name does not move fixes both halves. The other four
+    Radar already have it.
+    """
+    import yaml
+
+    workflow = yaml.safe_load(TEST_WORKFLOW.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+
+    summary_key, summary = next(
+        ((key, job) for key, job in jobs.items() if job.get("name") == "Tests"),
+        (None, None),
+    )
+    assert summary is not None, f"no job named 'Tests' among {sorted(jobs)}"
+
+    # exactly one, or the context would be ambiguous
+    assert [job.get("name") for job in jobs.values()].count("Tests") == 1
+    assert set(summary["needs"]) == set(jobs) - {summary_key}
+
+    # A skipped required check counts as passed, so it has to run even when the
+    # matrix fails, and fail explicitly in that case.
+    assert summary["if"] == "always()"
+    env = {k: v for step in summary["steps"] for k, v in step.get("env", {}).items()}
+    assert any("needs.*.result" in value for value in env.values())
