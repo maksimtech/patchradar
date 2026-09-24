@@ -1,6 +1,7 @@
 import logging
+from datetime import UTC, datetime, timedelta
+
 import httpx
-from datetime import datetime, timedelta, timezone
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
 
@@ -136,7 +137,7 @@ def date_windows(
     if days_back < 1:
         raise ValueError(f"days_back must be at least 1, got {days_back}")
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     oldest = now - timedelta(days=days_back)
 
     windows: list[tuple[datetime, datetime]] = []

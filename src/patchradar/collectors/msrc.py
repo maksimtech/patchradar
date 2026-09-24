@@ -1,10 +1,14 @@
 import logging
 import re
-import httpx
 from datetime import datetime, timedelta
 
+import httpx
+
 from patchradar.collectors.errors import (
-    BAD_PAYLOAD, NETWORK, CollectorError, reason_for_status,
+    BAD_PAYLOAD,
+    NETWORK,
+    CollectorError,
+    reason_for_status,
 )
 
 logger = logging.getLogger(__name__)

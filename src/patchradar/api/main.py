@@ -3,22 +3,21 @@ import hmac
 import logging
 import os
 import re
-from fastapi import Depends, FastAPI, HTTPException, Request, Query, Path
-from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
-from fastapi.responses import Response, HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path as FilePath
 from importlib.metadata import version as pkg_version
-from patchradar.db.database import (
-    init_db, get_watchlist, add_to_watchlist,
-    remove_from_watchlist, get_cves
-)
-from patchradar.collectors.nvd import fetch_cves as nvd_fetch
-from patchradar.collectors.msrc import fetch_cves as msrc_fetch
+from pathlib import Path as FilePath
+
+import aiosqlite
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
+
 from patchradar.collectors.debian import fetch_cves as debian_fetch
 from patchradar.collectors.errors import CollectorError
-import aiosqlite
+from patchradar.collectors.msrc import fetch_cves as msrc_fetch
+from patchradar.collectors.nvd import fetch_cves as nvd_fetch
+from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
 
 logger = logging.getLogger("patchradar")
 
