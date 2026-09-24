@@ -117,28 +117,56 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
     }
 
 
-async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
-    """Fetch CVEs from NVD for a given keyword."""
-    start = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime(
-        "%Y-%m-%dT00:00:00.000"
-    )
-    end = datetime.now(timezone.utc).strftime("%Y-%m-%dT23:59:59.999")
+# NVD answers HTTP 404 — not 400 — when pubStartDate and pubEndDate are more
+# than 120 days apart, which reads as "no such endpoint" rather than "your
+# range is too wide". Measured against the live API on 2026-09-23: 119 days
+# back returned 200, 120 returned 404. A chunk therefore spans at most 119 days
+# back from its own end, leaving the inclusive window at 120.
+NVD_MAX_WINDOW_DAYS = 119
 
+
+def date_windows(
+    days_back: int, now: datetime | None = None
+) -> list[tuple[datetime, datetime]]:
+    """`days_back` split into ranges NVD will accept, oldest first.
+
+    Adjacent chunks touch rather than leave a gap: a CVE published in a gap
+    would simply be missing from the scan, and nothing would say so.
+    """
+    if days_back < 1:
+        raise ValueError(f"days_back must be at least 1, got {days_back}")
+
+    now = now or datetime.now(timezone.utc)
+    oldest = now - timedelta(days=days_back)
+
+    windows: list[tuple[datetime, datetime]] = []
+    end = now
+    while end > oldest:
+        start = max(oldest, end - timedelta(days=NVD_MAX_WINDOW_DAYS))
+        windows.append((start, end))
+        if start <= oldest:
+            break
+        end = start
+    return sorted(windows)
+
+
+async def _fetch_window(
+    client: httpx.AsyncClient, keyword: str, start: datetime, end: datetime
+) -> list[dict]:
     params = {
         "keywordSearch": keyword,
-        "pubStartDate": start,
-        "pubEndDate": end,
+        "pubStartDate": start.strftime("%Y-%m-%dT00:00:00.000"),
+        "pubEndDate": end.strftime("%Y-%m-%dT23:59:59.999"),
         "resultsPerPage": 50,
     }
 
     # Failures raise instead of returning []: an empty list must only ever
     # mean "NVD answered and had nothing", never "NVD could not be reached".
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.get(NVD_API, params=params)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise from_http_error(SOURCE, exc) from exc
+    try:
+        response = await client.get(NVD_API, params=params)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise from_http_error(SOURCE, exc) from exc
     try:
         data = response.json()
     except ValueError as exc:
@@ -162,4 +190,17 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
         if parsed:
             results.append(parsed)
 
+    return results
+
+
+async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
+    """Fetch CVEs from NVD for a given keyword.
+
+    A window wider than NVD accepts is split into several requests; a short one
+    still costs exactly one, which is every ordinary use of this function.
+    """
+    results: list[dict] = []
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for start, end in date_windows(days_back):
+            results.extend(await _fetch_window(client, keyword, start, end))
     return results
