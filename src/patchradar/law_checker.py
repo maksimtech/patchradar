@@ -28,18 +28,18 @@ FINDING_ARTICLES = {
 }
 
 FINDING_TITLES = {
-    "critical": "CVE critiche",
-    "unpatched": "CVE senza patch",
-    "critical_unpatched": "CVE critiche senza patch",
-    "personal_data": "CVE con impatto sui dati personali",
+    "critical": "Critical CVEs",
+    "unpatched": "CVEs with no patch",
+    "critical_unpatched": "Critical CVEs with no patch",
+    "personal_data": "CVEs affecting personal data",
 }
 
 # Articles downloaded and cached even when not cited, by act
 ALSO_FETCH: dict = {}
 
 NIS2_SCOPE_NOTE = (
-    "NIS2 art. 21 obbliga i soggetti essenziali e importanti (art. 3 della direttiva): "
-    "verificare che l'organizzazione rientri nell'ambito"
+    "NIS2 art. 21 binds essential and important entities (art. 3 of the directive): "
+    "check that the organisation falls within scope"
 )
 
 
@@ -82,8 +82,8 @@ def notes_of(cves: list[dict]) -> list[str]:
     unknown = sum(1 for cve in cves if cve.get("patch_available") is None)
     if unknown:
         notes.append(
-            f"{unknown} CVE senza informazioni sulla patch (non ancora analizzate da NVD): "
-            "non valutate per l'art. 25 GDPR e l'art. 21 NIS2"
+            f"{unknown} CVEs with no patch information (not yet analysed by NVD): "
+            "not assessed against GDPR art. 25 or NIS2 art. 21"
         )
     if any(_is_critical(cve) and cve.get("patch_available") is False for cve in cves):
         notes.append(NIS2_SCOPE_NOTE)
@@ -210,7 +210,7 @@ def check(
 
 def format_citation(citation: Citation) -> str:
     return (
-        f"Norma applicata: {citation.law} art. {citation.article}\n"
-        f"SHA256: {citation.sha256 or 'non disponibile'}\n"
-        f"Versione del: {citation.version_date or 'non disponibile'}"
+        f"Provision applied: {citation.law} art. {citation.article}\n"
+        f"SHA256: {citation.sha256 or 'not available'}\n"
+        f"Version of: {citation.version_date or 'not available'}"
     )

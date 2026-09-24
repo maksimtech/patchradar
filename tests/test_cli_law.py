@@ -60,14 +60,14 @@ def test_scan_cites_articles(monkeypatch, eurlex):
     ])
 
     assert out.exit_code == 0, out.output
-    assert "Norme applicate" in out.output
+    assert "Provisions applied" in out.output
     for title, ref, cve_id in [
-        ("CVE critiche", "32(2)", "CVE-2026-1001"),
-        ("CVE senza patch", "25", "CVE-2026-1002"),
-        ("CVE con impatto sui dati personali", "32", "CVE-2026-1003"),
+        ("Critical CVEs", "32(2)", "CVE-2026-1001"),
+        ("CVEs with no patch", "25", "CVE-2026-1002"),
+        ("CVEs affecting personal data", "32", "CVE-2026-1003"),
     ]:
         assert title in out.output
-        assert f"Norma applicata: GDPR art. {ref}\n" in out.output
+        assert f"Provision applied: GDPR art. {ref}\n" in out.output
         assert f"SHA256: {_sha(ref)}" in out.output
         assert cve_id in out.output
     assert eurlex == ["https://publications.europa.eu/resource/celex/32016R0679"]
@@ -76,10 +76,10 @@ def test_scan_cites_articles(monkeypatch, eurlex):
 def test_critical_unpatched_cites_nis2(monkeypatch, eurlex):
     out = _scan(monkeypatch, [cve("CVE-2026-1006", severity="CRITICAL", patch=False)])
 
-    assert "CVE critiche senza patch" in out.output
-    assert "Norma applicata: NIS2 dir. 2022/2555 art. 21\n" in out.output
+    assert "Critical CVEs with no patch" in out.output
+    assert "Provision applied: NIS2 dir. 2022/2555 art. 21\n" in out.output
     assert f"SHA256: {_sha('21', NIS2_PAGE)}" in out.output
-    assert "soggetti essenziali e importanti" in out.output
+    assert "essential and important entities" in out.output
     assert eurlex[-1] == "https://publications.europa.eu/resource/celex/32022L2555"
 
 
@@ -88,7 +88,7 @@ def test_scan_of_whole_watchlist_cites_once(monkeypatch, eurlex):
     runner.invoke(cli.app, ["add", "openssl"])
     out = _scan(monkeypatch, [cve("CVE-2026-1001", severity="CRITICAL")], args=("scan",))
 
-    assert out.output.count("Norma applicata: GDPR art. 32(2)") == 1
+    assert out.output.count("Provision applied: GDPR art. 32(2)") == 1
     assert len(eurlex) == 1
 
 
@@ -101,12 +101,12 @@ def test_scan_without_findings_cites_nothing(monkeypatch, eurlex):
 
 def test_msrc_cves_count_too(monkeypatch, eurlex):
     out = _scan(monkeypatch, [], msrc=[cve("CVE-2026-2001", severity="CRITICAL")])
-    assert "Norma applicata: GDPR art. 32(2)" in out.output
+    assert "Provision applied: GDPR art. 32(2)" in out.output
 
 
 def test_unknown_patch_status_note(monkeypatch, eurlex):
     out = _scan(monkeypatch, [cve("CVE-2026-1005", severity="CRITICAL", patch=None)])
-    assert "1 CVE senza informazioni sulla patch" in out.output
+    assert "1 CVEs with no patch information" in out.output
 
 
 def test_scan_offline_without_cache(monkeypatch):
@@ -114,7 +114,7 @@ def test_scan_offline_without_cache(monkeypatch):
     out = _scan(monkeypatch, [cve("CVE-2026-1001", severity="CRITICAL")])
 
     assert out.exit_code == 0
-    assert "SHA256: non disponibile" in out.output
+    assert "SHA256: not available" in out.output
 
 
 def test_law_check_failure_does_not_fail_scan(monkeypatch):

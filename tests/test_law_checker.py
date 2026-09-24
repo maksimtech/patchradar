@@ -82,8 +82,8 @@ def test_unpatched_only_when_known():
 
 def test_unknown_patch_status_is_noted():
     assert notes_of([cve(patch=None), cve(patch=None), cve()]) == [
-        "2 CVE senza informazioni sulla patch (non ancora analizzate da NVD): "
-        "non valutate per l'art. 25 GDPR e l'art. 21 NIS2"
+        "2 CVEs with no patch information (not yet analysed by NVD): "
+        "not assessed against GDPR art. 25 or NIS2 art. 21"
     ]
     assert notes_of([cve()]) == []
 
@@ -101,7 +101,7 @@ def test_critical_unpatched_needs_both():
 def test_nis2_scope_is_noted_only_when_nis2_is_cited():
     assert notes_of([cve(severity="CRITICAL", patch=False)]) == [NIS2_SCOPE_NOTE]
     assert notes_of([cve(severity="CRITICAL"), cve(patch=False)]) == []
-    assert "soggetti essenziali e importanti" in NIS2_SCOPE_NOTE
+    assert "essential and important entities" in NIS2_SCOPE_NOTE
 
 
 def test_personal_data_is_high_confidentiality_impact():
