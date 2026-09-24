@@ -125,6 +125,9 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
 # back from its own end, leaving the inclusive window at 120.
 NVD_MAX_WINDOW_DAYS = 119
 
+# NVD's own maximum for a single page.
+RESULTS_PER_PAGE = 50
+
 
 def date_windows(
     days_back: int, now: datetime | None = None
@@ -158,7 +161,9 @@ async def _fetch_window(
         "keywordSearch": keyword,
         "pubStartDate": start.strftime("%Y-%m-%dT00:00:00.000"),
         "pubEndDate": end.strftime("%Y-%m-%dT23:59:59.999"),
-        "resultsPerPage": 50,
+        # A string, because httpx's params type does not accept an int: it
+        # stringifies one anyway, so this changes the annotation, not the request.
+        "resultsPerPage": str(RESULTS_PER_PAGE),
     }
 
     # Failures raise instead of returning []: an empty list must only ever
