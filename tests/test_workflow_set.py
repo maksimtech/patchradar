@@ -48,10 +48,6 @@ CAPABILITY = {
 }
 
 KNOWN_GAPS = {
-    # docker-build-check builds the image and runs tests/docker/smoke.py inside
-    # it. This repository has no tests/docker at all, so the workflow would have
-    # nothing to run: the smoke test has to be written before it can be ported.
-    "docker-build-check",
 }
 
 

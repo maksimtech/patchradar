@@ -97,3 +97,78 @@ def test_compose_declares_a_named_volume_for_persistence():
     assert re.search(r"^volumes:", content, re.MULTILINE), (
         "no top-level volumes: block — data would not survive `docker compose down`"
     )
+
+
+# ─── building the image from the source being tested ─────────────────────────
+
+
+BUILD_CHECK = REPO_ROOT / ".github" / "workflows" / "docker-build-check.yml"
+PUBLISH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "docker.yml"
+SMOKE = REPO_ROOT / "tests" / "docker" / "smoke.py"
+
+
+def test_the_dockerfile_can_build_from_the_working_tree():
+    """Otherwise a build check only ever checks a release that already shipped.
+
+    The Dockerfile installed `patchradar==${PATCHRADAR_VERSION}` from PyPI and
+    nothing else, with 2026.8.33 as the default — an August release, against a
+    package at 2026.9.6. An image built from that says nothing about the code
+    about to be published, which is the one question a pre-publish check exists
+    to answer.
+    """
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "PATCHRADAR_SOURCE" in dockerfile
+    assert "local)" in dockerfile and "pypi)" in dockerfile
+
+
+def test_a_plain_build_uses_the_working_tree():
+    """The safe default: `docker build .` tests what is in front of you."""
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert re.search(r"ARG\s+PATCHRADAR_SOURCE=local", dockerfile)
+
+
+def test_publishing_names_its_source_rather_than_inheriting_it():
+    """docker.yml pushes to Docker Hub including :latest. It must not depend on
+    a default that something else can change — and after this commit the default
+    is the other branch."""
+    published = PUBLISH_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "PATCHRADAR_SOURCE=pypi" in published
+
+
+def test_a_pypi_build_has_to_say_which_version():
+    """The stale default is the trap: `ARG PATCHRADAR_VERSION=2026.8.33` meant a
+    build with no arguments published August's code under today's tag."""
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert not re.search(r"ARG\s+PATCHRADAR_VERSION=\S", dockerfile), (
+        "a default version here republishes an old release by accident"
+    )
+
+
+def test_the_build_check_builds_without_pushing():
+    """The whole point: docker.yml cannot serve as a pre-publish check because
+    running it publishes."""
+    workflow = BUILD_CHECK.read_text(encoding="utf-8")
+
+    assert "push: false" in workflow
+    assert "PATCHRADAR_SOURCE=local" in workflow
+
+
+def test_the_build_check_runs_the_smoke_test():
+    workflow = BUILD_CHECK.read_text(encoding="utf-8")
+
+    assert "tests/docker/smoke.py" in workflow
+    assert SMOKE.is_file()
+
+
+def test_the_smoke_test_checks_what_only_the_container_can_break():
+    """A non-root user and a database under its home. The image creates
+    /home/patchradar/.patchradar and chowns it; if that ever stops being true the
+    application starts and then cannot write, which no unit test would catch."""
+    smoke = SMOKE.read_text(encoding="utf-8")
+
+    assert "init_db" in smoke or "patchradar.db" in smoke
+    assert "version" in smoke

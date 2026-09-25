@@ -8,6 +8,9 @@ __pycache__
 tests/
 docs/
 *.md
+# ...tranne quello che pyproject.toml dichiara come readme:
+# senza, COPY README.md fallisce e con lui la build da sorgente.
+!README.md
 .env
 .venv
 venv/

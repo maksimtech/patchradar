@@ -1,0 +1,28 @@
+name: Docker Build Check
+# Builds the image from the repository source and runs the smoke test without
+# pushing anything. docker.yml cannot serve this purpose: it publishes to
+# Docker Hub, including the :latest tag, so it is only safe to run on a
+# released version.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build image from source
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          push: false
+          tags: patchradar:build-check
+          build-args: |
+            PATCHRADAR_SOURCE=local
+      - name: Smoke test (the container user can create the database)
+        run: docker run --rm -i --entrypoint python patchradar:build-check - < tests/docker/smoke.py

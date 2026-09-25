@@ -16,11 +16,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Versione PatchRadar da installare
-ARG PATCHRADAR_VERSION=2026.8.33
+# Sorgente di patchradar:
+#   local (default, CI) → il codice di questo repository
+#   pypi (release)      → patchradar==PATCHRADAR_VERSION da PyPI
+# Il default e' local perche' una build senza argomenti deve dire qualcosa sul
+# codice che si ha davanti: con un default PyPI diceva 2026.8.33 per sempre.
+ARG PATCHRADAR_SOURCE=local
+ARG PATCHRADAR_VERSION=
 
-# Installa patchradar da PyPI con dipendenze aggiornate
-RUN pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "patchradar==${PATCHRADAR_VERSION}" && \
+COPY pyproject.toml README.md LICENSE /app/build/
+COPY src/ /app/build/src/
+
+# Installa patchradar con dipendenze aggiornate
+RUN case "${PATCHRADAR_SOURCE}" in \
+        local) pip install --no-cache-dir --root-user-action=ignore /app/build ;; \
+        pypi) test -n "${PATCHRADAR_VERSION}" || { echo "PATCHRADAR_VERSION is required with PATCHRADAR_SOURCE=pypi" >&2; exit 1; } && \
+              pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "patchradar==${PATCHRADAR_VERSION}" ;; \
+        *) echo "PATCHRADAR_SOURCE must be 'local' or 'pypi'" >&2; exit 1 ;; \
+    esac && \
+    rm -rf /app/build && \
     pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "setuptools==78.1.1" "msgpack==1.2.1"
 
 # Crea utente non-root per sicurezza

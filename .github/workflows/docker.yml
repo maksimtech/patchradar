@@ -60,6 +60,7 @@ jobs:
             maksimtech/patchradar:latest
             maksimtech/patchradar:${{ steps.version.outputs.VERSION }}
           build-args: |
+            PATCHRADAR_SOURCE=pypi
             PATCHRADAR_VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
