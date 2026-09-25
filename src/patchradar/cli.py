@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import sys
+from collections import Counter
 
 import typer
 from rich import box
@@ -12,6 +13,7 @@ from rich.text import Text
 import patchradar
 from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
+from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
 
@@ -212,11 +214,18 @@ def list_watchlist():
         table.add_row(Text(str(item)))
     console.print(table)
 
-async def _scan_target(target: str, days: int, collected: list | None = None) -> int:
+async def _scan_target(
+    target: str,
+    days: int,
+    collected: list | None = None,
+    failed: list | None = None,
+) -> int:
     """Scan a single target for CVEs and return count.
 
     The CVEs found are also appended to `collected`, when given, for the law
-    check at the end of the scan.
+    check at the end of the scan, and the failures to `failed`: one source
+    refusing every target in a watchlist is a different event from one hiccup,
+    and only the whole scan can tell them apart.
     """
     safe_target = escape(target)
     all_cves: list[dict] = []
@@ -227,6 +236,8 @@ async def _scan_target(target: str, days: int, collected: list | None = None) ->
                 all_cves += await fetch(target, days_back=days)
             except CollectorError as exc:
                 failures.append(exc)
+                if failed is not None:
+                    failed.append(exc)
                 all_cves += exc.partial
     for cve in all_cves:
         await save_cve(cve)
@@ -245,6 +256,56 @@ async def _scan_target(target: str, days: int, collected: list | None = None) ->
     return len(all_cves)
 
 
+# Every source `scan` queries. Named here so the summary can say which ones
+# answered, without inferring it from the CVEs — a source that answered and had
+# nothing would otherwise look like one that did not answer.
+SCAN_SOURCES = ("NVD", "MSRC")
+
+# NVD answers a keyless client over quota with 403, and a key holder going too
+# fast with 429. Both are worth a word about the key; a timeout is not.
+QUOTA_REASONS = {"rate_limited", "forbidden"}
+
+
+def _report_silent_sources(failures: list[CollectorError], targets: list[str]) -> None:
+    """Say which sources answered for no target at all.
+
+    The per-target warnings stay: which target failed is what a reader acts on.
+    What they cannot show is that one source was silent throughout — sixteen
+    identical lines read as an intermittent problem, and the total underneath
+    them reads as a result.
+    """
+    if len(targets) < 2:
+        # Nothing to generalise from; the per-target line has said it already.
+        return
+
+    # One failure per source per target at most, since each is queried once per
+    # target — so a count equal to the number of targets means it failed on all
+    # of them.
+    failures_per_source = Counter(f.source for f in failures)
+    silent = [s for s in SCAN_SOURCES if failures_per_source[s] >= len(targets)]
+    if not silent:
+        return
+
+    answered = [source for source in SCAN_SOURCES if source not in silent]
+    for source in silent:
+        where = (
+            f"every CVE above comes from {', '.join(answered)}"
+            if answered else "no source answered at all"
+        )
+        console.print(
+            f"⚠️  [yellow]{escape(source)} answered for none of the "
+            f"{len(targets)} targets scanned[/yellow] — {where}."
+        )
+
+    if "NVD" in silent and not nvd_api_key() and any(
+        f.source == "NVD" and f.reason in QUOTA_REASONS for f in failures
+    ):
+        console.print(
+            "   [dim]NVD limits clients without an API key to 5 requests per "
+            "30 seconds. Set [bold]NVD_API_KEY[/bold] to raise it to 50.[/dim]"
+        )
+
+
 @app.command()
 def scan(
     software: str = typer.Argument(None, help="Software to scan (or all watchlist)"),
@@ -257,8 +318,11 @@ def scan(
             console.print("Nothing to scan. Add software with [bold]patchradar add[/bold]")
             return
         cves: list[dict] = []
-        total = sum([await _scan_target(t, days, cves) for t in targets])
+        failures: list[CollectorError] = []
+        total = sum([await _scan_target(t, days, cves, failures) for t in targets])
         console.print(f"\n Total: [bold]{total}[/bold] CVEs found\n")
+        # After the total, because it is the total it qualifies.
+        _report_silent_sources(failures, list(targets))
         _print_law_check(_law_check(cves))
     run(_scan())
 

@@ -56,6 +56,30 @@ def reset_debian_snapshot():
 
 
 @pytest.fixture(autouse=True)
+def _no_rate_limit_pacing(monkeypatch):
+    """Do not wait for NVD's rate limit in the suite.
+
+    The collector paces consecutive windowed requests — six seconds apart
+    without an API key — so a 365-day fetch, which two tests make, would hold
+    the suite for eighteen seconds each while asserting nothing about waiting.
+
+    A test that is about the pacing replaces this with a recorder of its own and
+    asserts on what would have been slept.
+
+    `nvd._pace`, not `asyncio.sleep`: `nvd.asyncio` is the asyncio module, so
+    patching its sleep replaces it for the whole interpreter — which broke the
+    API deadline test, where `asyncio.sleep(30)` is how a hanging upstream is
+    simulated.
+    """
+    from patchradar.collectors import nvd
+
+    async def no_wait(seconds):
+        return None
+
+    monkeypatch.setattr(nvd, "_pace", no_wait)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_law_checker(tmp_path, monkeypatch):
     """No test may reach EUR-Lex or write to ~/.patchradar: the law cache goes
     to a temporary folder and every download fails."""

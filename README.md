@@ -70,6 +70,25 @@ patchradar serve
 # Open http://localhost:8000
 ```
 
+### NVD API key (optional)
+
+NVD limits clients without an API key to 5 requests per 30 seconds; a key raises
+it to 50. A long scan needs several requests per keyword — NVD refuses any date
+range wider than 120 days, so `--days 730` is split into seven windows — and a
+watchlist of any size will reach the keyless limit. PatchRadar paces its requests
+to stay under whichever limit applies, which makes a keyless scan slower rather
+than incomplete.
+
+```bash
+export NVD_API_KEY=your-key   # https://nvd.nist.gov/developers/request-an-api-key
+patchradar scan --days 365
+```
+
+The key is sent as a request header, never in the URL. If a source fails for
+every entry in the watchlist, the scan says so after the total rather than
+leaving one warning per entry: a count of CVEs that came from one source out of
+two is not the same as a complete scan.
+
 ---
 
 ## 📡 Sources

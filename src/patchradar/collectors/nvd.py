@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -128,6 +130,35 @@ NVD_MAX_WINDOW_DAYS = 119
 # NVD's own maximum for a single page.
 RESULTS_PER_PAGE = 50
 
+# The name NVD's own documentation uses for it.
+API_KEY_ENV = "NVD_API_KEY"
+
+# Published limits: 5 requests per rolling 30 seconds without a key, 50 with one
+# (https://nvd.nist.gov/developers/start-here). Expressed as the interval between
+# requests rather than as a quota, because that is what this code can honour.
+KEYLESS_DELAY_SECONDS = 30 / 5
+KEYED_DELAY_SECONDS = 30 / 50
+
+
+async def _pace(seconds: float) -> None:
+    """Wait between two requests to the same source.
+
+    Its own function so that tests can replace it. Replacing `asyncio.sleep`
+    instead would silence every wait in the process — including the ones other
+    tests use to simulate a hanging upstream.
+    """
+    await asyncio.sleep(seconds)
+
+
+def api_key() -> str | None:
+    """The configured NVD API key, or None if there is none to send.
+
+    Unset and set-to-blank are the same thing to whoever configured it, so both
+    give None rather than an empty header.
+    """
+    key = (os.environ.get(API_KEY_ENV) or "").strip()
+    return key or None
+
 
 def date_windows(
     days_back: int, now: datetime | None = None
@@ -204,9 +235,23 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
 
     A window wider than NVD accepts is split into several requests; a short one
     still costs exactly one, which is every ordinary use of this function.
+
+    Those requests are paced. Splitting a two-year window makes seven of them
+    per keyword, and a keyless client is allowed five per thirty seconds — so
+    the fix for the window created a way to trip the rate limit. The wait is
+    between requests only: a single-window fetch waits for nothing.
+
+    The key, when set, travels in a header. In the query string it would be
+    written to every log and proxy record that sees the URL.
     """
+    key = api_key()
+    headers = {"apiKey": key} if key else {}
+    delay = KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS
+
     results: list[dict] = []
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for start, end in date_windows(days_back):
+    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+        for index, (start, end) in enumerate(date_windows(days_back)):
+            if index:
+                await _pace(delay)
             results.extend(await _fetch_window(client, keyword, start, end))
     return results
