@@ -37,7 +37,20 @@ jobs:
           pip install --group dev -e .  # NOSONAR - trusted internal project, no external setup scripts
 
       - name: Run test suite
-        run: pytest tests/ -v
+        run: pytest tests/ -v --cov=patchradar --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        # Once, not once per matrix entry: the same report four times is four
+        # uploads of one measurement. 3.12 is in every Radar's matrix.
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          # A failed upload loses a metric; it does not invalidate the tests that
+          # just passed. What it must not do is stay silent forever — ask Codecov
+          # whether the report arrived.
+          fail_ci_if_error: false
 
       - name: Test CLI
         run: |
