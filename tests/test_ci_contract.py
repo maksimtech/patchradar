@@ -54,10 +54,25 @@ def _third_party_imports(directory: Path) -> set[str]:
                 continue
             for name in names:
                 root = name.split(".")[0]
-                if root in sys.stdlib_module_names:
+                if root in sys.stdlib_module_names or root in _repo_modules():
                     continue
                 found.add(root)
     return found
+
+
+def _repo_modules() -> set[str]:
+    """This repository's own code outside the package — scripts/, tools/.
+
+    tests/test_bump_version.py imports scripts/bump_version.py through
+    sys.path. It is declared nowhere because there is nobody to declare it to,
+    and reading that as an undeclared dependency would be the opposite of what
+    this check is for.
+    """
+    return {
+        path.stem
+        for folder in ("scripts", "tools")
+        for path in (REPO_ROOT / folder).glob("*.py")
+    }
 
 
 # ─── the workflow must actually run the suite ────────────────────────────────

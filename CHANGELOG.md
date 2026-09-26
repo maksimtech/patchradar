@@ -7,6 +7,46 @@ and this project uses **CalVer** (`YYYY.M.PATCH`), not SemVer.
 
 ---
 
+## [2026.40] — 2026-09-26
+### Changed
+
+- **Baseline: the five Radar restart from a common number.** They had drifted to
+  .32, .12, .11, .6 and .3 of the same generation, which left the shared part of
+  the version meaning nothing at all. The highest count in the suite was taken,
+  rounded up for headroom, and every Radar starts again from 2026.40 — a jump
+  for most of them, and a number that means the same thing in all five.
+
+  From here the count belongs to each Radar again, and something urgent gets a
+  third segment on top: 2026.40.1 before 2026.41, the way a suite has always
+  done it. 2026 is a settling year; from 2027 the count moves when the code
+  moves.
+
+
+### Fixed
+
+- **An NVD API key, paced requests, and a scan that admits a source was
+  silent.** Without a key NVD allows five requests per rolling thirty seconds,
+  and the scanner sent them as fast as it could: the throttling that followed
+  came back as empty results, which the report presented as "no CVEs" — the
+  strongest possible claim, produced by not having asked. A key is read from the
+  environment when present, requests are paced to what the tier actually allows,
+  and a source that did not answer is reported as a source that did not answer
+  rather than as an absence of findings.
+
+### Changed
+
+- **The Docker image builds from this repository instead of from a published
+  release.** The Dockerfile could only install `patchradar==${PATCHRADAR_VERSION}`
+  from PyPI, with a default of `2026.8.33` — an August release, while the package
+  had moved on — so `docker build .` produced an image of old code and there was
+  no way at all to build one from the working tree. `PATCHRADAR_SOURCE` now picks
+  between `local` (the default, so a plain build tests what is in front of you)
+  and `pypi`, which requires a version and fails without one. A new
+  `docker-build-check` workflow builds the image and runs a smoke test inside it
+  without publishing anything: it verifies that the container user can create the
+  database where the volume actually is, which is the failure that once emptied
+  the watchlist on every container recreation.
+
 ## [2026.9.6] — 2026-09-24
 
 ### Fixed

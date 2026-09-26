@@ -20,24 +20,69 @@ def get_current_version() -> str:
         raise ValueError("Version not found in pyproject.toml")
     return match.group(1)
 
-def parse_calver(version: str) -> tuple[int, int, int]:
-    """Parse YYYY.M.PATCH from version string."""
+def as_numbers(version: str) -> tuple[int, ...]:
+    """The version as PEP 440 orders it, so two forms can be compared.
+
+    Padding matters: 2026.7 against 2026.9.6 is (2026, 7, 0) against
+    (2026, 9, 6), which is how PEP 440 reads them and why the second is the
+    larger one.
+    """
+    return tuple(int(part) for part in version.split("."))
+
+
+def is_after(candidate: str, current: str) -> bool:
+    left, right = as_numbers(candidate), as_numbers(current)
+    width = max(len(left), len(right))
+    return left + (0,) * (width - len(left)) > right + (0,) * (width - len(right))
+
+
+def parse_version(version: str) -> tuple[int, int, int]:
+    """(generation, count, fix).
+
+    The generation is the year, shared with the other Radar. The count belongs
+    to this one. The fix is a third segment for something urgent on top of a
+    count that has already shipped — 2026.40.1 before 2026.41.
+
+    Three segments are ambiguous for one more cycle, because the old form was
+    YYYY.MONTH.PATCH and 2026.9.6 is September's sixth release rather than fix
+    six of baseline nine. The baseline is 40, so a middle segment of twelve or
+    less can only be a month. Whatever this decides, `is_after` is what
+    actually guarantees the answer.
+    """
     parts = version.split(".")
-    if len(parts) != 3:
-        raise ValueError(f"Invalid CalVer format: {version}")
-    return int(parts[0]), int(parts[1]), int(parts[2])
+    if len(parts) == 2:
+        return int(parts[0]), int(parts[1]), 0
+    if len(parts) == 3:
+        generation, middle, last = (int(part) for part in parts)
+        if middle <= 12:
+            return generation, last, 0
+        return generation, middle, last
+    raise ValueError(f"Cannot read a version out of: {version}")
 
-def bump_version(current: str) -> str:
-    """Bump CalVer version — YYYY.MM.PATCH"""
+def bump_version(current: str, fix: bool = False) -> str:
+    """The next version — YYYY.COUNT, or YYYY.COUNT.FIX with fix=True.
+
+    A new year restarts the count at one. Otherwise the number goes up and
+    keeps going up until the result actually sorts after what is published:
+    coming off the old scheme the month occupied the second segment, so 2026.7
+    is *lower* than 2026.9.6, and a fix can never be .0 because PEP 440 reads
+    2026.40.0 and 2026.40 as one version.
+    """
     now = datetime.now()
-    year, month, patch = parse_calver(current)
+    year, count, patch = parse_version(current)
 
-    if year == now.year and month == now.month:
-        # Same month — bump patch
-        new_version = f"{now.year}.{now.month}.{patch + 1}"
+    if year != now.year:
+        new_version = f"{now.year}.1"
+    elif fix:
+        patch += 1
+        while not is_after(f"{year}.{count}.{patch}", current):
+            patch += 1
+        new_version = f"{year}.{count}.{patch}"
     else:
-        # New month — reset patch to 1
-        new_version = f"{now.year}.{now.month}.1"
+        count += 1
+        while not is_after(f"{year}.{count}", current):
+            count += 1
+        new_version = f"{year}.{count}"
 
     return new_version
 
@@ -66,8 +111,11 @@ def git_push() -> None:
     print("✅ Pushed to remote")
 
 def main():
+    # --fix: a third segment on the count that already shipped, for something
+    # urgent. Without it the count itself goes up, which is the ordinary case.
+    fix = "--fix" in sys.argv
     current = get_current_version()
-    new = bump_version(current)
+    new = bump_version(current, fix=fix)
 
     print(f"\n🛡️  PatchRadar Version Bump")
     print(f"   Current: {current}")
