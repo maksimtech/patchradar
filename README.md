@@ -97,8 +97,16 @@ two is not the same as a complete scan.
 |--------|------|--------|
 | [NVD](https://nvd.nist.gov) | CVE Database | ✅ Active |
 | [MSRC](https://msrc.microsoft.com) | Microsoft Patch Tuesday | ✅ Active |
-| Debian Security | Linux packages | 🔜 Coming soon |
-| CISA KEV | Known Exploited Vulnerabilities | 🔜 Coming soon |
+| [Debian Security](https://security-tracker.debian.org) | Linux packages | ✅ Active |
+| [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Known exploited vulnerabilities | ✅ Active |
+
+KEV answers a different question from the others. They report what has been
+published about a package; KEV reports what is **being exploited right now**,
+with CISA's own remediation deadline. It carries no severity of its own and
+PatchRadar does not invent one — the fact travels as `known_exploited`, which
+is worth more than a score: on a sample of 695 CVEs matched against installed
+software, sorting by CVSS put five 10.0 entries on top, none of them exploited,
+while the four listed in KEV scored 9.8, 8.8, 8.6 and 7.8.
 
 ---
 

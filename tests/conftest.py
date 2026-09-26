@@ -1,10 +1,11 @@
 """Shared test fixtures."""
 import asyncio
+import time
 
 import aiosqlite
 import pytest
 
-from patchradar.collectors import debian
+from patchradar.collectors import debian, kev
 from patchradar.db import database
 
 
@@ -41,6 +42,30 @@ async def clean_tables(isolated_database):
         await db.execute("DELETE FROM cves")
         await db.commit()
     yield
+
+
+@pytest.fixture(autouse=True)
+def kev_offline_by_default():
+    """Give every test an empty KEV catalogue, already cached.
+
+    Isolation is only half the reason. The other half is that the collector
+    downloads the catalogue the first time it is asked, and a scan reaches it
+    through the CLI and the API alike — so a test that exercises a scan without
+    mocking cisa.gov makes a live request. That is exactly what happened when
+    KEV joined the fan-out: `tests/test_scan_source_outage.py` fetched the real
+    catalogue and a test asserting on a zero total found one CVE, while four
+    other files did the same more quietly, leaving only a thread exception
+    about a closed event loop behind them.
+
+    Seeding an empty catalogue closes that off for every test that does not ask
+    for one, and for every source added after this one. A test that wants a
+    real catalogue clears the cache itself — see `tests/test_kev.py`.
+    """
+    kev.clear_cache()
+    kev._snapshot = {"catalogVersion": "test", "count": 0, "vulnerabilities": []}
+    kev._snapshot_at = time.monotonic()
+    yield
+    kev.clear_cache()
 
 
 @pytest.fixture(autouse=True)

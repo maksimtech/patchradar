@@ -7,6 +7,46 @@ and this project uses **CalVer** (`YYYY.M.PATCH`), not SemVer.
 
 ---
 
+## [Unreleased]
+### Added
+
+- **CISA KEV is a source, not a promise.** It had been listed as "Coming soon"
+  in the README since the first release. It now runs in every scan, served from
+  a process-wide snapshot like the Debian tracker — the catalogue is one
+  document of 1,726 entries, so a scan costs one download rather than one per
+  package.
+
+  KEV answers a question the other sources do not: not how bad a flaw would be,
+  but whether it is **being exploited right now**, with CISA's own remediation
+  deadline attached. Measured on a real machine on 2026-09-26, across 695 CVEs
+  matched against installed software: ordering by CVSS put five 10.0 entries on
+  top, **none of them exploited**, while the four listed in KEV scored 9.8,
+  8.8, 8.6 and 7.8 — below all five. Severity alone ranks the wrong things
+  first.
+
+  The collector deliberately supplies **no severity of its own**. Mapping
+  "exploited" to CRITICAL would manufacture a score CISA never gave and make it
+  indistinguishable from one a scoring body assigned; the fact travels as
+  `known_exploited`, alongside `kev_due_date` and `kev_ransomware`.
+
+  One trap is pinned by a test: CISA writes the strings `"Known"` and
+  `"Unknown"`, and `bool("Unknown")` is `True`. Passing that field through
+  unconverted would mark 1,610 of the 1,726 entries as ransomware-linked.
+
+### Fixed
+
+- **The README understated the product.** `Debian Security` had shipped,
+  complete and tested, while the source table still advertised it as "Coming
+  soon". A contract test now asserts that every collector defining `fetch_cves`
+  is imported by the API, called in `_scan_one`, and named in the README — a
+  collector that exists but is never invoked passes all of its own tests.
+
+  The same test surfaced `collectors/snyk.py`: a zero-byte file present since
+  the beginning. It is recorded as a known placeholder rather than deleted, and
+  the suite now fails if it grows code without being wired in.
+
+---
+
 ## [2026.40] — 2026-09-26
 ### Changed
 

@@ -31,6 +31,7 @@ from patchradar.db.database import add_to_watchlist, get_cves
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 DEBIAN_URL = "https://security-tracker.debian.org/tracker/data/json"
+KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 MSRC_PREFIX = "https://api.msrc.microsoft.com"
 
 
@@ -150,6 +151,7 @@ async def test_msrc_network_failure_raises():
 async def test_debian_download_failure_raises(status, reason):
     with respx.mock:
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(status))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         with pytest.raises(CollectorError) as exc:
             await debian.fetch_cves("nginx")
     assert exc.value.source == "Debian"
@@ -160,6 +162,7 @@ async def test_debian_download_failure_raises(status, reason):
 async def test_debian_failure_is_not_cached():
     with respx.mock:
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(503))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         with pytest.raises(CollectorError):
             await debian.fetch_cves("nginx")
     with respx.mock:
@@ -188,6 +191,7 @@ async def test_scan_reports_failed_sources(client):
         respx.get(NVD_URL).mock(return_value=httpx.Response(429))
         respx.get(url__startswith=MSRC_PREFIX).mock(return_value=httpx.Response(404))
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(200, json={}))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         body = (await client.post("/api/scan?days=7")).json()
     assert body["errors"] == [{"software": "nginx", "source": "NVD",
                                "reason": "rate_limited", "status": 429}]
@@ -199,6 +203,7 @@ async def test_clean_scan_reports_no_errors(client):
         respx.get(NVD_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         respx.get(url__startswith=MSRC_PREFIX).mock(return_value=httpx.Response(404))
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(200, json={}))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         body = (await client.post("/api/scan?days=7")).json()
     assert body["errors"] == []
     assert body["total"] == 0
@@ -210,6 +215,7 @@ async def test_one_failed_source_does_not_discard_the_others(client):
         respx.get(NVD_URL).mock(return_value=nvd_ok("CVE-2026-NVD1"))
         respx.get(url__startswith=MSRC_PREFIX).mock(side_effect=httpx.ConnectError("down"))
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(503))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         body = (await client.post("/api/scan?days=7")).json()
     assert body["total"] == 1
     assert {e["source"] for e in body["errors"]} == {"MSRC", "Debian"}
@@ -224,6 +230,7 @@ async def test_partial_results_are_saved(client):
         respx.get(NVD_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         respx.get(url__startswith=MSRC_PREFIX).mock(side_effect=handler)
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(200, json={}))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         body = (await client.post("/api/scan?days=30")).json()
     assert body["total"] == 1
     assert body["errors"][0]["source"] == "MSRC"

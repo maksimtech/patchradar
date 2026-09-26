@@ -12,6 +12,8 @@ from rich.text import Text
 
 import patchradar
 from patchradar.collectors.errors import CollectorError
+from patchradar.collectors.kev import SOURCE as kev_source
+from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
@@ -231,7 +233,11 @@ async def _scan_target(
     all_cves: list[dict] = []
     failures: list[CollectorError] = []
     with console.status(f"[cyan]Scanning {safe_target}...[/cyan]"):
-        for fetch in (fetch_cves, msrc_fetch):
+        # Kept in step with `_scan_one` in the API: a scan from the command
+        # line and a scan over HTTP that consult different sources print
+        # different totals for the same machine, and neither says which.
+        # `tests/test_collector_wiring.py` holds the two lists together.
+        for fetch in (fetch_cves, msrc_fetch, kev_fetch):
             try:
                 all_cves += await fetch(target, days_back=days)
             except CollectorError as exc:
@@ -259,7 +265,12 @@ async def _scan_target(
 # Every source `scan` queries. Named here so the summary can say which ones
 # answered, without inferring it from the CVEs — a source that answered and had
 # nothing would otherwise look like one that did not answer.
-SCAN_SOURCES = ("NVD", "MSRC")
+#
+# It has to list *all* of them: while it still said ("NVD", "MSRC") after KEV
+# joined the fan-out, a scan whose only result came from KEV printed "every CVE
+# above comes from MSRC". `tests/test_collector_wiring.py` now holds this tuple
+# and the fan-out together.
+SCAN_SOURCES = ("NVD", "MSRC", kev_source)
 
 # NVD answers a keyless client over quota with 403, and a key holder going too
 # fast with 429. Both are worth a word about the key; a timeout is not.

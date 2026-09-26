@@ -20,6 +20,7 @@ import patchradar.collectors.debian as debian
 from patchradar.db import database
 
 DEBIAN_URL = "https://security-tracker.debian.org/tracker/data/json"
+KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 WATCHED = ["nginx", "apache", "redis", "postgresql", "openssl"]
@@ -74,6 +75,7 @@ def mock_collectors():
         return httpx.Response(404)
 
     respx.get(DEBIAN_URL).mock(side_effect=debian_handler)
+    respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
     respx.get(NVD_URL).mock(side_effect=nvd_handler)
     respx.get(url__startswith="https://api.msrc.microsoft.com").mock(side_effect=msrc_handler)
     return counter
@@ -141,6 +143,7 @@ async def test_failed_download_is_not_cached():
     from patchradar.collectors.errors import CollectorError
     with respx.mock:
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(500))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         # raises since W10; used to return [] indistinguishable from "no CVEs"
         with pytest.raises(CollectorError):
             await debian.fetch_cves("nginx")
@@ -158,6 +161,7 @@ async def test_cached_snapshot_still_filters_per_keyword():
     }
     with respx.mock:
         respx.get(DEBIAN_URL).mock(return_value=httpx.Response(200, json=payload))
+        respx.get(KEV_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
         nginx = await debian.fetch_cves("nginx")
         redis = await debian.fetch_cves("redis")
     assert [c["id"] for c in nginx] == ["CVE-2026-1"]

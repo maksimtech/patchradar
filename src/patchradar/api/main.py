@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from patchradar.collectors.debian import fetch_cves as debian_fetch
 from patchradar.collectors.errors import CollectorError
+from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
@@ -234,12 +235,17 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
     """
     from patchradar.db.database import save_cve
     count = 0
-    # Debian is served from a process-wide snapshot, so this costs one
-    # download per scan rather than one per package.
+    # Debian and KEV are each served from a process-wide snapshot, so they cost
+    # one download per scan rather than one per package.
+    #
+    # KEV ignores `days`: it is a standing list of what is being exploited, not
+    # a feed of recent publications, and the entries that have been on it
+    # longest are the ones that have gone unpatched the longest.
     fetches = (
         lambda: nvd_fetch(sw, days_back=days),
         lambda: msrc_fetch(sw, days_back=days),
         lambda: debian_fetch(sw),
+        lambda: kev_fetch(sw),
     )
     for fetch in fetches:
         try:

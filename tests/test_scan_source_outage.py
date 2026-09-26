@@ -47,12 +47,17 @@ def a_cve(cve_id: str, source: str) -> dict:
 
 @pytest.fixture
 def scanning(monkeypatch):
-    """Run `patchradar scan` over several targets with both sources stubbed.
+    """Run `patchradar scan` over several targets with every source stubbed.
 
     `behaviour` maps a target to what each source does for it: a list of CVEs,
     or a CollectorError to raise.
+
+    Every source the CLI consults has to be stubbed here, not just the ones a
+    given test cares about: when KEV was added to the fan-out and this fixture
+    still knew only two sources, the suite quietly made a live request to
+    cisa.gov and a test asserting on a zero total found one CVE.
     """
-    def run(targets, nvd_for, msrc_for):
+    def run(targets, nvd_for, msrc_for, kev_for=lambda t: []):
         async def fake_nvd(target, days_back=7):
             outcome = nvd_for(target)
             if isinstance(outcome, Exception):
@@ -65,8 +70,15 @@ def scanning(monkeypatch):
                 raise outcome
             return outcome
 
+        async def fake_kev(target, days_back=7):
+            outcome = kev_for(target)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
         monkeypatch.setattr(cli, "fetch_cves", fake_nvd)
         monkeypatch.setattr(cli, "msrc_fetch", fake_msrc)
+        monkeypatch.setattr(cli, "kev_fetch", fake_kev)
         monkeypatch.setattr(cli, "save_cve", _no_save)
         monkeypatch.setattr(cli, "get_watchlist", _watchlist(targets))
         monkeypatch.setattr(cli, "_law_check", lambda *a, **kw: None)
@@ -160,9 +172,16 @@ def test_a_single_target_scan_needs_no_summary(scanning):
     assert "none of the 1" not in out
 
 
-def test_a_keyless_rate_limit_points_at_the_remedy(scanning):
+def test_a_keyless_rate_limit_points_at_the_remedy(scanning, monkeypatch):
     """403 and 429 from NVD are usually the keyless quota, and the user can fix
-    that themselves — but only if told how."""
+    that themselves — but only if told how.
+
+    The key is cleared explicitly: this test is about the keyless case, and
+    without the line it asserted nothing on a developer machine that happened
+    to have NVD_API_KEY set — where it failed instead, for the right reason and
+    with a misleading message.
+    """
+    monkeypatch.delenv("NVD_API_KEY", raising=False)
     out = scanning(
         TARGETS,
         nvd_for=lambda t: CollectorError("NVD", "forbidden", status=403),
