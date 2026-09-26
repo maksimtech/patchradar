@@ -3,7 +3,10 @@
 All notable changes to PatchRadar are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project uses **CalVer** (`YYYY.M.PATCH`), not SemVer.
+and this project uses **CalVer, Apple style**: `YYYY.count[.fix]`, not SemVer.
+`YYYY` is the generation, shared by the five Radar; the count belongs to each of
+them and moves when its code moves; the third segment is for something urgent on
+what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ---
 
