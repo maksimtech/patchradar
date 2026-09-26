@@ -34,7 +34,8 @@ CORE = {
     "licenses",     # no GPL/AGPL/LGPL creeping in
     "mutation",     # do the tests actually test
     "publish",      # PyPI
-    "release",      # GitHub release from a tag
+    # No "release": see test_there_is_a_way_to_cut_a_release. The requirement is
+    # that a release can be cut, not that a workflow file cuts it.
 }
 
 # Required only of a Radar that has what they need.
@@ -58,6 +59,22 @@ def present(name: str) -> bool:
 @pytest.mark.parametrize("name", sorted(CORE))
 def test_the_core_workflow_is_here(name):
     assert present(name), f"{name}.yml is missing from a Radar that must have it"
+
+
+def test_there_is_a_way_to_cut_a_release():
+    """A release can be cut. Whether a workflow or a script cuts it is this
+    repository's business, and here it is the script.
+
+    The other four Radar carry release.yml, triggered by `push: tags: 'v*'`. A
+    harmonisation pass on 2026-09-26 ported it here too, and it was incapable of
+    ever running: every tag in this repository is bare CalVer — 2026.9.6, no
+    prefix — so the pattern matched none of the 37 that exist. Listing it as a
+    missing workflow would have been the opposite mistake, because nothing is
+    missing: scripts/release.py creates the release with `gh release create`,
+    which is exactly what publish.yml and docker.yml wait for
+    (`release: published`), and RELEASING.md documents it.
+    """
+    assert present("release") or (ROOT / "scripts" / "release.py").is_file()
 
 
 def test_the_test_suite_has_a_workflow():
@@ -94,3 +111,25 @@ def test_no_workflow_is_here_without_being_accounted_for():
 
     found = {path.stem for path in WORKFLOWS.glob("*.yml")}
     assert found <= known, f"undescribed workflows: {sorted(found - known)}"
+
+
+def test_no_workflow_waits_for_a_tag_this_project_never_creates():
+    """The trap that KNOWN_GAPS alone would not catch.
+
+    A harmonisation pass on 2026-09-26 ported release.yml from the other four
+    Radar. It triggers on `push: tags: 'v*'`, and every tag here is bare CalVer —
+    2026.9.6, no prefix — so the workflow was added, reviewed and pushed while
+    being incapable of ever running. Nothing goes red for that; it simply never
+    appears.
+
+    Widening the pattern would be worse than leaving it out: releases here are
+    created by scripts/release.py calling `gh release create`, which is what
+    publish.yml and docker.yml wait for (`release: published`). A second creator
+    on the same tag would race with it.
+    """
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        assert "'v*'" not in text and '"v*"' not in text, (
+            f"{path.name} waits for a v-prefixed tag; this project tags 2026.9.6, "
+            "so the workflow would never run"
+        )
