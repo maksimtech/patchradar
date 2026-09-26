@@ -10,6 +10,7 @@ from patchradar.collectors.errors import (
     CollectorError,
     reason_for_status,
 )
+from patchradar.cvss import severity_for
 
 logger = logging.getLogger(__name__)
 
@@ -200,12 +201,14 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
 
 
 def _score_to_severity(score: float | None) -> str:
-    if score is None:
-        return "UNKNOWN"
-    if score >= 9.0:
-        return "CRITICAL"
-    if score >= 7.0:
-        return "HIGH"
-    if score >= 4.0:
-        return "MEDIUM"
-    return "LOW"
+    """Il gradino qualitativo del punteggio, nella scala v3.
+
+    Delega a `patchradar.cvss`, che tiene le soglie pubblicate da FIRST in un
+    posto solo. La tabella scritta qui a mano restituiva LOW per 0.0, mentre
+    nella v3 lo zero e' NONE e Low parte da 0.1 - e nessun test la fissava.
+
+    La versione e' "3.1" perche' e' quella che MSRC pubblica, ed e' la stessa
+    che finisce nel campo `cvss_version` del record qui sotto: se un giorno
+    MSRC cambiasse scala, le due righe andrebbero cambiate insieme.
+    """
+    return severity_for(score, "3.1")

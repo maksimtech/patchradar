@@ -35,6 +35,32 @@ and this project uses **CalVer** (`YYYY.M.PATCH`), not SemVer.
 
 ### Fixed
 
+- **Le scale CVSS, come le pubblica FIRST — e sono due.** `patchradar.cvss`
+  tiene ora in un posto solo le soglie della v3.x e quelle della v2, che non
+  sono le stesse: la v2 non ha `Critical` e chiama `High` tutto da 7.0 a 10.0,
+  mentre la v3 riserva `None` allo 0.0 e fa partire `Low` da 0.1.
+
+  La tabella scritta a mano in `collectors/msrc.py` restituiva `LOW` per un
+  punteggio di 0.0, dove la specifica dice `NONE`. Nessun test la fissava.
+
+  La differenza non e' accademica. Fra 695 CVE misurati su una macchina reale
+  il 26/09/2026 convivono `CVE-2014-0566 10.0 HIGH` (v2) e `CVE-2018-4872 10.0
+  CRITICAL` (v3): due 10.0 con etichette diverse, entrambe corrette per la
+  propria scala. Da cui una regola per chiunque mostri questi dati — **mai
+  un'etichetta senza la sua versione accanto, e mai un ordinamento per
+  etichetta**, perche' un 9.8 CRITICAL finirebbe sopra un 10.0 HIGH.
+
+  v2 e v3 non si convertono l'una nell'altra: sono metriche diverse e FIRST non
+  pubblica alcuna tabella di conversione. Un punteggio la cui versione non e'
+  fra quelle tabulate da' `UNKNOWN`, v4.0 compresa, invece di prendere in
+  prestito la scala che le somiglia di piu'.
+
+- **`UNKNOWN` non aveva un colore.** Lo producono gia' tre collector, e senza
+  una voce nella tavolozza quelle righe uscivano bianche, indistinguibili da
+  una qualunque. Ora e' magenta e non smorzato, di proposito: una riga grigia
+  si legge come "trascurabile" mentre la cosa vera e' "non misurata", e le due
+  si assomigliano abbastanza da confondersi.
+
 - **The README understated the product.** `Debian Security` had shipped,
   complete and tested, while the source table still advertised it as "Coming
   soon". A contract test now asserts that every collector defining `fetch_cves`

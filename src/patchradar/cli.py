@@ -64,6 +64,14 @@ SEVERITY_STYLES = {
     "HIGH": "red",
     "MEDIUM": "yellow",
     "LOW": "green",
+    # 0.0 nella scala v3: un difetto senza impatto. Smorzato perche' non e'
+    # niente, ed e' l'unico gradino che lo sia davvero.
+    "NONE": "dim",
+    # Non smorzato, di proposito. UNKNOWN vuol dire che nessuna fonte ha dato un
+    # punteggio a questa voce, e una riga grigia si legge come "trascurabile"
+    # mentre la cosa vera e' "non misurata". Le due si assomigliano ed e'
+    # esattamente per questo che va vista.
+    "UNKNOWN": "magenta",
 }
 
 
