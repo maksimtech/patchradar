@@ -7,7 +7,7 @@ and this project uses **CalVer** (`YYYY.M.PATCH`), not SemVer.
 
 ---
 
-## [Unreleased]
+## [2026.41] — 2026-09-26
 ### Added
 
 - **CISA KEV is a source, not a promise.** It had been listed as "Coming soon"
