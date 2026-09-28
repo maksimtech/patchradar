@@ -10,6 +10,109 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ---
 
+## [2026.42] — 2026-09-28
+### Added
+
+- **The exploited ones come first.** 2026.41 put the CISA KEV fact in every
+  scan and nothing read it: the report printed what the sources had returned, in
+  the order the fan-out happened. `patchradar.priority` now ranks four steps —
+  in KEV with known ransomware use, in KEV, scored, unscored — and the report
+  leads with the first.
+
+  The measurement this exists for, taken on a real machine on 2026-09-26 across
+  695 CVEs: ordering by CVSS put five 10.0 entries on top, **none of them
+  exploited**, while the four listed in KEV scored 9.8, 8.8, 8.6 and 7.8. The
+  operational question is what is being used against you now, and CVSS does not
+  answer it.
+
+  The rank never travels alone. Each row says which catalogue, since when, and
+  CISA's remediation date where one is stated — a rank on its own is a number to
+  be taken on trust.
+
+- **`patchradar import <snapshot>` — what a machine has, and what could be
+  watched.** Reads the JSON an inventory collector writes and reports, per
+  product: a vendor source that answers by version, a source whose product has
+  to be confirmed by hand, a component updated by whatever installed it, or no
+  source by version at all.
+
+  It writes nothing, queries nothing and decides nothing, and that is the point:
+  translating what the registry writes into what a vendor API wants cannot be
+  deduced from a name. Measured on this corpus, 30% mapped by themselves, and a
+  guess let through produced `MX5` → a Juniper router and `Visual C++ 2012` →
+  `visual_c++:2008`. So it proposes and a person confirms.
+
+  Registry rows are not products, and the difference is large: on the machine
+  measured on 2026-09-27 the 147 entries are **109 products** — 24 rows are one
+  Python install, 14 are Visual C++ runtimes, 28 are NVIDIA of which three are
+  products and twenty-five are containers and plugins. The largest groups are
+  printed, so a product that arrived as 24 rows cannot hide inside a total.
+
+  The result of that first run is worth stating: of 109 products, 2 can be
+  answered by version today, 3 need one confirmation each, 32 are components and
+  72 have no source that answers by version. On a home machine the vendor route
+  covers five products out of 109; a company fleet is a different mix, and this
+  command is how to find out before building anything on top.
+
+- **`patchradar.affected` reads the NVD `configurations` nobody was reading.**
+  Which versions a CVE affects and where NVD states the fix, with the one
+  distinction the honesty of the answer rests on: `versionEndExcluding: X` **is**
+  the fixed version, while `versionEndIncluding: X` only names the last affected
+  release — deducing "fixed in 8.5.7" from `versionEndIncluding: 8.5.6` would
+  publish a number no source ever stated.
+
+  On the real Notepad++ payload: 8.9.5 has five known, all five closed by
+  8.9.6.4; 8.5.0 has ten, six closed, and the four left open are open because
+  NVD does not say where they were fixed, not because the update is
+  insufficient.
+
+  **Not wired into the scan yet, deliberately.** "Fixed in X" is a fact about a
+  product, and a keyword scan has neither a CPE nor an installed version to ask
+  about; that needs watchlist columns this release does not add. It ships as a
+  tested module with the boundary pinned by a test, not as a promise.
+
+### Changed
+
+- **The CVE count means something different.** The three collectors were
+  concatenated and de-duplicated nothing, so a CVE that NVD scored and CISA
+  lists arrived twice — once with a score, once exploited with
+  `severity: "UNKNOWN"`. They are now merged into one row, which keeps the real
+  score and the exploitation fact together.
+
+  So the number a scan reports changes from records returned to CVEs found. On a
+  machine where the sources overlap it will be **smaller than it was**, not
+  because anything improved but because it used to count some of them twice.
+  Anything reading that number will see it move.
+
+- The report has a `Priority` column, and the rows are no longer in the order
+  the sources answered.
+
+### Fixed
+
+- **A successful scan ended in a traceback.** With the report printed in full
+  and an exit code of 0, a terminal run could finish with
+  `ImportError: sys.meta_path is None, Python is likely shutting down` from
+  Rich's `FileProxy`. While the spinner runs, Rich replaces the streams with a
+  proxy that holds text until it meets a newline, and restores them without
+  flushing it; a partial line written by a library is then printed when the
+  interpreter finalises the proxy, too late to import anything. Nothing about
+  the result was wrong, and nobody watching could tell.
+
+  Only on a terminal, which is why it never surfaced in runs redirected to a
+  file. The fix was already in CookieRadar and had not been carried anywhere
+  else.
+
+- Two rows for one CVE, ranked differently, one of them claiming
+  `severity: UNKNOWN` for a flaw a scoring body had scored. See **Changed**.
+
+### Documentation
+
+- `RELEASING.md`, two CHANGELOG entries and the docstrings and comments of
+  `cvss.py`, `collectors/msrc.py`, `cli.py` and their tests are in English, like
+  the rest of the repository. The quoted text of Italian law in
+  `tests/test_law_sources.py` stays in Italian: the tests assert on those words.
+
+---
+
 ## [2026.41] — 2026-09-27
 ### Added
 
