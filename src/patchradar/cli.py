@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import math
 import pathlib
 import sys
 from collections import Counter
@@ -153,7 +154,7 @@ def _format_score(value) -> str:
             value = float(value)
         except ValueError:
             return "N/A"
-    if not isinstance(value, (int, float)) or value != value:  # NaN
+    if not isinstance(value, (int, float)) or math.isnan(value):
         return "N/A"
     return f"{value:.1f}"
 

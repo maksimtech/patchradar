@@ -92,12 +92,27 @@ _FAMILY_SPECIALS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"visual c\+\+", re.I), "microsoft visual c++ runtimes"),
 )
 
-# Noise a registry name carries around the product it names.
-_PARENTHESISED = re.compile(r"\s*\([^)]*\)")
-_TRAILING_DASH_VERSION = re.compile(r"\s*[-–]\s*v?\d+(?:\.\d+)*\s*$")
-_TRAILING_VERSION = re.compile(r"\s+v?\d+(?:\.\d+){1,}\s*$")
-_VERSION_WORD = re.compile(r"\s+(version|versione|ver\.?)\s+v?\d+(?:\.\d+)*", re.I)
-_ARCHITECTURE = re.compile(r"\s+(x64|x86|amd64|64[-\s]?bit|32[-\s]?bit)\b", re.I)
+# Noise a registry name carries around the product it names, removed by walking
+# the words once rather than by matching patterns across the whole string.
+#
+# The first version of this used expressions like `\s*[-–]\s*v?\d+(?:\.\d+)*\s*$`,
+# and SonarCloud was right to refuse them: a leading `\s*` with an anchored `\s*$`
+# is re-tried at every position of a name that does not match, which is quadratic
+# in its length. A DisplayName is not attacker-controlled in any interesting way,
+# but there is no reason to pay it — and a word list says more plainly what is
+# being dropped.
+_PARENTHESISED = re.compile(r"\([^)]*\)")
+
+# A dotted version, anchored, tested one word at a time. At least one dot is
+# required: `Java 8 Update 503` must keep both numbers, or Java 8 and Java 9
+# would collapse into one product.
+_DOTTED_VERSION = re.compile(r"^v?\d+(?:\.\d+)+$")
+
+_VERSION_WORDS = frozenset({"version", "versione", "ver", "ver."})
+_ARCHITECTURES = frozenset({
+    "x64", "x86", "amd64", "64-bit", "64bit", "32-bit", "32bit",
+})
+_SEPARATORS = frozenset({"-", "–", "—"})
 
 
 def family_key(name: str) -> str:
@@ -113,12 +128,15 @@ def family_key(name: str) -> str:
         if match:
             return pattern.sub(replacement, match.group(0)).strip().lower()
 
-    text = _PARENTHESISED.sub("", text)
-    text = _VERSION_WORD.sub("", text)
-    text = _TRAILING_DASH_VERSION.sub("", text)
-    text = _TRAILING_VERSION.sub("", text)
-    text = _ARCHITECTURE.sub("", text)
-    return " ".join(text.split()).strip(" -–").lower()
+    kept = []
+    for word in _PARENTHESISED.sub(" ", text).split():
+        token = word.lower()
+        if token in _VERSION_WORDS or token in _ARCHITECTURES or token in _SEPARATORS:
+            continue
+        if _DOTTED_VERSION.match(token):
+            continue
+        kept.append(token)
+    return " ".join(kept)
 
 
 # Which answer wins when the rows of one family disagree. A family with one
