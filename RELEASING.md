@@ -5,89 +5,88 @@
 PatchRadar uses **CalVer, Apple style**: `YYYY.count[.fix]`.
 
 ```
-2026.40      generazione 2026, quarantesimo conteggio
-2026.41      il conteggio si muove perche' si e' mosso il codice
-2026.40.1    intervento fuori programma su cio' che e' gia' fuori
+2026.40      generation 2026, fortieth count
+2026.41      the count moves because the code moved
+2026.40.1    an out-of-band fix to what is already out
 ```
 
-`YYYY` è la **generazione**, condivisa dai cinque Radar: nella stessa
-generazione i cinque parlano della stessa annata. Il conteggio invece appartiene
-a ciascuno e si muove quando si muove il suo codice.
+`YYYY` is the **generation**, shared by the five Radar: within one generation the
+five speak of the same year. The count belongs to each of them and moves when its
+own code moves.
 
-### Il terzo segmento
+### The third segment
 
-Non è «il rilascio piccolo». È **fuori programma e a scopo singolo**.
+It is not "the small release". It is **out of band and single-purpose**.
 
-Il modello è iOS 11.2.6, del febbraio 2018: il carattere telugu mandava in crash
-qualunque app lo ricevesse, e Apple pubblicò undici giorni dopo la 11.2.5 una
-versione che conteneva quella correzione e nient'altro.
+The model is iOS 11.2.6, February 2018: the Telugu character crashed any app that
+received it, and eleven days after 11.2.5 Apple shipped a version containing that
+fix and nothing else.
 
-Se in un rilascio entra anche solo una cosa che non è quella urgenza, allora è
-un conteggio, non un fix. Usare il terzo segmento per «le cose minori» lo svuota
-di significato — che è esattamente la deriva da cui i cinque Radar sono usciti
-il 26/09/2026, quando si trovarono a `.32`, `.12`, `.11`, `.6` e `.3` della
-stessa generazione senza che quel numero volesse più dire niente.
+If a release carries even one thing that is not that urgency, then it is a count
+and not a fix. Using the third segment for "the minor things" empties it of
+meaning — which is exactly the drift the five Radar came out of on 2026-09-26,
+when they found themselves at `.32`, `.12`, `.11`, `.6` and `.3` of the same
+generation with that number no longer saying anything at all.
 
-Accorpare una feature e delle correzioni nello stesso conteggio è normale e
-previsto: `2026.41` porta la fonte CISA KEV insieme a quattro difetti risolti.
+Carrying a feature and some fixes in the same count is normal and intended:
+`2026.41` brings the CISA KEV source together with four resolved defects.
 
-## Il CHANGELOG si scrive a mano
+## The CHANGELOG is written by hand
 
-`CHANGELOG.md` segue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ed
-è **scritto a mano**. git-cliff è stato usato in passato e non lo è più: le note
-generate dai messaggi di commit dicono cosa è cambiato e mai perché, che è
-l'unica cosa che un lettore cerca.
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and is **written by hand**. git-cliff was used in the past and is not any more:
+notes generated from commit messages say what changed and never why, which is the
+only thing a reader is looking for.
 
-`scripts/release.py` cerca la sezione `## [<versione>]` e **fallisce prima di
-toccare qualunque cosa** se non la trova. Quindi la voce va scritta prima del
-bump, sotto un titolo che corrisponda alla versione che uscirà.
+`scripts/release.py` looks for the `## [<version>]` section and **fails before
+touching anything** if it does not find it. So the entry goes in before the bump,
+under a heading matching the version about to ship.
 
-## Prima di rilasciare
+## Before releasing
 
-- [ ] `pytest -q` — tutto verde
-- [ ] `ruff check src tests benchmarks` — pulito
-- [ ] `mypy src/patchradar` — pulito
-- [ ] `CHANGELOG.md` ha la sezione della versione che sta per uscire
-- [ ] il tag non esiste già: `git ls-remote --tags origin | grep <versione>`
-- [ ] nessun avviso di sicurezza critico o alto aperto
-- [ ] provato su Windows e su Linux
+- [ ] `pytest -q` — all green
+- [ ] `ruff check src tests benchmarks` — clean
+- [ ] `mypy src/patchradar` — clean
+- [ ] `CHANGELOG.md` has the section for the version about to ship
+- [ ] the tag does not exist yet: `git ls-remote --tags origin | grep <version>`
+- [ ] no open critical or high security advisory
+- [ ] tried on Windows and on Linux
 
-## Rilascio
+## Releasing
 
 ```bash
-# 1. Bump della versione (interattivo: chiede conferma)
-python scripts/bump_version.py          # il conteggio sale
-python scripts/bump_version.py --fix    # oppure il terzo segmento
+# 1. Version bump (interactive: it asks for confirmation)
+python scripts/bump_version.py          # the count goes up
+python scripts/bump_version.py --fix    # or the third segment
 
-# 2. Rilascio (interattivo: chiede conferma)
+# 2. Release (interactive: it asks for confirmation)
 python scripts/release.py
 ```
 
-`release.py` fa, in quest'ordine:
+`release.py` does, in this order:
 
 1. `git push origin main`
-2. `gh release create <versione> --latest`, con le note prese dal CHANGELOG
-3. si ferma: **`publish.yml` parte da solo** su `release: published` e pubblica
-   su PyPI con trusted publishing — nessun token da passare
+2. `gh release create <version> --latest`, with the notes taken from the CHANGELOG
+3. it stops: **`publish.yml` starts on its own** on `release: published` and
+   publishes to PyPI with trusted publishing — no token to hand over
 
-Il punto 3 è **irreversibile**: una versione su PyPI non si ritira, si può solo
-marcare come *yanked*. Vale la pena rileggere il CHANGELOG un'ultima volta prima
-di confermare.
+Step 3 is **irreversible**: a version on PyPI cannot be withdrawn, only marked
+*yanked*. It is worth reading the CHANGELOG once more before confirming.
 
-## Rami
+## Branches
 
-`main` è l'unico ramo permanente, ed è sempre rilasciabile: i commit di rilascio
-ci vanno sopra direttamente. Il lavoro più lungo o più rischioso sta su rami
-brevi (`feat/…`, `fix/…`) finché non è pronto — è così che `feature/version-gap`
-è rimasto fuori da 2026.41, perché aveva il codice ma non ancora una faccia.
+`main` is the only permanent branch and is always releasable: release commits go
+straight onto it. Longer or riskier work sits on short-lived branches (`feat/…`,
+`fix/…`) until it is ready — that is how `feature/version-gap` stayed out of
+2026.41, because it had the code and not yet a face.
 
-Non esiste un ramo `develop`. Le versioni precedenti di questo documento ne
-descrivevano uno, insieme a uno schema di versioni `YYYY.MM.PATCH` che il
-progetto ha abbandonato: entrambi erano fermi a prima del 26/09/2026.
+There is no `develop` branch. Earlier versions of this document described one,
+along with a `YYYY.MM.PATCH` versioning scheme the project has abandoned: both
+were stuck at before 2026-09-26.
 
-## Regole
+## Rules
 
-- Un rilascio contiene un insieme di modifiche che ha senso raccontare insieme.
-- Niente rattoppi: si capisce il difetto prima di rilasciare, non dopo.
-- Il CHANGELOG si scrive per chi legge fra sei mesi, non per chi ha appena
-  scritto il codice.
+- A release contains a set of changes that makes sense told together.
+- No patching over: understand the defect before releasing, not after.
+- The CHANGELOG is written for whoever reads it in six months, not for whoever
+  has just written the code.

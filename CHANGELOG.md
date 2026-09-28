@@ -38,31 +38,32 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
-- **Le scale CVSS, come le pubblica FIRST — e sono due.** `patchradar.cvss`
-  tiene ora in un posto solo le soglie della v3.x e quelle della v2, che non
-  sono le stesse: la v2 non ha `Critical` e chiama `High` tutto da 7.0 a 10.0,
-  mentre la v3 riserva `None` allo 0.0 e fa partire `Low` da 0.1.
+- **The CVSS scales, as FIRST publishes them — and there are two.**
+  `patchradar.cvss` now holds the v3.x thresholds and the v2 ones in a single
+  place, and they are not the same: v2 has no `Critical` and calls everything
+  from 7.0 to 10.0 `High`, while v3 reserves `None` for 0.0 and starts `Low` at
+  0.1.
 
-  La tabella scritta a mano in `collectors/msrc.py` restituiva `LOW` per un
-  punteggio di 0.0, dove la specifica dice `NONE`. Nessun test la fissava.
+  The hand-written table in `collectors/msrc.py` returned `LOW` for a score of
+  0.0, where the specification says `NONE`. No test pinned it.
 
-  La differenza non e' accademica. Fra 695 CVE misurati su una macchina reale
-  il 26/09/2026 convivono `CVE-2014-0566 10.0 HIGH` (v2) e `CVE-2018-4872 10.0
-  CRITICAL` (v3): due 10.0 con etichette diverse, entrambe corrette per la
-  propria scala. Da cui una regola per chiunque mostri questi dati — **mai
-  un'etichetta senza la sua versione accanto, e mai un ordinamento per
-  etichetta**, perche' un 9.8 CRITICAL finirebbe sopra un 10.0 HIGH.
+  The difference is not academic. Among 695 CVEs measured on a real machine on
+  2026-09-26, `CVE-2014-0566 10.0 HIGH` (v2) and `CVE-2018-4872 10.0 CRITICAL`
+  (v3) sit side by side: two 10.0s with different labels, both correct on their
+  own scale. Hence a rule for anyone displaying this data — **never a label
+  without its version beside it, and never an ordering by label**, because a 9.8
+  CRITICAL would end up above a 10.0 HIGH.
 
-  v2 e v3 non si convertono l'una nell'altra: sono metriche diverse e FIRST non
-  pubblica alcuna tabella di conversione. Un punteggio la cui versione non e'
-  fra quelle tabulate da' `UNKNOWN`, v4.0 compresa, invece di prendere in
-  prestito la scala che le somiglia di piu'.
+  v2 and v3 do not convert into one another: they are different metrics and
+  FIRST publishes no conversion table. A score whose version is not among those
+  tabulated here yields `UNKNOWN`, v4.0 included, instead of borrowing the scale
+  it most resembles.
 
-- **`UNKNOWN` non aveva un colore.** Lo producono gia' tre collector, e senza
-  una voce nella tavolozza quelle righe uscivano bianche, indistinguibili da
-  una qualunque. Ora e' magenta e non smorzato, di proposito: una riga grigia
-  si legge come "trascurabile" mentre la cosa vera e' "non misurata", e le due
-  si assomigliano abbastanza da confondersi.
+- **`UNKNOWN` had no colour.** Three collectors already produce it, and with no
+  entry in the palette those rows came out white, indistinguishable from any
+  other. It is now magenta and deliberately not dimmed: a grey row reads as
+  "negligible" while the true statement is "not measured", and the two resemble
+  each other closely enough to be confused.
 
 - **The README understated the product.** `Debian Security` had shipped,
   complete and tested, while the source table still advertised it as "Coming
