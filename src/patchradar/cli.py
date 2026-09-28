@@ -18,6 +18,14 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
+from patchradar.priority import (
+    RANK_KEV,
+    RANK_KEV_RANSOMWARE,
+    RANK_SCORED,
+    RANK_UNSCORED,
+    order_by_priority,
+    priority,
+)
 
 
 def enable_utf8_output() -> None:
@@ -104,6 +112,19 @@ SEVERITY_STYLES = {
     # mentre la cosa vera e' "non misurata". Le due si assomigliano ed e'
     # esattamente per questo che va vista.
     "UNKNOWN": "magenta",
+}
+
+# The priority column, styled by what decides it and not by how bad it would be.
+# "scored" is left plain on purpose: the Severity column beside it already
+# carries that colour, and repeating it would read as a second measurement.
+# "unscored" is magenta for the same reason UNKNOWN severity is — nothing gave
+# this row a score, and a dim row reads as "negligible" instead of "not
+# measured".
+PRIORITY_STYLES = {
+    RANK_KEV_RANSOMWARE: "red bold",
+    RANK_KEV: "red",
+    RANK_SCORED: "",
+    RANK_UNSCORED: "magenta",
 }
 
 
@@ -285,6 +306,12 @@ async def _scan_target(
                 if failed is not None:
                     failed.append(exc)
                 all_cves += exc.partial
+    # One row per CVE, most urgent first, before anything counts or prints it.
+    # The three collectors are concatenated and de-duplicate nothing, so a CVE
+    # that NVD scored and CISA lists arrived twice: once scored, once exploited
+    # with `severity: "UNKNOWN"`. The count therefore also changes meaning, from
+    # records returned to CVEs found — which is what the line claims to say.
+    all_cves = order_by_priority(all_cves)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
@@ -397,19 +424,28 @@ def _print_cves(software: str, cves: list):
     table.add_column("CVE ID", style="bold cyan", no_wrap=True)
     table.add_column("Score", justify="center", width=6)
     table.add_column("Severity", justify="center", width=10)
-    table.add_column("Description", max_width=60)
+    # Why this row is where it is. A rank on its own is a number to be taken on
+    # trust, so the reason travels with it: which catalogue, since when, and the
+    # remediation date when CISA states one.
+    table.add_column("Priority", max_width=34)
+    table.add_column("Description", max_width=52)
 
     for cve in cves:
         score_str = _format_score(cve.get("cvss_score"))
         severity = _normalise_severity(cve.get("severity"))
         severity_color = SEVERITY_STYLES.get(severity, "white")
+        rank = priority(cve)
 
         # Text() renders verbatim — CVE data is untrusted and must never be
         # parsed as Rich markup (forged styles, OSC-8 links, MarkupError).
+        why = Text(rank.label, style=PRIORITY_STYLES[rank.rank])
+        why.append("\n" + rank.reason, style="dim")
+
         table.add_row(
             Text(str(cve.get("id", ""))),
             score_str,
             Text(severity, style=severity_color),
+            why,
             Text(_truncate(cve.get("description"), 120)),
         )
     console.print(table)
