@@ -1,0 +1,890 @@
+{
+ "resultsPerPage": 21,
+ "vulnerabilities": [
+  {
+   "cve": {
+    "id": "CVE-2017-8803",
+    "published": "2017-07-05T20:29:03.153",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ 7.3.3 (32-bit) with Hex Editor Plugin v0.9.5 might allow user-assisted attackers to execute code via a crafted"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:mh-nexus:hex_editor:0.9.5:*:*:*:*:*:*:*",
+          "matchCriteriaId": "B509DA34-893C-4675-B52F-82AE870D45AE"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:7.3.3:*:*:*:*:*:*:*",
+          "matchCriteriaId": "1D50C0BD-CB4A-44D3-BCCA-22537296266D"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2019-16294",
+    "published": "2019-09-14T16:15:10.540",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "SciLexer.dll in Scintilla in Notepad++ (x64) before 7.7 allows remote code execution or denial of service via Unicode ch"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "7.7",
+          "matchCriteriaId": "B0BEB633-8F01-4C62-90D5-EB0A34B93E5E"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:scintilla:scintilla:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "ECED9455-9AD6-4F30-8FBC-FF17700B8063"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2022-32168",
+    "published": "2022-09-28T09:15:09.520",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ versions 8.4.1 and before are vulnerable to DLL hijacking where an attacker can replace the vulnerable dll (Ux"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "8.3",
+          "versionEndExcluding": "8.4.5",
+          "matchCriteriaId": "CC679137-8D40-4D8B-B833-A3F8DFD55840"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2022-31901",
+    "published": "2023-01-19T23:15:10.530",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Buffer overflow in function Notepad_plus::addHotSpot in Notepad++ v8.4.3 and earlier allows attackers to crash the appli"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 6.5,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.4.3",
+          "matchCriteriaId": "1D2EE7D9-1D00-4154-87F8-AD165E3033C7"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2022-31902",
+    "published": "2023-02-01T02:15:07.747",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ v8.4.1 was discovered to contain a stack overflow via the component Finder::add()."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.5,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.4.3",
+          "matchCriteriaId": "1D2EE7D9-1D00-4154-87F8-AD165E3033C7"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-40031",
+    "published": "2023-08-25T20:15:08.517",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Versions 8.5.6 and prior are vulnerable to heap buffer write ove"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.5.6",
+          "matchCriteriaId": "51C2BF99-30E2-4BFC-B6BE-DBB33C6C6FEF"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-40036",
+    "published": "2023-08-25T20:15:08.637",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Versions 8.5.6 and prior are vulnerable to global buffer read ov"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.5,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.5.6",
+          "matchCriteriaId": "51C2BF99-30E2-4BFC-B6BE-DBB33C6C6FEF"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-40164",
+    "published": "2023-08-25T21:15:08.687",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Versions 8.5.6 and prior are vulnerable to global buffer read ov"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.5,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.5.6",
+          "matchCriteriaId": "51C2BF99-30E2-4BFC-B6BE-DBB33C6C6FEF"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-40166",
+    "published": "2023-08-25T21:15:08.777",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Versions 8.5.6 and prior are vulnerable to heap buffer read over"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.5,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.5.6",
+          "matchCriteriaId": "51C2BF99-30E2-4BFC-B6BE-DBB33C6C6FEF"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-6401",
+    "published": "2023-11-30T15:15:09.507",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "A vulnerability classified as problematic was found in NotePad++ up to 8.1. Affected by this vulnerability is an unknown"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.3,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndIncluding": "8.1",
+          "matchCriteriaId": "9DA6D40B-2B67-41EB-8426-AF8ACD46391D"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2023-47452",
+    "published": "2023-11-30T21:15:08.800",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "An Untrusted search path vulnerability in notepad++ 6.5 allows local users to gain escalated privileges through the msim"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:6.5:*:*:*:*:*:*:*",
+          "matchCriteriaId": "C1E62123-2C3B-405E-B5F1-DFB4C38F7681"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2025-15556",
+    "published": "2026-02-03T01:15:57.757",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ versions prior to 8.8.9, when using the WinGUp updater, contain an update integrity verification vulnerability"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV40": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.7,
+        "version": "4.0"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.8.9",
+          "matchCriteriaId": "79565996-D87E-4892-BD1C-2AE9F89C1A4E"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-25926",
+    "published": "2026-02-19T00:16:21.787",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. An Unsafe Search Path vulnerability (CWE-426) exists in versions"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.3,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.9.2",
+          "matchCriteriaId": "372C203D-E0C9-48B7-8F39-E06FDFBBE7DE"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-5525",
+    "published": "2026-04-10T08:16:26.067",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "A stack-based buffer overflow vulnerability exists in Notepad++ version 8.9.3 in the file drop handler component. When a"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 6.0,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:8.9.3:*:*:*:*:*:*:*",
+          "matchCriteriaId": "C8130B60-1945-4683-9267-16AE16685649"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-6539",
+    "published": "2026-04-30T21:16:33.820",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ 8.9.3 contains a format string injection vulnerability in the Find Results panel handler that allows attackers"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV40": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 4.6,
+        "version": "4.0"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:8.9.3:*:*:*:*:*:*:*",
+          "matchCriteriaId": "C8130B60-1945-4683-9267-16AE16685649"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-46710",
+    "published": "2026-06-26T21:16:33.903",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. From 8.9.4 until 8.9.6, Notepad++ contains a local privilege esc"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV40": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.5,
+        "version": "4.0"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "8.9.4",
+          "versionEndExcluding": "8.9.6",
+          "matchCriteriaId": "B4FAE122-161E-4B79-BBB5-373FF3D1E0E8"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-48770",
+    "published": "2026-06-26T21:16:34.033",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Prior to 8.9.6.1, a local process in the same interactive Window"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 5.0,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.9.6.1",
+          "matchCriteriaId": "E0D0325F-713A-4523-8DE8-51517017DC16"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-48778",
+    "published": "2026-06-26T21:16:34.167",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Prior to 8.9.6.1, the <GUIConfig name=\"commandLineInterpreter\"> "
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.9.6.1",
+          "matchCriteriaId": "E0D0325F-713A-4523-8DE8-51517017DC16"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-48800",
+    "published": "2026-06-26T21:16:34.297",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Prior to 8.9.6.1, the <Command> tag text content inside <UserDef"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.9.6.1",
+          "matchCriteriaId": "E0D0325F-713A-4523-8DE8-51517017DC16"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-52884",
+    "published": "2026-06-26T21:16:34.797",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. In v8.9.6.1, isInTrustedDirectory() does NOT canonicalize the pa"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.8,
+        "version": "3.1"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:8.9.6.1:*:*:*:*:*:*:*",
+          "matchCriteriaId": "FF4B62FE-F294-4DF6-AFFF-27478F8D4C80"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-52885",
+    "published": "2026-06-26T21:16:34.920",
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Notepad++ is a free and open-source source code editor. Prior to 8.9.6.4, NppCommands.cpp checks the HMAC of the on-disk"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV40": [
+      {
+       "baseSeverity": null,
+       "cvssData": {
+        "baseScore": 7.5,
+        "version": "4.0"
+       }
+      }
+     ]
+    },
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:notepad-plus-plus:notepad\\+\\+:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "8.9.6.4",
+          "matchCriteriaId": "C08EFDC8-72A6-48D5-8201-DE843A33BB3B"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
