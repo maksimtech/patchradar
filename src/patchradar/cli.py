@@ -56,6 +56,38 @@ app = typer.Typer(
 )
 console = Console()
 
+
+@contextlib.contextmanager
+def _status(message: str):
+    """console.status(), svuotando i flussi prima che lo spinner si fermi.
+
+    Mentre lo spinner gira, Rich sostituisce sys.stdout e sys.stderr con un
+    FileProxy che trattiene il testo finche' non incontra un newline, e `Live`
+    ripristina i flussi originali senza svuotarlo. Una riga parziale scritta da
+    una libreria resta nel buffer e viene stampata soltanto quando l'interprete
+    finalizza il proxy, quando importare non e' piu' possibile:
+
+        Exception ignored while finalizing file <rich.file_proxy.FileProxy ...>
+        ImportError: sys.meta_path is None, Python is likely shutting down
+
+    Una scansione riuscita finisce cosi' con un traceback, e chi guarda non ha
+    modo di sapere che il risultato era valido. Solo su terminale: in pipe Rich
+    non installa il proxy e il difetto non si vede. Osservato su APKRadar con
+    rich 15.0.0 e Python 3.14.7; qui lo spinner avvolge i tre collector, che
+    parlano in rete e scrivono sui flussi.
+
+    Lo `finally` copre anche il caso con eccezione: e' quello in cui il messaggio
+    parziale della libreria serve di piu'.
+    """
+    with console.status(message):
+        try:
+            yield
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+    console.file.flush()
+
+
 def run(coro):
     return asyncio.run(coro)
 
@@ -240,7 +272,7 @@ async def _scan_target(
     safe_target = escape(target)
     all_cves: list[dict] = []
     failures: list[CollectorError] = []
-    with console.status(f"[cyan]Scanning {safe_target}...[/cyan]"):
+    with _status(f"[cyan]Scanning {safe_target}...[/cyan]"):
         # Kept in step with `_scan_one` in the API: a scan from the command
         # line and a scan over HTTP that consult different sources print
         # different totals for the same machine, and neither says which.
