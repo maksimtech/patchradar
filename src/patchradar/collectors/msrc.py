@@ -201,14 +201,14 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
 
 
 def _score_to_severity(score: float | None) -> str:
-    """Il gradino qualitativo del punteggio, nella scala v3.
+    """The qualitative step of the score, on the v3 scale.
 
-    Delega a `patchradar.cvss`, che tiene le soglie pubblicate da FIRST in un
-    posto solo. La tabella scritta qui a mano restituiva LOW per 0.0, mentre
-    nella v3 lo zero e' NONE e Low parte da 0.1 - e nessun test la fissava.
+    Delegates to `patchradar.cvss`, which keeps the thresholds FIRST publishes in
+    a single place. The table written by hand here returned LOW for 0.0, while on
+    v3 zero is NONE and Low starts at 0.1 — and no test pinned it.
 
-    La versione e' "3.1" perche' e' quella che MSRC pubblica, ed e' la stessa
-    che finisce nel campo `cvss_version` del record qui sotto: se un giorno
-    MSRC cambiasse scala, le due righe andrebbero cambiate insieme.
+    The version is "3.1" because that is the one MSRC publishes, and it is the
+    same one that ends up in the `cvss_version` field of the record below: if
+    MSRC ever changed scale, the two lines would have to change together.
     """
     return severity_for(score, "3.1")

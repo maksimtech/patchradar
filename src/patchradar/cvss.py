@@ -1,9 +1,8 @@
-"""Le scale qualitative CVSS, come le pubblica FIRST.
+"""The qualitative CVSS scales, as FIRST publishes them.
 
-Due scale, non una, e **non sono convertibili**: v2 e v3 sono metriche diverse
-e FIRST non pubblica alcuna tabella di conversione fra le due. Quindi un
-punteggio senza la sua versione non ha un gradino, e questo modulo lo dice
-invece di sceglierne uno.
+Two scales, not one, and they are **not convertible**: v2 and v3 are different
+metrics and FIRST publishes no conversion table between them. So a score without
+its version has no step, and this module says so instead of picking one.
 
     CVSS v3.x                        CVSS v2
         None      0.0                    Low       0.0 - 3.9
@@ -12,11 +11,11 @@ invece di sceglierne uno.
         High      7.0 - 8.9
         Critical  9.0 - 10.0
 
-La differenza si vede nei dati. Fra i 695 CVE misurati su una macchina reale il
-26/09/2026 convivono `CVE-2014-0566 10.0 HIGH` (v2) e `CVE-2018-4872 10.0
-CRITICAL` (v3): due 10.0 con etichette diverse, entrambe corrette per la propria
-scala. Ne segue una regola per chi mostra questi dati: **mai un'etichetta senza
-la sua versione accanto, e mai un ordinamento per etichetta.**
+The difference shows in the data. Among the 695 CVEs measured on a real machine
+on 2026-09-26, `CVE-2014-0566 10.0 HIGH` (v2) and `CVE-2018-4872 10.0 CRITICAL`
+(v3) sit side by side: two 10.0s with different labels, both correct on their own
+scale. A rule follows for anyone displaying this data: **never a label without
+its version beside it, and never an ordering by label.**
 """
 from __future__ import annotations
 
@@ -24,31 +23,30 @@ import math
 
 UNKNOWN = "UNKNOWN"
 
-# Tutti i gradini che questo modulo puo' restituire, UNKNOWN compreso. Serve a
-# tenere in riga la tavolozza dell'interfaccia: un gradino che non ha un colore
-# esce bianco e non si distingue da una riga qualunque.
+# Every step this module can return, UNKNOWN included. It exists to keep the
+# interface palette in step: a step with no colour comes out white and cannot be
+# told apart from any other row.
 SEVERITIES = ("NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL", UNKNOWN)
 
-# Soglie come estremi INFERIORI inclusivi, dal piu' grave al meno grave. Scritte
-# cosi' e non come intervalli perche' gli estremi superiori della specifica
-# (3.9, 6.9, 8.9) sono un artificio della notazione decimale: il confine vero e'
-# il gradino successivo.
+# Thresholds as inclusive LOWER bounds, worst first. Written this way rather than
+# as intervals because the specification's upper bounds (3.9, 6.9, 8.9) are an
+# artefact of decimal notation: the real boundary is the next step.
 _V3 = ((9.0, "CRITICAL"), (7.0, "HIGH"), (4.0, "MEDIUM"), (0.1, "LOW"), (0.0, "NONE"))
 
-# La v2 non ha Critical e il suo Low parte da 0.0: non esiste un "None".
+# v2 has no Critical and its Low starts at 0.0: there is no "None".
 _V2 = ((7.0, "HIGH"), (4.0, "MEDIUM"), (0.0, "LOW"))
 
 _SCALES = {"2.0": _V2, "3.0": _V3, "3.1": _V3}
 
 
 def severity_for(score: float | None, cvss_version: str | None) -> str:
-    """Il gradino qualitativo di `score` nella scala di `cvss_version`.
+    """The qualitative step of `score` on the scale of `cvss_version`.
 
-    UNKNOWN quando manca il punteggio, quando e' fuori dall'intervallo 0-10, o
-    quando la versione non e' una di quelle tabulate qui. La v4.0 rientra in
-    quest'ultimo caso di proposito: ha una scala propria, e finche' non e'
-    scritta sopra la risposta onesta e' UNKNOWN, non "uso quella della v3 che
-    le somiglia".
+    UNKNOWN when the score is missing, when it falls outside 0-10, or when the
+    version is not one of those tabulated here. v4.0 falls into that last case
+    deliberately: it has a scale of its own, and until that is written above, the
+    honest answer is UNKNOWN rather than "I will use the v3 one, which looks
+    similar".
     """
     scale = _SCALES.get(str(cvss_version or "").strip())
     if scale is None:

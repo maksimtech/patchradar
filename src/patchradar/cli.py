@@ -68,25 +68,25 @@ console = Console()
 
 @contextlib.contextmanager
 def _status(message: str):
-    """console.status(), svuotando i flussi prima che lo spinner si fermi.
+    """console.status(), flushing the streams before the spinner stops.
 
-    Mentre lo spinner gira, Rich sostituisce sys.stdout e sys.stderr con un
-    FileProxy che trattiene il testo finche' non incontra un newline, e `Live`
-    ripristina i flussi originali senza svuotarlo. Una riga parziale scritta da
-    una libreria resta nel buffer e viene stampata soltanto quando l'interprete
-    finalizza il proxy, quando importare non e' piu' possibile:
+    While the spinner runs, Rich replaces sys.stdout and sys.stderr with a
+    FileProxy that holds text until it meets a newline, and `Live` puts the
+    original streams back without flushing it. A partial line written by a library
+    stays in that buffer and is printed only when the interpreter finalises the
+    proxy, at a point where importing is no longer possible:
 
         Exception ignored while finalizing file <rich.file_proxy.FileProxy ...>
         ImportError: sys.meta_path is None, Python is likely shutting down
 
-    Una scansione riuscita finisce cosi' con un traceback, e chi guarda non ha
-    modo di sapere che il risultato era valido. Solo su terminale: in pipe Rich
-    non installa il proxy e il difetto non si vede. Osservato su APKRadar con
-    rich 15.0.0 e Python 3.14.7; qui lo spinner avvolge i tre collector, che
-    parlano in rete e scrivono sui flussi.
+    A successful scan therefore ends in a traceback, and whoever is watching has
+    no way of knowing the result was valid. Only on a terminal: through a pipe
+    Rich does not install the proxy and the defect cannot be seen. Observed on
+    APKRadar with rich 15.0.0 and Python 3.14.7; here the spinner wraps the three
+    collectors, which speak over the network and write to the streams.
 
-    Lo `finally` copre anche il caso con eccezione: e' quello in cui il messaggio
-    parziale della libreria serve di piu'.
+    The `finally` also covers the case with an exception: that is the one where
+    the library's partial message matters most.
     """
     with console.status(message):
         try:
@@ -105,13 +105,13 @@ SEVERITY_STYLES = {
     "HIGH": "red",
     "MEDIUM": "yellow",
     "LOW": "green",
-    # 0.0 nella scala v3: un difetto senza impatto. Smorzato perche' non e'
-    # niente, ed e' l'unico gradino che lo sia davvero.
+    # 0.0 on the v3 scale: a defect with no impact. Dimmed because it really is
+    # nothing, and it is the only step that is.
     "NONE": "dim",
-    # Non smorzato, di proposito. UNKNOWN vuol dire che nessuna fonte ha dato un
-    # punteggio a questa voce, e una riga grigia si legge come "trascurabile"
-    # mentre la cosa vera e' "non misurata". Le due si assomigliano ed e'
-    # esattamente per questo che va vista.
+    # Not dimmed, deliberately. UNKNOWN means no source gave this entry a score,
+    # and a grey row reads as "negligible" while the true statement is "not
+    # measured". The two resemble each other, and that is exactly why this one
+    # has to be seen.
     "UNKNOWN": "magenta",
 }
 
