@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import pathlib
 import sys
 from collections import Counter
 
@@ -482,6 +483,93 @@ def serve(
     import uvicorn
     console.print(f"🛡️  [bold]PatchRadar[/bold] UI → [cyan]http://{host}:{port}[/cyan]")
     uvicorn.run("patchradar.api.main:app", host=host, port=port, reload=False)
+
+
+@app.command(name="import")
+def import_inventory(
+    path: str = typer.Argument(..., help="Inventory snapshot written by inventory.ps1"),
+    show: int = typer.Option(12, "--show", "-n",
+                             help="How many entries to list per group; 0 for all"),
+):
+    """Read a machine's inventory and report what could be watched by version.
+
+    Writes nothing, asks nothing of the network, decides nothing. The mapping
+    from what the registry writes to what a vendor API wants cannot be deduced
+    from a name — measured on a real machine, 30% mapped by themselves and a
+    guess produced `MX5` → a Juniper router — so this proposes and a person
+    confirms. Storing a confirmed mapping needs the watchlist columns that do
+    not exist yet.
+    """
+    from patchradar.inventory import CERTAIN, PROPOSED, read_snapshot, survey
+
+    try:
+        snapshot = read_snapshot(path)
+    except FileNotFoundError:
+        console.print(f"[red]no such file: {escape(path)}[/red]")
+        raise typer.Exit(2) from None
+    except (ValueError, UnicodeDecodeError) as exc:
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(2) from None
+
+    found = survey(snapshot)
+    taken = found.taken_at[:16].replace("T", " ") or "an unstated moment"
+    # Rows and products are different numbers and the difference is large: on the
+    # machine this was written against, 147 rows are 89 products, because the
+    # registry lists the features of an install and not the install.
+    console.print(f"\n📋 [bold]{escape(pathlib.Path(path).name)}[/bold] — "
+                  f"{found.total} products in {found.rows} registry entries, "
+                  f"taken {escape(taken)}\n")
+
+    by_source = found.proposals_by_source
+    certain_sources = Counter(f.best.source for f in found.families
+                              if f.confidence is CERTAIN)
+    summary = Table(box=box.SIMPLE, show_header=False)
+    summary.add_column("", style="bold", width=24)
+    summary.add_column("", justify="right", width=5)
+    summary.add_column("", style="dim")
+    summary.add_row("watchable by version", str(found.certain),
+                    ", ".join(f"{name} {n}" for name, n in sorted(certain_sources.items())))
+    summary.add_row("to confirm", str(found.proposed),
+                    ", ".join(f"{name} {len(rows)}" for name, rows in sorted(by_source.items())))
+    summary.add_row("components", str(found.components),
+                    "updated by whatever installed them")
+    summary.add_row("no source by version", str(found.uncovered),
+                    "keyword or CPE search only")
+    # Separate from the categories: a program can have a source and still be
+    # unanswerable, because there is no build to compare a fix against.
+    summary.add_row("— of which no version", str(found.without_version),
+                    "the registry holds none")
+    console.print(summary)
+
+    biggest = [f for f in found.largest_families(4) if f.rows > 1]
+    if biggest:
+        # Named, so a product that arrived as twenty-five rows cannot hide inside
+        # a total: whoever reads this has to be able to disagree with the grouping.
+        console.print("\n[bold]Grouped[/bold] [dim]— one product, several entries[/dim]")
+        for family in biggest:
+            console.print(f"  {Text(family.name)} [dim]— {family.rows} entries, "
+                          f"counted once ({family.confidence})[/dim]")
+
+    limit = None if show == 0 else show
+    for title, rows in (("Watchable by version",
+                         [f.best for f in found.families if f.confidence is CERTAIN]),
+                        ("To confirm, by hand, once per product",
+                         [f.best for f in found.families if f.confidence is PROPOSED])):
+        if not rows:
+            continue
+        console.print(f"\n[bold]{title}[/bold]")
+        for candidate in rows[:limit]:
+            version = candidate.installed_version or "— no version —"
+            source = candidate.source or "?"
+            console.print(f"  {Text(candidate.name)} [dim]{escape(version)}[/dim] "
+                          f"→ [cyan]{escape(source)}[/cyan]")
+            console.print(f"      [dim]{escape(candidate.reason)}[/dim]")
+        if limit is not None and len(rows) > limit:
+            console.print(f"  [dim]…and {len(rows) - limit} more[/dim]")
+
+    console.print("\n[dim]Nothing was written. A confirmed mapping needs the watchlist "
+                  "columns (vendor, product_id, installed_version, channel, cpe), "
+                  "which this release does not have.[/dim]")
 
 
 def main():
