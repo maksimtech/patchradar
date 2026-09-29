@@ -1,0 +1,66 @@
+name: Security Posture
+# The gate that refuses. Every other security workflow here reports: snyk.yml
+# carries `continue-on-error` so a pull request is not blocked by findings that
+# were already there, CodeQL and Docker Scout upload SARIF, and SonarCloud
+# evaluates its quality gate after its job has finished succeeding. On 2026-09-28
+# all of them were green while thirteen high-severity alerts were open and the
+# Sonar gate was red.
+#
+# This job reads what they published — GitHub's code scanning alerts, which is
+# where all four end up — and fails when a blocking finding has nobody's name
+# against it. `SECURITY-EXCEPTIONS.toml` holds the accepted ones, each with a
+# reason and a review date; tools/security_exceptions.py is the rule, and its
+# tests are in tests/test_security_exceptions.py.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Weekly, because an exception expires by the calendar and not by a commit: a
+  # review date that passes while nobody pushes has to fail on its own.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Reading the alerts the other workflows uploaded.
+  security-events: read
+
+jobs:
+  posture:
+    name: Security Posture
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # A fork pull request gets a token that cannot read code scanning alerts,
+      # and an empty list would read as a clean product. The job says so and
+      # stops instead of passing on no information.
+      - name: Collect the open alerts
+        id: alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100" \
+               > alerts.json 2>api-error.txt; then
+            echo "count=$(python -c 'import json;print(len(json.load(open("alerts.json"))))')" >> "$GITHUB_OUTPUT"
+          else
+            echo "readable=false" >> "$GITHUB_OUTPUT"
+            cat api-error.txt
+          fi
+
+      - name: Report that the alerts could not be read
+        if: ${{ steps.alerts.outputs.readable == 'false' }}
+        run: |
+          echo "::notice title=Posture not evaluated::This run cannot read code scanning alerts (a fork pull request, or the feature is off). Nothing was checked — and that is not the same as nothing being wrong."
+
+      - name: Every blocking alert is explained, and every exception is in date
+        if: ${{ steps.alerts.outputs.readable != 'false' }}
+        run: python tools/security_exceptions.py alerts.json

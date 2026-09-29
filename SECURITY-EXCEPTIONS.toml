@@ -1,0 +1,157 @@
+# Findings that are open, known, and accepted for now — each with a reason and a
+# date. `.github/workflows/security-posture.yml` reads this file: an open high or
+# critical alert with no entry here fails the build, an entry past its
+# `review_by` fails the build, and an entry that no longer matches anything fails
+# the build too, so the record cannot drift away from the product.
+#
+# The rule this file exists to serve: block on everything we can fix, never block
+# on an upstream flaw with no fix available — but write down why, and when that
+# will be looked at again. "Hold the release until Debian fixes zlib" sounds
+# stricter and is not: Debian marks it *not fixed*, so it would mean never
+# shipping our own fixes again.
+#
+# Fields: id, where, why, review_by are required. `source` narrows an entry to one
+# scanner; `path` narrows it to one file, which matters for a rule that can fire
+# anywhere — an entry for a CodeQL rule without a path would excuse the next real
+# occurrence of it somewhere else.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Debian 13 (trixie) packages of the base image, with no fix published upstream.
+# `apt-get upgrade` already runs at build time, and the image is rebuilt at every
+# release, so the fix arrives the day Debian ships one without anyone chasing it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-85091"
+source = "Docker Scout"
+where = "zlib 1:1.3.dfsg+really1.3.1-1, python:3.14-slim-trixie base image"
+why = """
+Debian reports no fixed version ("not fixed"). Nothing in this repository can \
+close it: the package comes from the base image, apt-get upgrade already runs at \
+build, and the image is rebuilt at every release. Reachability is not established \
+either way — patchradar uses zlib only through Python's own zlib module for HTTP \
+decompression, never on attacker-chosen archives.
+"""
+review_by = "2026-12-31"
+
+[[exception]]
+id = "SNYK-DEBIAN13-ZLIB-19520500"
+source = "Snyk Container"
+where = "zlib, python:3.14-slim-trixie base image"
+why = "The same zlib package as CVE-2026-85091, reported by the other scanner."
+review_by = "2026-12-31"
+
+[[exception]]
+id = "CVE-2026-82560"
+source = "Docker Scout"
+where = "perl 5.40.1-6+deb13u1, python:3.14-slim-trixie base image"
+why = """
+Debian reports no fixed version ("not fixed"). patchradar never invokes perl: it \
+is present because the slim image carries it, not because anything here uses it. \
+Removing it from the image is the reduction worth trying and has not been \
+attempted yet — that is the action this date is for, not waiting for Debian.
+"""
+review_by = "2026-12-31"
+
+[[exception]]
+id = "SNYK-DEBIAN13-ATTR-17678182"
+source = "Snyk Container"
+where = "attr, python:3.14-slim-trixie base image"
+why = """
+Debian package of the base image with no fix published. attr is a dependency of \
+the image's own tooling; nothing in patchradar reads or writes extended \
+attributes.
+"""
+review_by = "2026-12-31"
+
+[[exception]]
+id = "SNYK-DEBIAN13-ACL-17677866"
+source = "Snyk Container"
+where = "acl, python:3.14-slim-trixie base image"
+why = """
+Debian package of the base image with no fix published. Same case as attr: it is \
+there for the image's tooling, and patchradar never calls it.
+"""
+review_by = "2026-12-31"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Copies vendored inside pip and setuptools in the *published* image. Fixed in
+# the Dockerfile on 2026-09-28 by removing the build tooling from the runtime
+# image — a pin could not reach them, because the vulnerable copies live under
+# `pip/_vendor/` and `setuptools/_vendor/` and an explicit install adds a second,
+# patched copy beside them. Docker Scout reads maksimtech/patchradar:latest from
+# Docker Hub, so these five close when the next image is published and not
+# before. The short date is deliberate: if they are still here after it, the
+# publish did not happen or the fix did not work, and both are worth knowing.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-57585"
+source = "Docker Scout"
+where = "msgpack 1.1.2, vendored in pip inside the published image"
+why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
+review_by = "2026-10-31"
+
+[[exception]]
+id = "GHSA-6v7p-g79w-8964"
+source = "Docker Scout"
+where = "msgpack 1.1.2, vendored in pip inside the published image"
+why = "Same msgpack copy as CVE-2026-57585, reported under its GHSA id."
+review_by = "2026-10-31"
+
+[[exception]]
+id = "CVE-2025-47273"
+source = "Docker Scout"
+where = "setuptools 70.3.0 in the published image"
+why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
+review_by = "2026-10-31"
+
+[[exception]]
+id = "CVE-2026-24049"
+source = "Docker Scout"
+where = "wheel 0.45.1 in the published image"
+why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
+review_by = "2026-10-31"
+
+[[exception]]
+id = "CVE-2026-23949"
+source = "Docker Scout"
+where = "jaraco-context 5.3.0, shipped with setuptools in the published image"
+why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
+review_by = "2026-10-31"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CodeQL findings in our own code, read line by line. Two are false positives of
+# a name-based heuristic; the third one CodeQL found was real and has been fixed
+# rather than excused (the `<script>` regex of the test harness was
+# case-sensitive, so a `<SCRIPT>` would have been skipped in silence and the
+# tests would have passed measuring nothing).
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "py/clear-text-logging-sensitive-data"
+source = "CodeQL"
+path = "src/patchradar/api/main.py"
+where = "api/main.py:69, the warning logged when no API key is configured"
+why = """
+The expression logs API_KEY_ENV, which is the *name* of the environment variable \
+("PATCHRADAR_API_KEY"), never its value — and it is only reached when \
+configured_api_key() returns None, that is when there is no key to leak. CodeQL \
+flags it because the identifier matches its secret-name heuristic.
+"""
+review_by = "2026-12-31"
+
+[[exception]]
+id = "js/incomplete-multi-character-sanitization"
+source = "CodeQL"
+path = "tests/js/ui_harness.js"
+where = "ui_harness.js:45, the innerHTML setter of the fake DOM"
+why = """
+It is not a sanitizer. The harness models a browser for the UI tests, and its \
+innerHTML setter strips tags to record what the page assigned; no untrusted input \
+reaches a real DOM anywhere near it, and the only HTML it ever sees is this \
+repository's own index.html. Making it a real sanitizer would change what \
+tests/test_ui_errors.py and tests/test_csp.py measure, which is a worse trade \
+than an accepted finding.
+"""
+review_by = "2026-12-31"

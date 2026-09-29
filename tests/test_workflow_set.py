@@ -34,6 +34,11 @@ CORE = {
     "licenses",     # no GPL/AGPL/LGPL creeping in
     "mutation",     # do the tests actually test
     "publish",      # PyPI
+    # The gate that refuses. Every workflow above reports; on 2026-09-28 they
+    # were all green while thirteen high alerts were open. This one reads what
+    # they published and fails when a blocking finding has nobody's name against
+    # it. It belongs here and not in CAPABILITY: the policy is not optional.
+    "security-posture",
     # No "release": see test_there_is_a_way_to_cut_a_release. The requirement is
     # that a release can be cut, not that a workflow file cuts it.
 }

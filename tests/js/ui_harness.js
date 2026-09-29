@@ -11,8 +11,14 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const scenario = JSON.parse(fs.readFileSync(scenarioPath, "utf8"));
 const path = require("path");
 const staticDir = path.join(path.dirname(htmlPath), "..", "static");
-const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)].map(m => {
-  const src = /\bsrc="\/static\/([^"]+)"/.exec(m[1]);
+// Case-insensitive on purpose. HTML tag names are not case-sensitive, and this
+// harness exists to run *every* script the page declares: a `<SCRIPT>` the
+// pattern missed would be skipped in silence, and tests/test_ui_errors.py and
+// tests/test_csp.py would pass having measured nothing. CodeQL flags the
+// case-sensitive form as js/bad-tag-filter, and on a harness whose whole job is
+// to find them all, it is right.
+const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)].map(m => {
+  const src = /\bsrc="\/static\/([^"]+)"/i.exec(m[1]);
   return src ? fs.readFileSync(path.join(staticDir, src[1]), "utf8") : m[2];
 });
 const requests = [];
