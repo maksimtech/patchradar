@@ -57,6 +57,27 @@ function formatScore(score, missing) {
   return (typeof score === 'number' && Number.isFinite(score)) ? score.toFixed(1) : missing;
 }
 
+// An async function handed to addEventListener, or called at the top level, loses
+// its rejection: the browser logs "Uncaught (in promise)" to a console nobody has
+// open, and the click looks as though it did nothing. That is the worst failure a
+// UI can have, because there is nothing to report to anyone.
+//
+// SonarCloud's S9383 names it — "Promises must be awaited, end with a call to
+// .catch, ... or be explicitly marked as ignored with the void operator" — and
+// `void` is the wrong half of that choice here: these are the user's actions, and
+// an action that fails has to say so.
+//
+// The rule key is written without its language prefix on purpose:
+// tests/test_csp.py forbids the string that prefix would complete anywhere in a
+// .js file, to catch a URL of that scheme, and the check is crude because a CSP
+// guard should be. A comment is not a reason to loosen it.
+function run(promise) {
+  promise.catch(e => {
+    console.error(e);
+    toast('Something went wrong — details in the browser console', '#f85149');
+  });
+}
+
 function toast(msg, color='#238636') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -86,7 +107,7 @@ async function loadWatchlist() {
     btn.className = 'btn-remove';
     btn.title = 'Remove';
     btn.textContent = '×';  // × symbol
-    btn.addEventListener('click', () => removeSoftware(sw));  // closure sicura
+    btn.addEventListener('click', () => run(removeSoftware(sw)));  // safe closure
 
     div.appendChild(span);
     div.appendChild(btn);
@@ -247,7 +268,7 @@ function renderTable() {
     const a = document.createElement('a');
     a.className = 'cve-link';
     a.href = '#';
-    a.addEventListener('click', (e) => { e.preventDefault(); openCveDetail(cve.id); });
+    a.addEventListener('click', (e) => { e.preventDefault(); run(openCveDetail(cve.id)); });
     a.textContent = cve.id || '';
     tdId.appendChild(a);
     tr.appendChild(tdId);
@@ -441,12 +462,12 @@ document.addEventListener('keydown', e => {
 // attributes in the markup would simply never run.
 function bindControls() {
   const addInput = document.getElementById('add-input');
-  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') addSoftware(); });
-  document.getElementById('add-btn').addEventListener('click', () => addSoftware());
-  document.getElementById('scan-btn').addEventListener('click', () => scanAll());
+  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(addSoftware()); });
+  document.getElementById('add-btn').addEventListener('click', () => run(addSoftware()));
+  document.getElementById('scan-btn').addEventListener('click', () => run(scanAll()));
   document.getElementById('import-btn').addEventListener('click',
     () => document.getElementById('import-file').click());
-  document.getElementById('import-file').addEventListener('change', e => importFromFile(e));
+  document.getElementById('import-file').addEventListener('change', e => run(importFromFile(e)));
 
   document.querySelectorAll('[data-filter]').forEach(btn =>
     btn.addEventListener('click', () => setFilter(btn.dataset.filter, btn)));
@@ -467,4 +488,4 @@ async function init() {
 }
 
 bindControls();
-init();
+run(init());
