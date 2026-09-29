@@ -70,6 +70,37 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   about; that needs watchlist columns this release does not add. It ships as a
   tested module with the boundary pinned by a test, not as a promise.
 
+- **`patchradar debian <cve>…` — what Debian says, and what that leaves us to
+  do.** Every container scanner prints the same line for anything it cannot see a
+  fixed version for: *no fix available*. That line covers situations with nothing
+  in common, and the difference decides whether waiting is a plan or a way of
+  never shipping again.
+
+  The Debian security tracker states the difference in fields the collector was
+  reading past — `fixed_version`, `nodsa`, `nodsa_reason`, `debianbug` and the
+  status in the other suites. `patchradar.debian_status` turns them into seven
+  positions, each with one next step: fixed here (rebuild, the image is stale),
+  fixed in another suite (a fix exists — ask for a stable update), scheduled for a
+  point release (waiting ends at a dated event), no-dsa postponed or ignored
+  (later, or never — two opposite verdicts in a two-word vocabulary), open in
+  every suite (nothing to ask for; evidence on the bug is what moves it),
+  undetermined (nobody has checked — ours to settle), and untracked.
+
+  Run against our own five Debian findings on 2026-09-29, it corrected two of
+  them. `attr` and `acl` were recorded here as *no fix published*; they are in
+  fact fixed in unstable (attr 1:2.6.0-1, acl 2.4.0-1) and filed no-dsa for
+  trixie with Debian's own note that the fix arrives in a **point release** and
+  cannot be backported piecemeal. So the wait has an end and a date, and the
+  entries in `SECURITY-EXCEPTIONS.toml` now say so, with shorter review dates.
+  `zlib` CVE-2026-85091 and `perl` CVE-2026-82560 are the other case: open in
+  bookworm, trixie, sid and forky alike, nothing scheduled, Debian bugs 1146895
+  and 1148455 — where a reachability note from us would be worth more than
+  another rebuild.
+
+  `--file` reads a saved snapshot, because the tracker is ~75 MB and asking the
+  same question twice should not download it twice. The tests use fixtures and
+  never touch the network.
+
 ### Changed
 
 - **The CVE count means something different.** The three collectors were

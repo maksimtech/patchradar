@@ -63,6 +63,36 @@ patchradar status
 patchradar remove proxmox
 ```
 
+### Asking Debian what it is actually doing
+
+A container scanner prints one line for anything without a published fix — *no
+fix available* — and that line covers cases with different answers. `debian`
+reads the security tracker and says which case a finding is, and what is left to
+do about it:
+
+```bash
+patchradar debian CVE-2026-85091 CVE-2026-54371
+patchradar debian CVE-2026-54371 --release bookworm --package attr
+patchradar debian CVE-2026-85091 --file tracker.json   # a snapshot saved earlier
+```
+
+Seven positions, one next step each: fixed here (the image is stale — rebuild),
+fixed in another suite (a fix exists — ask for a stable update), scheduled for a
+point release (the waiting has a date), no-dsa postponed or ignored (later, or
+never), open in every suite (nothing to wait for — evidence on the Debian bug is
+what moves it), undetermined (nobody has checked, so this one is ours to settle),
+and untracked.
+
+### Sizing the work on a real machine
+
+```bash
+patchradar import inventory.json
+```
+
+Reads an inventory snapshot and reports, per product, whether a vendor source can
+answer by version. It writes nothing and guesses nothing: a name cannot be turned
+into a vendor's product id by deduction, so it proposes and a person confirms.
+
 ### Web UI
 
 ```bash

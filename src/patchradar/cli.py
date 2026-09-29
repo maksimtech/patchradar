@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import math
 import pathlib
 import sys
@@ -13,6 +14,8 @@ from rich.table import Table
 from rich.text import Text
 
 import patchradar
+from patchradar.collectors.debian import DEBIAN_RELEASE as debian_release
+from patchradar.collectors.debian import get_tracker_snapshot
 from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import SOURCE as kev_source
 from patchradar.collectors.kev import fetch_cves as kev_fetch
@@ -571,6 +574,87 @@ def import_inventory(
     console.print("\n[dim]Nothing was written. A confirmed mapping needs the watchlist "
                   "columns (vendor, product_id, installed_version, channel, cpe), "
                   "which this release does not have.[/dim]")
+
+
+POSITION_STYLES = {
+    "resolved": "green",
+    "fix-elsewhere": "yellow",
+    "point-release": "cyan",
+    "no-dsa": "magenta",
+    "open": "red",
+    "undetermined": "blue",
+    "untracked": "dim",
+}
+
+
+@app.command()
+def debian(
+    cves: list[str] = typer.Argument(..., help="CVE ids, as a scanner reported them"),
+    release: str = typer.Option(debian_release, "--release", "-r",
+                                help="Debian suite the image is built on"),
+    package: str = typer.Option(None, "--package", "-p",
+                                help="Narrow to one source package"),
+    file: str = typer.Option(None, "--file", "-f",
+                             help="Read a saved tracker snapshot instead of downloading"),
+):
+    """What Debian says about these CVEs, and what can be done about each one.
+
+    A container scanner reports "no fix available" for anything it cannot see a
+    fixed version for, and that single line covers situations with nothing in
+    common. Of our own five Debian findings, two are unfixed everywhere and three
+    are already fixed in unstable and scheduled for a trixie point release. The
+    first two cannot be waited out; the last three only need a rebuild after a
+    dated event.
+
+    The tracker is ~75 MB. `--file` reads a snapshot saved earlier, which is how
+    the tests ask this question without the network.
+    """
+    from patchradar.debian_status import standings
+
+    if file:
+        try:
+            data = json.loads(pathlib.Path(file).read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            console.print(f"[red]no such file: {escape(file)}[/red]")
+            raise typer.Exit(2) from None
+        except (ValueError, UnicodeDecodeError) as exc:
+            console.print(f"[red]{escape(str(exc))}[/red]")
+            raise typer.Exit(2) from None
+        if not isinstance(data, dict):
+            console.print(f"[red]{escape(file)} is not a Debian tracker snapshot: "
+                          f"expected an object keyed by source package[/red]")
+            raise typer.Exit(2)
+        origin = pathlib.Path(file).name
+    else:
+        try:
+            with _status("[cyan]Reading the Debian security tracker...[/cyan]"):
+                data = run(get_tracker_snapshot())
+        except CollectorError as exc:
+            console.print(f"[red]{escape(str(exc))}[/red]")
+            raise typer.Exit(2) from None
+        origin = "security-tracker.debian.org"
+
+    console.print(f"\n🐧 [bold]Debian {escape(release)}[/bold] — "
+                  f"{len(data)} source packages, from {escape(origin)}\n")
+
+    for cve in cves:
+        for standing in standings(data, cve, release=release, package=package):
+            style = POSITION_STYLES.get(standing.position.value, "white")
+            where = standing.package or "—"
+            console.print(f"[bold]{escape(cve)}[/bold]  {Text(where)}  "
+                          f"[{style}]{standing.position.value}[/{style}]")
+            if standing.in_release:
+                console.print(f"  [dim]in {escape(release)}:[/dim] "
+                              f"{escape(standing.in_release)}"
+                              f"   [dim]urgency:[/dim] {escape(standing.urgency or '—')}")
+            if standing.fixed_here:
+                console.print(f"  [dim]fixed here:[/dim] {escape(standing.fixed_here)}")
+            for suite, version in standing.fixed_elsewhere.items():
+                console.print(f"  [dim]fixed in {escape(suite)}:[/dim] {escape(version)}")
+            # The action, not the status: a status can be read off the tracker
+            # page, and the reason this command exists is that reading it off the
+            # page is exactly what nobody does before deciding to wait.
+            console.print(f"  [bold]→[/bold] {escape(standing.action())}\n")
 
 
 def main():
