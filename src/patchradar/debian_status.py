@@ -274,28 +274,33 @@ def _position_of(node: Mapping, fixed_here: str | None, nodsa: str | None,
 
 
 def _standing(cve: str, package: str, entry: Mapping, release: str) -> Standing:
-    releases = entry.get("releases")
-    node = releases.get(release) if isinstance(releases, Mapping) else None
+    raw_releases = entry.get("releases")
+    releases: Mapping = raw_releases if isinstance(raw_releases, Mapping) else {}
+    node = releases.get(release)
+    # The six shared fields are written out in both returns below rather than
+    # splatted from one dict: `**common` hides the field types from the checker,
+    # which then cannot tell `debian_bug: int | None` from `scope: str`.
     bug = entry.get("debianbug")
-    common = {
-        "cve": cve,
-        "package": package,
-        "release": release,
-        "debian_bug": bug if isinstance(bug, int) else None,
-        "scope": str(entry.get("scope") or ""),
-        "description": str(entry.get("description") or ""),
-    }
+    debian_bug = bug if isinstance(bug, int) else None
+    scope = str(entry.get("scope") or "")
+    description = str(entry.get("description") or "")
+
     if not isinstance(node, Mapping):
-        # Silence, not absolution. Whether trixie is affected is unknown here,
-        # and saying "not affected" would invent the answer.
-        return Standing(position=Position.UNTRACKED, **common)
+        # Silence, not absolution. Whether this release is affected is unknown
+        # here, and saying "not affected" would invent the answer.
+        return Standing(
+            cve=cve, package=package, release=release,
+            position=Position.UNTRACKED,
+            debian_bug=debian_bug, scope=scope, description=description,
+        )
 
     fixed_here = node.get("fixed_version") or None
-    nodsa = node.get("nodsa")
-    nodsa = str(nodsa) if nodsa is not None else None
+    raw_nodsa = node.get("nodsa")
+    nodsa = str(raw_nodsa) if raw_nodsa is not None else None
     elsewhere = _fixes_elsewhere(releases, release)
     reason = node.get("nodsa_reason")
     return Standing(
+        cve=cve, package=package, release=release,
         position=_position_of(node, fixed_here, nodsa, elsewhere),
         status=str(node.get("status") or ""),
         urgency=str(node.get("urgency") or ""),
@@ -304,7 +309,7 @@ def _standing(cve: str, package: str, entry: Mapping, release: str) -> Standing:
         fixed_elsewhere=elsewhere,
         nodsa=nodsa,
         nodsa_reason=str(reason) if reason is not None else None,
-        **common,
+        debian_bug=debian_bug, scope=scope, description=description,
     )
 
 
