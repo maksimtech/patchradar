@@ -17,14 +17,32 @@ const staticDir = path.join(path.dirname(htmlPath), "..", "static");
 // tests/test_csp.py would pass having measured nothing. CodeQL flags the
 // case-sensitive form as js/bad-tag-filter, and on a harness whose whole job is
 // to find them all, it is right.
-// `\s*` before the closing `>`: `</script >` is legal HTML, and CodeQL raised it
-// the moment the case-insensitivity above closed the previous one — same regex,
-// same weakness, one step deeper. A harness that has to find every script cannot
-// miss one over a space.
-const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script\s*>/gi)].map(m => {
+// The end tag, permissively: `</script>`, `</script >` and `</script foo>` all
+// close a script in HTML5, which ignores attributes on end tags. CodeQL walked
+// this regex one case at a time — first the upper case, then the space, then the
+// junk after it — and it was right each time, because each one was a script this
+// harness would have skipped in silence.
+//
+// Chasing the next case is not the safeguard, though. The count below is: a miss
+// now stops the run instead of quietly shrinking it.
+const SCRIPT_BLOCK = /<script([^>]*)>([\s\S]*?)<\/script(?:\s[^>]*)?>/gi;
+const scripts = [...html.matchAll(SCRIPT_BLOCK)].map(m => {
   const src = /\bsrc="\/static\/([^"]+)"/i.exec(m[1]);
   return src ? fs.readFileSync(path.join(staticDir, src[1]), "utf8") : m[2];
 });
+
+// One opening tag, one script. Counting the tags separately from the blocks is
+// the only check that survives a regex this harness got wrong three times: if
+// the pattern ever skips a script again, the run stops here instead of testing a
+// page that is missing part of its behaviour and reporting success.
+const declared = (html.match(/<script\b/gi) || []).length;
+if (declared !== scripts.length) {
+  throw new Error(
+    `ui_harness: ${declared} <script> tag(s) in ${htmlPath} but ${scripts.length} ` +
+    `extracted. The extraction pattern missed one; the tests below would have ` +
+    `measured a page that never ran it.`
+  );
+}
 const requests = [];
 const clicked = [];
 
