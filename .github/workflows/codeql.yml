@@ -13,16 +13,33 @@ jobs:
   analyze:
     name: CodeQL
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both languages this repository contains. It declared `python` alone,
+        # and `src/patchradar/api/static/app.js` — 470 lines served to a browser
+        # — went unanalysed along with the template that loads it and the test
+        # harness that drives them.
+        #
+        # Found on 2026-09-29 by the security-posture gate, and not by looking:
+        # two JavaScript alerts sat open at commit b87c3b2 and could not close,
+        # because nothing re-analysed that language. One of them,
+        # `js/bad-tag-filter`, had already been fixed in the meantime and no
+        # scanner would ever have said so.
+        language: [python, javascript-typescript]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: python
+          languages: ${{ matrix.language }}
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:python"
+          # One category per language: they are separate analyses of the same
+          # commit, and sharing a category would make each one replace the
+          # other's results.
+          category: "/language:${{ matrix.language }}"
