@@ -29,6 +29,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      # Here too, and not only in test.yml: this job's pytest run is what produces
+      # the coverage Sonar reads, so without node the UI tests skip and the
+      # coverage describes a suite smaller than the one that exists. Same pinned
+      # major as test.yml, for the same reason.
+      - name: Set up Node (the UI tests need it, and skip without it)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26"
+
       - name: Install dependencies
         # --group needs pip >= 25.1 to read PEP 735 [dependency-groups]
         run: |

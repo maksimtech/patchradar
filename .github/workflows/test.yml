@@ -30,6 +30,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Without this, tests/test_ui_errors.py and tests/test_csp.py skip on
+      # `shutil.which("node") is None` — 34 tests of the web UI, green because
+      # they never ran, here and on every developer machine that lacks node. They
+      # were added, they were maintained, and they were measuring nothing.
+      #
+      # The major is pinned to the one the suite is developed against (26.10.0 on
+      # 2026-09-29) rather than tracking lts/*: "passes here" and "passes in CI"
+      # have to mean the same thing, and a runner silently moving to another major
+      # is how they stop meaning it.
+      - name: Set up Node (the UI tests need it, and skip without it)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26"
+
       - name: Install dependencies
         # --group needs pip >= 25.1 to read PEP 735 [dependency-groups]
         run: |
