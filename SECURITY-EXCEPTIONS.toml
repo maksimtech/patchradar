@@ -44,12 +44,18 @@ review_by = "2026-12-31"
 [[exception]]
 id = "CVE-2026-82560"
 source = "Docker Scout"
-where = "perl 5.40.1-6+deb13u1, python:3.14-slim-trixie base image"
+where = "perl-base 5.40.1-6+deb13u1, python:3.14-slim-trixie base image"
 why = """
-Debian reports no fixed version ("not fixed"). patchradar never invokes perl: it \
-is present because the slim image carries it, not because anything here uses it. \
-Removing it from the image is the reduction worth trying and has not been \
-attempted yet — that is the action this date is for, not waiting for Debian.
+Debian reports no fixed version ("not fixed"), and it cannot be removed either. \
+Measured inside the built image on 2026-09-29, by tests/docker/inspect.sh in \
+docker-build-check.yml: the only real package is `perl-base`, essential=yes \
+priority=required, which dpkg itself depends on. `perl`, `perl-modules` and \
+`perlapi-5.40.*` appear in dpkg-query output as virtual packages that perl-base \
+provides, with no version of their own — the full `perl` is not installed. Scout \
+names the source package, which is why it reads as `perl`.
+
+So this one is ours to record and not ours to close. The date is for re-reading \
+whether Debian has published a fix, not for trying the removal again.
 """
 review_by = "2026-12-31"
 
@@ -83,6 +89,10 @@ review_by = "2026-12-31"
 # Docker Hub, so these five close when the next image is published and not
 # before. The short date is deliberate: if they are still here after it, the
 # publish did not happen or the fix did not work, and both are worth knowing.
+#
+# That the fix works is no longer an expectation: on 2026-09-29
+# tests/docker/inspect.sh reported pip, setuptools and wheel all absent from the
+# image built out of this repository, on Linux, inside the image itself.
 # ─────────────────────────────────────────────────────────────────────────────
 
 [[exception]]
