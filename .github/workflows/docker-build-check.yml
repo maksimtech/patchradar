@@ -26,3 +26,12 @@ jobs:
             PATCHRADAR_SOURCE=local
       - name: Smoke test (the container user can create the database)
         run: docker run --rm -i --entrypoint python patchradar:build-check - < tests/docker/smoke.py
+
+      # What the image contains, read from the image itself. Piped in the way the
+      # smoke test is, because a diagnostic with three levels of nested quoting is
+      # a diagnostic that reports its own mistakes. See tests/docker/inspect.sh
+      # for why the question matters: a scanner names the source package, and
+      # `perl` the source produces both something removable and something
+      # Essential.
+      - name: What the image contains
+        run: docker run --rm -i --entrypoint sh patchradar:build-check - < tests/docker/inspect.sh
