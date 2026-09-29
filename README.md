@@ -85,13 +85,30 @@ and untracked.
 
 ### Sizing the work on a real machine
 
-```bash
-patchradar import inventory.json
+Take the snapshot on the Windows machine you want to survey, then read it
+anywhere:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/inventory.ps1
 ```
 
-Reads an inventory snapshot and reports, per product, whether a vendor source can
-answer by version. It writes nothing and guesses nothing: a name cannot be turned
-into a vendor's product id by deduction, so it proposes and a person confirms.
+```bash
+patchradar import inventory-20260929-120000.json
+```
+
+`tools/inventory.ps1` collects and judges nothing — it reads the registry, device
+state, the driver store and the event log, and writes one JSON file. It is not
+installed with the package: run it by hand, from the checkout, on the machine
+being surveyed. It never enumerates `Win32_Product`, which would trigger an MSI
+reconfiguration of every installed product, and it changes nothing else either.
+
+`patchradar import` then reports, per product, whether a vendor source can answer
+by version. It writes nothing and guesses nothing: a name cannot be turned into a
+vendor's product id by deduction, so it proposes and a person confirms.
+
+The file boundary in the middle is the point. The analysis is Python, tested
+against recorded snapshots, and runs on a machine that never saw the one being
+examined — without it none of this could be tested in CI at all.
 
 ### Web UI
 

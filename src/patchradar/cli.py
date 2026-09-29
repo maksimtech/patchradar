@@ -491,7 +491,7 @@ def serve(
 
 @app.command(name="import")
 def import_inventory(
-    path: str = typer.Argument(..., help="Inventory snapshot written by inventory.ps1"),
+    path: str = typer.Argument(..., help="Inventory snapshot written by tools/inventory.ps1"),
     show: int = typer.Option(12, "--show", "-n",
                              help="How many entries to list per group; 0 for all"),
 ):
