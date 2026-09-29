@@ -17,7 +17,11 @@ const staticDir = path.join(path.dirname(htmlPath), "..", "static");
 // tests/test_csp.py would pass having measured nothing. CodeQL flags the
 // case-sensitive form as js/bad-tag-filter, and on a harness whose whole job is
 // to find them all, it is right.
-const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)].map(m => {
+// `\s*` before the closing `>`: `</script >` is legal HTML, and CodeQL raised it
+// the moment the case-insensitivity above closed the previous one — same regex,
+// same weakness, one step deeper. A harness that has to find every script cannot
+// miss one over a space.
+const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script\s*>/gi)].map(m => {
   const src = /\bsrc="\/static\/([^"]+)"/i.exec(m[1]);
   return src ? fs.readFileSync(path.join(staticDir, src[1]), "utf8") : m[2];
 });
