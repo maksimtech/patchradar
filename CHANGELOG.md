@@ -101,6 +101,25 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   same question twice should not download it twice. The tests use fixtures and
   never touch the network.
 
+- **`tools/inventory.ps1` — the collector that writes what `import` reads.** The
+  command above documented its input as "the JSON an inventory collector writes",
+  and that collector lived in one folder on one laptop, in no repository at all. A
+  command whose input nobody else can produce is half a feature, and every number
+  the entry above cites from it — 147 registry entries, 109 products, 5 answerable
+  by version — was unreproducible by anyone.
+
+  It is not packaged and not installed: a fixture recorder, run by hand from the
+  checkout on the machine being surveyed, writing one JSON file and taking no
+  decisions. The file boundary is why any of this can be tested — the analysis is
+  Python, reading recorded snapshots on a machine that never saw the subject.
+
+  Fourteen tests pin the seam, which nothing was watching: the two halves are in
+  different languages and cannot import each other, so renaming `installedSoftware`
+  in the script would leave every existing test green while `import` surveyed
+  nothing. They also pin the two properties that make it safe to run on a machine
+  under diagnosis — no `Win32_Product` enumeration, which would reconfigure every
+  installed MSI, and no mutating verb anywhere.
+
 ### Changed
 
 - **The CVE count means something different.** The three collectors were
@@ -118,6 +137,22 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   the sources answered.
 
 ### Fixed
+
+- **A scanner going quiet is no longer read as a record gone stale.** The new gate
+  fails when an exception matches nothing, so that the file cannot drift away from
+  the product — and on 2026-09-29 Docker Scout simply stopped reporting
+  CVE-2026-82560 against exeradar, GitHub marked that alert `fixed` with nobody
+  having dismissed it, and the published image had not changed. Deleting the entry
+  would have been wrong: patchradar and mailradar hold the same CVE both open and
+  closed, having already lost and regained it the day before. A rule that demands
+  one commit to remove an entry and another to put it back is a rule people stop
+  reading.
+
+  What separates drift from a quiet run is whether GitHub has the finding at all.
+  An entry matching an alert that is *closed* is reported and does not fail; one
+  matching nothing in either state still fails. A closed Scout alert does not
+  settle a Snyk entry for the same CVE, because those two disagree about these
+  packages routinely.
 
 - **A successful scan ended in a traceback.** With the report printed in full
   and an exit code of 0, a terminal run could finish with
