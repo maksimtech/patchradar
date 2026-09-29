@@ -124,7 +124,13 @@ def test_the_collector_parses(script):
         ["powershell", "-NoProfile", "-NonInteractive", "-Command",
          "$e=$null; $null=[System.Management.Automation.Language.Parser]::ParseFile("
          f"'{COLLECTOR}', [ref]$null, [ref]$e); exit $e.Count"],
-        capture_output=True, text=True,
+        # `encoding=` is not optional here, and tests/test_text_encoding_contract.py
+        # fails the build without it: `text=True` alone lets the locale choose, so
+        # a parse error whose message carries an em dash would decode under cp1252
+        # on a Windows console, and capture_output swallows the UnicodeDecodeError
+        # on a reader thread — leaving .stdout as None and this assertion dying on
+        # a message about NoneType.
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
 
