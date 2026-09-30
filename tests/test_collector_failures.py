@@ -49,11 +49,13 @@ def msrc_doc(cve_id):
 
 
 def by_call(first, second, rest):
-    """MSRC side effect independent of today's date.
+    """MSRC side effect that does not run dry: call 0 -> first, 1 -> second,
+    then `rest` for as many months as are asked for.
 
-    How many months are queried depends on the calendar (days_back=60 spans
-    three or four months), so a fixed-length iterator would run dry or never
-    reach the failure. Call 0 -> first, call 1 -> second, then `rest`.
+    It does not make a test date-independent on its own, and the claim that it
+    did cost a red suite on 2026-09-30 — see `three_msrc_months` below. What it
+    prevents is the other half: a fixed-length iterator raising StopIteration
+    when the calendar asks for one month more.
     """
     calls = []
 
@@ -62,6 +64,33 @@ def by_call(first, second, rest):
         n = len(calls) - 1
         return first if n == 0 else second if n == 1 else rest
     return handler
+
+
+@pytest.fixture
+def three_msrc_months(monkeypatch):
+    """Exactly three MSRC documents, whatever today is.
+
+    The collector derives its month list from `datetime.now()`, so how many
+    documents a scan fetches depends on the day of the month:
+
+        days_back=60 on 2026-09-29 -> Jul, Aug, Sep   (three)
+        days_back=60 on 2026-09-30 -> Aug, Sep        (two)
+        days_back=30 on any 31st   -> that month only (one)
+
+    Both tests below are about what happens to the months that answered when
+    one of them fails, which needs a failure with something on each side of it.
+    With two months the third response was never requested and the assertion
+    failed on the date rather than on a defect — which is what happened on
+    2026-09-30, on a suite that had been green the evening before, and would
+    have turned CI red on the next push for a reason nothing in the diff
+    explained.
+
+    The arithmetic itself is not pinned away: `_months_in_range` is tested
+    directly, against fixed dates, in tests/test_msrc_months.py.
+    """
+    months = ["2026-Jul", "2026-Aug", "2026-Sep"]
+    monkeypatch.setattr(msrc, "_months_in_range", lambda now, days_back: list(months))
+    return months
 
 
 # ─── NVD ─────────────────────────────────────────────────────────────────────
@@ -124,7 +153,7 @@ async def test_msrc_unpublished_month_404_is_not_an_error():
 
 
 @pytest.mark.asyncio
-async def test_msrc_partial_failure_keeps_the_months_that_worked():
+async def test_msrc_partial_failure_keeps_the_months_that_worked(three_msrc_months):
     handler = by_call(msrc_doc("CVE-2026-GOOD"), httpx.Response(429), msrc_doc("CVE-2026-ALSO"))
     with respx.mock:
         respx.get(url__startswith=MSRC_PREFIX).mock(side_effect=handler)
@@ -223,8 +252,11 @@ async def test_one_failed_source_does_not_discard_the_others(client):
 
 
 @pytest.mark.asyncio
-async def test_partial_results_are_saved(client):
-    # days=30 always spans at least two months, so the 500 is always reached
+async def test_partial_results_are_saved(client, three_msrc_months):
+    # "days=30 always spans at least two months" stood here and is false: on the
+    # 31st of a month the window opens on the 1st of the same month and only one
+    # document is fetched, so the 500 below would never be reached and this test
+    # would pass while measuring nothing. The months are pinned instead.
     handler = by_call(msrc_doc("CVE-2026-PART"), httpx.Response(500), httpx.Response(500))
     with respx.mock:
         respx.get(NVD_URL).mock(return_value=httpx.Response(200, json={"vulnerabilities": []}))
