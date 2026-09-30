@@ -13,6 +13,21 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 ### Fixed
 
+- **A test was pinning Rich's output stream for every test that ran after it.**
+  `test_the_console_is_flushed_even_when_the_body_raises` saved
+  `cli.console.file` and assigned it back, which looks like a restore and is not:
+  Rich's `file` is a property that falls back to `sys.stdout` when nothing was
+  set, so writing the current value into it fixes that stream for good, and every
+  later test rendering through this console wrote to the terminal instead of to
+  the CliRunner's buffer. Found on apkradar, where the sibling of this test left
+  `tests/test_hash_is_verifiable.py` asserting against an empty `result.output`;
+  all four Radar carrying the test had it. It builds a console of its own now and
+  monkeypatches it in, and still fails against the pre-2026-09-29 `_status`.
+
+- **The Italian comments are in English** — three section headers in
+  `tests/test_kev.py` and the comment inside the subprocess script of
+  `tests/test_shutdown_flush.py`.
+
 - **The release tool no longer dies on its own banner.** `patchradar/cli.py` has
   had `enable_utf8_output()` since 2026-09-24, and the two scripts under
   `scripts/` never got it. So the CLI printed its shield fine while the

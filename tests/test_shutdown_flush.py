@@ -36,8 +36,8 @@ import patchradar.cli as cli
 
 
 async def noisy_fetch(target, **kwargs):
-    # Un collector che tiene un riferimento a sys.stdout mantiene vivo il
-    # FileProxy di Rich oltre la fine dello spinner, con la riga parziale dentro.
+    # A collector holding a reference to sys.stdout keeps Rich's FileProxy alive
+    # past the end of the spinner, with the partial line still inside it.
     global held_stdout
     held_stdout = sys.stdout
     sys.stdout.write("partial-line-without-newline")
@@ -76,7 +76,7 @@ def test_scan_leaves_nothing_in_the_proxy_buffer():
     assert "partial-line-without-newline" in proc.stdout
 
 
-def test_the_console_is_flushed_even_when_the_body_raises():
+def test_the_console_is_flushed_even_when_the_body_raises(monkeypatch):
     """The path the docstring of `_status` claims to cover and did not.
 
     `console.file.flush()` sat after the `with console.status(...)` block rather
@@ -96,6 +96,8 @@ def test_the_console_is_flushed_even_when_the_body_raises():
     """
     from contextlib import contextmanager
 
+    from rich.console import Console
+
     from patchradar import cli
 
     flushed: list[str] = []
@@ -114,15 +116,20 @@ def test_the_console_is_flushed_even_when_the_body_raises():
     def no_spinner(_message):
         yield
 
-    original_file, original_status = cli.console.file, cli.console.status
-    cli.console.file = Recorder()
-    cli.console.status = no_spinner
-    try:
-        with pytest.raises(RuntimeError, match="collector died"), \
-                cli._status("working..."):
-            raise RuntimeError("collector died")
-    finally:
-        cli.console.file, cli.console.status = original_file, original_status
+    # A console of its own, put in place of the module's. Reading
+    # `cli.console.file` and assigning it back looks like a restore and is not:
+    # Rich's `file` is a property that falls back to `sys.stdout` when nothing was
+    # set, so writing the current value into it pins that stream for good. Every
+    # later test rendering through this console then wrote to the terminal instead
+    # of to the CliRunner's buffer — measured on 2026-09-30, where
+    # tests/test_hash_is_verifiable.py failed on an empty `result.output` because
+    # it happened to run after this file.
+    console = Console(file=Recorder())
+    console.status = no_spinner
+    monkeypatch.setattr(cli, "console", console)
+
+    with pytest.raises(RuntimeError, match="collector died"), cli._status("working..."):
+        raise RuntimeError("collector died")
 
     assert flushed == ["console.file"], (
         "the console was not flushed on the way out of an exception"

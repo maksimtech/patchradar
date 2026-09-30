@@ -84,7 +84,7 @@ async def test_no_match_is_an_empty_list():
     assert await kev.fetch_cves("nothing-called-this") == []
 
 
-# ── ciò che il collettore NON deve inventare ─────────────────────────────────
+# ── what the collector must not invent ───────────────────────────────────────
 
 @pytest.mark.asyncio
 @respx.mock
@@ -126,7 +126,7 @@ async def test_ransomware_known_is_true():
     assert entry["kev_ransomware"] is True
 
 
-# ── forma del record, condivisa con gli altri collettori ─────────────────────
+# ── the shape of a record, shared with the other collectors ──────────────────
 
 @pytest.mark.asyncio
 @respx.mock
@@ -152,7 +152,7 @@ async def test_carries_the_exploitation_facts():
     assert entry["kev_due_date"] == "2022-03-24"
 
 
-# ── consultazione diretta, per arricchire CVE che arrivano da altre fonti ────
+# ── direct lookup, to enrich CVEs that arrive from other sources ─────────────
 
 @pytest.mark.asyncio
 @respx.mock
@@ -174,7 +174,7 @@ async def test_known_exploited_reports_none_for_an_unlisted_cve():
     assert await kev.known_exploited("CVE-1999-0001") is None
 
 
-# ── guasti: un elenco vuoto non deve mai significare "non ho potuto chiedere" ─
+# ── failures: an empty list must never mean "I could not ask" ────────────────
 
 @pytest.mark.asyncio
 @respx.mock
