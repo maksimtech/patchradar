@@ -203,3 +203,22 @@ tests/test_ui_errors.py and tests/test_csp.py measure, which is a worse trade \
 than an accepted finding.
 """
 review_by = "2026-12-31"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Arrived on 2026-09-30, against the base image. Its companion of the same night,
+# CVE-2026-84782 in openssl, is not here: Debian had already fixed it in trixie
+# and the 2026.42 image published at 16:39 that day carries the fix, so the alert
+# closed on its own. This one has no fix to carry.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "SNYK-DEBIAN13-GCC14-20335537"
+source = "Snyk Container"
+where = "gcc-14 / libstdc++6 14.2.0-19, python slim-trixie base image"
+why = """
+CVE-2026-102010. Open in trixie for both gcc-12 (12.4.0-5) and gcc-14 (14.2.0-19), with no fixed version in any suite and no Debian bug recorded — checked with `patchradar debian CVE-2026-102010`, which is this repository's own command and the reason the distinction between "no fix" and "nobody asked" is available at all. So there is nothing to wait for and nothing to ask for: what moves a flaw in this state is evidence on the tracker page, https://security-tracker.debian.org/tracker/CVE-2026-102010.
+
+Nor is it removable. Snyk names the source package `gcc-14`, and what is installed is `libstdc++6`, the C++ runtime a long list of packages in the base image link against — unlike the full `perl`, which was removable and was removed.
+"""
+review_by = "2026-12-31"
