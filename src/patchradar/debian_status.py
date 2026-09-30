@@ -110,9 +110,22 @@ class Standing:
         return TRACKER_URL.format(cve=self.cve)
 
     def _bug_clause(self) -> str:
+        """Where evidence about this flaw goes — a noun phrase, always.
+
+        Without a bug this returned a whole sentence, "No Debian bug is recorded;
+        the tracker page is …", and both callers put it after a preposition. What
+        came out was two sentences spliced together:
+
+            What moves it is evidence on No Debian bug is recorded; the tracker
+            page is https://security-tracker.debian.org/tracker/CVE-2026-102010
+
+        Read on 2026-09-30 while writing exeradar's record of CVE-2026-102010,
+        which is where these sentences end up: they are quoted into
+        SECURITY-EXCEPTIONS.toml as the reason a finding is accepted.
+        """
         if self.debian_bug:
             return f"Debian bug {self.debian_bug} ({self.bug_url})"
-        return f"No Debian bug is recorded; the tracker page is {self.tracker_url}"
+        return f"the tracker page, {self.tracker_url}, since no Debian bug is recorded"
 
     def _elsewhere_clause(self) -> str:
         return ", ".join(f"{suite} {version}"
@@ -173,7 +186,7 @@ class Standing:
             return (
                 f"A fix exists in {self._elsewhere_clause()} and not in "
                 f"{self.release}. This is the one case worth chasing: ask for a "
-                f"stable update on {self._bug_clause().lower()}, naming the "
+                f"stable update on {self._bug_clause()}, naming the "
                 f"version that already carries the fix."
             )
         if self.position is Position.UNDETERMINED:
@@ -181,7 +194,7 @@ class Standing:
                 f"Nobody has established whether {self.release} is affected — the "
                 f"tracker says undetermined, not fixed and not vulnerable. This is "
                 f"ours to settle: check the version we ship against the flaw and "
-                f"say so on {self._bug_clause().lower()}."
+                f"say so on {self._bug_clause()}."
             )
         if self.position is Position.OPEN:
             return (

@@ -198,6 +198,46 @@ def test_the_action_names_the_bug_when_there_is_one():
     assert "1146895" in action
 
 
+def test_the_advice_reads_as_one_sentence_when_there_is_no_bug():
+    """The clause naming where evidence goes has to be a noun phrase.
+
+    It was a whole sentence when no bug was recorded — "No Debian bug is
+    recorded; the tracker page is …" — and the callers put it after a
+    preposition, so `patchradar debian CVE-2026-102010` printed:
+
+        What moves it is evidence on No Debian bug is recorded; the tracker page
+        is https://security-tracker.debian.org/tracker/CVE-2026-102010
+
+    Read on 2026-09-30 while quoting that advice into exeradar's
+    SECURITY-EXCEPTIONS.toml, which is where these sentences end up: they are the
+    written reason a finding was accepted, and they are read by whoever reviews it
+    next.
+    """
+    data = tracker(zlib={"CVE-1": entry({"trixie": release("open")}, bug=None)})
+    action = standings(data, "CVE-1", release=TRIXIE)[0].action()
+
+    assert "evidence on the tracker page" in action
+    assert "on No Debian bug" not in action
+    assert "; the tracker page is" not in action
+    assert "security-tracker.debian.org/tracker/CVE-1" in action
+
+
+def test_the_advice_does_not_lowercase_a_url_or_a_proper_noun():
+    """`_bug_clause().lower()` was how two of these sentences were assembled.
+
+    It lowercased the bug URL along with the word Debian, in a line offered to
+    somebody as the address to write to.
+    """
+    data = tracker(acl={"CVE-1": entry(
+        {"trixie": release("undetermined"), "sid": release("resolved", fixed_version="2.4.0-1")},
+        bug=1141110,
+    )})
+    action = standings(data, "CVE-1", release=TRIXIE)[0].action()
+
+    assert "https://bugs.debian.org/1141110" in action
+    assert "bugs.debian.org" in action and "Debian bug 1141110" in action
+
+
 def test_the_action_for_no_dsa_says_the_waiting_will_not_end():
     data = tracker(perl={"CVE-1": entry({
         "trixie": release("open", nodsa="Minor issue"),

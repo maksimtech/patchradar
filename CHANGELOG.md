@@ -13,6 +13,20 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 ### Fixed
 
+- **`patchradar debian` printed two sentences spliced into one.** The clause
+  naming where evidence goes was a whole sentence when the tracker recorded no
+  Debian bug, and both callers put it after a preposition:
+
+      What moves it is evidence on No Debian bug is recorded; the tracker page is
+      https://security-tracker.debian.org/tracker/CVE-2026-102010
+
+  One of the two also lowercased it, bug URL and the word Debian included, in a
+  line offered as the address to write to. Read on 2026-09-30 while quoting that
+  advice into exeradar's `SECURITY-EXCEPTIONS.toml`, which is where these
+  sentences end up: they are the written reason a finding was accepted, and the
+  next reviewer reads them rather than the tracker.
+
+
 - **A test was pinning Rich's output stream for every test that ran after it.**
   `test_the_console_is_flushed_even_when_the_body_raises` saved
   `cli.console.file` and assigned it back, which looks like a restore and is not:
