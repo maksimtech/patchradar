@@ -10,6 +10,12 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from console_encoding import enable_utf8_output
+
+# Same reason as in release.py: the banner and every result line below print a
+# character cp1252 does not have.
+enable_utf8_output()
+
 PYPROJECT = Path(__file__).parent.parent / "pyproject.toml"
 INIT = Path(__file__).parent.parent / "src" / "patchradar" / "__init__.py"
 

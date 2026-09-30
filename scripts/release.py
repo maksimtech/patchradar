@@ -11,6 +11,12 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from console_encoding import enable_utf8_output
+
+# Before the first print, not inside main(): the banner below carries an emoji
+# and a Windows console encodes with cp1252.
+enable_utf8_output()
+
 REPO_ROOT = Path(__file__).parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 
