@@ -10,6 +10,57 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ---
 
+## [Unreleased]
+### Fixed
+
+- **The release tool no longer dies on its own banner.** `patchradar/cli.py` has
+  had `enable_utf8_output()` since 2026-09-24, and the two scripts under
+  `scripts/` never got it. So the CLI printed its shield fine while the
+  documented release path — `python3 scripts/release.py`, step four of
+  RELEASING.md — ended in `UnicodeEncodeError: 'charmap' codec can't encode
+  character '\U0001f6e1'` on a Windows console, where the code page is cp1252.
+  The same applied to `scripts/bump_version.py`.
+
+  Reached on 2026-09-30 while releasing 2026.42 and worked around with
+  `PYTHONIOENCODING=utf-8` set by hand. The workaround is the defect: the next
+  person on the next machine does not know it, and what fails is the one script
+  nobody runs except at release time.
+
+  `scripts/console_encoding.py` now carries the helper for the scripts, which
+  deliberately do not import the package's copy — they have to run in a plain
+  checkout with nothing installed, and `patchradar.cli` reaches for typer and
+  rich at import time. `tests/test_release_script_encoding.py` measures both
+  copies against the same cp1252 stream so they cannot drift apart, runs each
+  script through its banner under `PYTHONIOENCODING=cp1252` answering "n" at the
+  prompt, and asserts that declining changes nothing. Confirmed against the old
+  code by mutation: commenting the call out reproduces the original error.
+
+- **Two collector tests stopped depending on today's date.** The MSRC collector
+  derives its month list from `datetime.now()`, so `days_back=60` covered three
+  months on 2026-09-29 and two on 2026-09-30 — and with two, the third mocked
+  response was never requested, so
+  `test_msrc_partial_failure_keeps_the_months_that_worked` failed on the calendar
+  rather than on a defect. It went red on 2026-09-30 on a suite that had been
+  green the evening before, with nothing in the diff to explain it, and would
+  have turned CI red on the next push.
+
+  `test_partial_results_are_saved` carried the same latent fault under the
+  comment "days=30 always spans at least two months", which is false on the 31st
+  of a month: one document is fetched, the mocked failure is never reached, and
+  the test would have passed while measuring nothing. Both now pin the month list
+  through a fixture and say why. The arithmetic itself is still measured directly,
+  against fixed dates, in `tests/test_msrc_months.py`.
+
+- **The PyPI wait has tests.** `.github/scripts/wait_for_pypi.sh` was ported from
+  cookieradar for 2026.42 and arrived without any, on a release path where a
+  broken wait either blocks a publish or lets the build start too early.
+  `tests/test_ci_scripts.py` drives it with a fake pip — first answer, third
+  answer, never, called wrong — and pins that the step runs after the version is
+  known and before the build, that it is given the version without the tag
+  prefix, and that nothing in the workflow goes back to waiting by sleeping.
+
+---
+
 ## [2026.42] — 2026-09-28
 ### Added
 
