@@ -5,6 +5,7 @@ import time
 import aiosqlite
 import pytest
 
+from patchradar import epss
 from patchradar.collectors import debian, kev
 from patchradar.db import database
 
@@ -66,6 +67,32 @@ def kev_offline_by_default():
     kev._snapshot_at = time.monotonic()
     yield
     kev.clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def epss_offline_by_default(monkeypatch):
+    """Give every test an EPSS lookup that scores nothing, without a request.
+
+    The same reasoning as `kev_offline_by_default`, one step further along the
+    scan: FIRST is asked about every CVE a scan finds, from the CLI and the API
+    alike, so any test that exercises a scan would otherwise reach
+    api.first.org — and unlike the collectors there is no keyword to make the
+    request narrow, so it would be a request about whatever CVEs the test's own
+    fixtures invented.
+
+    This patches the one networked function rather than `enrich`, which leaves
+    the enrichment itself running: records still pass through it and still come
+    out with no EPSS fields, which is exactly what a CVE FIRST does not score
+    looks like. `tests/test_epss.py` overrides this fixture to get the real
+    function back.
+    """
+    async def _scores_nothing(cve_ids):
+        return {}
+
+    epss.clear_cache()
+    monkeypatch.setattr(epss, "_lookup", _scores_nothing)
+    yield
+    epss.clear_cache()
 
 
 @pytest.fixture(autouse=True)

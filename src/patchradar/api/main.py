@@ -19,6 +19,7 @@ from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
+from patchradar.epss import enrich as epss_enrich
 
 logger = logging.getLogger("patchradar")
 
@@ -156,8 +157,12 @@ def sanitize_cve(cve: dict) -> dict:
             elif field not in ["description", "url"] and len(val) > 200:
                 val = val[:200]
         safe[field] = val
-    # Numeric fields
+    # Numeric fields. The EPSS pair is passed through as stored, including a
+    # missing one: `.get` yields None, and None here means FIRST does not score
+    # the CVE — which a 0.0 would misreport as "almost certainly not exploited".
     safe["cvss_score"] = cve.get("cvss_score")
+    safe["epss_score"] = cve.get("epss_score")
+    safe["epss_percentile"] = cve.get("epss_percentile")
     return safe
 
 @app.get("/api/watchlist")
@@ -247,6 +252,7 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
         lambda: debian_fetch(sw),
         lambda: kev_fetch(sw),
     )
+    collected: list[dict] = []
     for fetch in fetches:
         try:
             cves = await fetch()
@@ -255,9 +261,20 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
             errors.append({"software": sw, "source": exc.source,
                            "reason": exc.reason, "status": exc.status})
             cves = exc.partial
-        for cve in cves:
-            await save_cve(cve)
+        collected += cves
         count += len(cves)
+    # FIRST is asked once per package about everything the sources returned,
+    # before any of it is stored, so the EPSS fields land in the same row as the
+    # CVE rather than in a second pass over the database. It cannot change
+    # `count`: EPSS scores CVEs, it does not find them.
+    try:
+        await epss_enrich(collected)
+    except CollectorError as exc:
+        logger.warning("scan of %r unranked by EPSS: %s", sw, exc)
+        errors.append({"software": sw, "source": exc.source,
+                       "reason": exc.reason, "status": exc.status})
+    for cve in collected:
+        await save_cve(cve)
     return count
 
 
@@ -294,7 +311,10 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
         "timed_out": timed_out,
         "scanned": len(results),
         "watched": len(watchlist),
-        # Non-empty means some counts above are lower bounds, not answers.
+        # Non-empty means a source could not be queried: either a count above is
+        # a lower bound rather than an answer, or — when the source is FIRST
+        # EPSS, which scores CVEs instead of finding them — the counts hold and
+        # the stored rows carry no exploitation forecast.
         "errors": errors,
     }
 

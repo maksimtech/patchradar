@@ -14,12 +14,18 @@ de-duplicates nothing, so a CVE that NVD scored and CISA lists arrives twice:
 once with a score and no exploitation, once exploited with `severity: UNKNOWN`.
 Ranking that list without merging first produces two rows for one CVE, ranked
 differently, and neither of them is right.
+
+KEV is 1,726 entries and a record of the past, though, so everything not on it
+still came down to CVSS. EPSS closes that gap from FIRST — a forecast, which is
+why it ranks below CISA having observed the exploitation and above a severity.
 """
 from __future__ import annotations
 
 import pytest
 
 from patchradar.priority import (
+    EPSS_THRESHOLD,
+    RANK_EPSS,
     RANK_KEV,
     RANK_KEV_RANSOMWARE,
     RANK_SCORED,
@@ -27,6 +33,7 @@ from patchradar.priority import (
     merge_by_cve,
     order_by_priority,
     priority,
+    sort_by_priority,
 )
 
 
@@ -51,7 +58,17 @@ def kev(cve_id: str, *, ransomware: bool = False, added: str = "2026-09-09") -> 
     }
 
 
-# ── the four ranks ──────────────────────────────────────────────────────────
+def epss(cve_id: str, score: float, percentile: float | None = 0.99,
+         cvss: float | None = 5.0) -> dict:
+    """An NVD record after `patchradar.epss.enrich` has been over it."""
+    record = nvd(cve_id, cvss, "MEDIUM" if cvss else "UNKNOWN")
+    record["epss_score"] = score
+    if percentile is not None:
+        record["epss_percentile"] = percentile
+    return record
+
+
+# ── the five ranks ──────────────────────────────────────────────────────────
 
 def test_exploited_in_ransomware_campaigns_ranks_highest():
     assert priority(kev("CVE-2026-59310", ransomware=True)).rank == RANK_KEV_RANSOMWARE
@@ -104,7 +121,132 @@ def test_exploitation_is_not_inferred_from_the_source_name():
     assert priority(pretender).rank == RANK_SCORED
 
 
+# ── the forecast, between the score and the observation ─────────────────────
+
+def test_a_likely_cve_ranks_above_a_merely_scored_one():
+    assert priority(epss("CVE-2026-30001", 0.42)).rank == RANK_EPSS
+    assert RANK_SCORED < RANK_EPSS < RANK_KEV
+
+
+def test_an_observation_still_beats_a_forecast():
+    """A 90% forecast is not a sighting, and CISA's list is sightings."""
+    likely = epss("CVE-2026-30002", 0.90)
+    likely["known_exploited"] = True
+    assert priority(likely).rank == RANK_KEV
+
+
+def test_a_low_forecast_does_not_promote_the_row():
+    assert priority(epss("CVE-2026-30003", 0.004)).rank == RANK_SCORED
+
+
+def test_the_threshold_is_inclusive_and_nothing_sits_either_side_of_it():
+    assert priority(epss("CVE-2026-30004", EPSS_THRESHOLD)).rank == RANK_EPSS
+    assert priority(epss("CVE-2026-30005", EPSS_THRESHOLD - 0.001)).rank == RANK_SCORED
+
+
+def test_a_likely_cve_with_no_cvss_at_all_is_still_promoted():
+    """The forecast is the fact that decided the rank; the score only breaks ties."""
+    unscored = epss("CVE-2026-30006", 0.42, cvss=None)
+    ranked = priority(unscored)
+    assert ranked.rank == RANK_EPSS
+    assert ranked.score is None
+
+
+def test_a_low_forecast_is_reported_even_though_it_changed_nothing():
+    """What tells a reader a 9.8 can wait for the next patch window."""
+    reason = priority(epss("CVE-2026-30007", 0.0004, cvss=9.8)).reason
+    assert "EPSS" in reason
+    assert "9.8" in reason
+
+
+def test_the_reason_gives_the_forecast_as_a_percentage_with_its_percentile():
+    reason = priority(epss("CVE-2026-30008", 0.4231, 0.9712)).reason
+    assert "42.3%" in reason
+    assert "p97" in reason
+
+
+def test_a_near_certainty_is_not_reported_as_a_certainty():
+    """Log4Shell's real reading, 0.99999, which `.1f` turns into "100.0%"."""
+    reason = priority(epss("CVE-2021-44228", 0.99999, 0.99997)).reason
+    assert ">99.9%" in reason
+    assert "100.0%" not in reason
+    # And a percentile is floored, because that is what a percentile means: the
+    # top 1% is p99, and there is no p100 to be in.
+    assert "p99" in reason
+    assert "p100" not in reason
+
+
+def test_an_actual_certainty_is_still_reported_as_one():
+    """Only the rounding is refused, not the value: 1.0 is a real reading."""
+    assert "100.0%" in priority(epss("CVE-2026-30014", 1.0, 1.0)).reason
+
+
+def test_a_record_with_no_forecast_reads_exactly_as_it_did_before():
+    """The sources that predate EPSS must not have their reasons rewritten."""
+    assert priority(nvd("CVE-2026-30009", 8.8)).reason == "CVSS 8.8 (v3.1), not in CISA KEV"
+    assert priority(nvd("CVE-2026-30010", None, "UNKNOWN")).reason == (
+        "no score from any source, not in CISA KEV"
+    )
+
+
+@pytest.mark.parametrize("value", [
+    "0.42",      # a string: epss.py converts before it writes, so this is not ours
+    1.4,         # outside the scale — clamping it would promote the row
+    -0.1,
+    float("nan"),
+    True,        # bool is an int, and True would read as certainty
+    None,
+    object(),
+])
+def test_an_unusable_forecast_field_is_ignored_rather_than_trusted(value):
+    record = nvd("CVE-2026-30011", 5.0)
+    record["epss_score"] = value
+    ranked = priority(record)
+    assert ranked.rank == RANK_SCORED
+    assert "EPSS" not in ranked.reason
+
+
+def test_a_forecast_without_its_percentile_still_ranks():
+    """The percentile qualifies the number for a reader; it does not decide."""
+    ranked = priority(epss("CVE-2026-30012", 0.42, percentile=None))
+    assert ranked.rank == RANK_EPSS
+    assert "42.0%" in ranked.reason
+
+
+def test_a_label_exists_for_every_rank():
+    """`cli.PRIORITY_STYLES` and `RANK_LABELS` are both keyed on the ranks: a
+    rank added without them raises KeyError while printing a table."""
+    import patchradar.cli as cli
+
+    for rank in (RANK_UNSCORED, RANK_SCORED, RANK_EPSS, RANK_KEV, RANK_KEV_RANSOMWARE):
+        assert cli.PRIORITY_STYLES[rank] is not None
+    assert priority(epss("CVE-2026-30013", 0.42)).label == "likely"
+
+
 # ── ordering ────────────────────────────────────────────────────────────────
+
+def test_a_likely_cve_outranks_a_higher_scoring_unlikely_one():
+    """The gap EPSS fills: a 9.8 nobody will touch, under an 5.0 about to go."""
+    quiet = nvd("CVE-QUIET", 9.8, "CRITICAL")
+    likely = epss("CVE-LIKELY", 0.42, cvss=5.0)
+    assert [c["id"] for c in order_by_priority([quiet, likely])] == ["CVE-LIKELY", "CVE-QUIET"]
+
+
+def test_within_the_forecast_rank_the_higher_score_comes_first():
+    """One measure orders one band: the probability puts the rows in the band,
+    the severity orders them inside it."""
+    low = epss("CVE-LOW", 0.90, cvss=4.0)
+    high = epss("CVE-HIGH", 0.11, cvss=9.1)
+    assert [c["id"] for c in sort_by_priority([low, high])] == ["CVE-HIGH", "CVE-LOW"]
+
+
+def test_sorting_without_merging_is_available_to_the_scan():
+    """`_scan_target` merges, enriches, then sorts — the enrichment needs one row
+    per CVE and the sort needs the enrichment to have happened."""
+    rows = [nvd("CVE-A", 4.0), nvd("CVE-B", 9.0)]
+    assert [c["id"] for c in sort_by_priority(rows)] == ["CVE-B", "CVE-A"]
+    assert len(sort_by_priority(rows)) == 2
+
 
 def test_an_exploited_cve_without_a_score_outranks_a_ten():
     """The measurement of 2026-09-26, in one assertion."""

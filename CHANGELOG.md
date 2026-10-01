@@ -11,6 +11,46 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ---
 
 ## [Unreleased]
+### Added
+
+- **FIRST EPSS, as a rank between CVSS and KEV.** 2026.41 made the scan read
+  CISA KEV, which answers "is this being exploited" — but KEV is 1,726 entries
+  and a record of the past, so every CVE not on it was still ordered by severity
+  alone. EPSS is the probability FIRST assigns to a CVE being exploited in the
+  next 30 days, and it is the measure a patch window is actually scheduled
+  against: a 9.8 nobody is going to touch now sorts under a 5.0 that is about to
+  go. `priority.RANK_EPSS` sits below the two KEV ranks and above `RANK_SCORED`,
+  at a threshold of 10% — the distribution is heavily skewed, most scored CVEs
+  are under 1%, and a rank triggering there would have covered a third of the
+  scan and ordered nothing.
+
+  It is an enrichment and not a collector, which is why it lives in
+  `patchradar/epss.py` rather than under `collectors/`: asked about a CVE, FIRST
+  returns a probability, so it finds nothing the other four sources had not
+  already reported and has no keyword search to offer. `_scan_target` and
+  `_scan_one` now merge, then ask FIRST once about the CVEs they found, then
+  sort — in that order, which `tests/test_priority_wiring.py` pins: enriching
+  after the sort would leave the forecast in the table's reasons while playing
+  no part in its order, which is the one failure mode a reader cannot see.
+
+  A CVE FIRST does not score carries no EPSS field at all rather than a zero.
+  0.0 is a real reading — the floor of the scale, where tens of thousands of
+  CVEs sit — and would be indistinguishable from a CVE published yesterday that
+  the model has not scored. For the same reason a percentile outside [0, 1] is
+  refused rather than clamped: clamped to 1.0 it would put the row at the top of
+  the scan on the strength of a parse error. A failed lookup leaves the scan
+  complete and says the ranking is poorer, and is not cached, so one outage does
+  not cost the forecast for the whole TTL.
+
+- **`cves.epss_score` and `cves.epss_percentile`.** Both nullable and without a
+  default, so a CVE stored before EPSS existed does not acquire a reading of
+  zero. `init_db` migrates an existing database with `ALTER TABLE` — the
+  `CREATE TABLE` is `IF NOT EXISTS` and does nothing to one that already exists —
+  and `save_cve` refreshes the pair on a row it already holds while leaving every
+  other column alone: FIRST re-runs the model daily, so a probability is a
+  reading taken on a date rather than a fact about the CVE, and `COALESCE` keeps
+  a scan that could not reach FIRST from erasing yesterday's with NULL.
+
 ### Fixed
 
 - **`patchradar debian` printed two sentences spliced into one.** The clause

@@ -12,6 +12,11 @@ and are **not** columns in `cves`, so the exploitation fact exists in memory
 during a scan and is gone by the next `patchradar status`. Until the migration of
 DESIGN §5 lands, only the in-memory path can rank — and the day someone adds the
 column, this test is what says "now wire the API too".
+
+The EPSS pair *is* stored, which narrows that gap without closing it: a ranking
+computed from the database would know the forecast and still not know what CISA
+has observed, and a rank that silently omits the top two tiers is worse than no
+rank at all. So the boundary below stays where it is, and stays about KEV.
 """
 from __future__ import annotations
 
@@ -42,7 +47,21 @@ def test_the_scan_orders_before_it_counts_or_prints():
     """Ordering inside `_print_cves` alone would leave the count, the saved rows
     and the law check reading the unmerged list — five records for four CVEs."""
     body = _function_source(CLI_SOURCE, "_scan_target")
-    assert "order_by_priority(" in body
+    assert "merge_by_cve(" in body
+    assert "sort_by_priority(" in body
+
+
+def test_the_scan_merges_then_enriches_then_sorts():
+    """The order of the three steps, which is not a matter of taste.
+
+    EPSS has to be asked after the merge, or FIRST is asked twice about a CVE two
+    sources reported; and the sort has to come after the enrichment, or the
+    report is ordered on the facts it held a moment earlier — the EPSS rank would
+    exist in the table's reasons while playing no part in its order, which is the
+    one failure mode a reader cannot see.
+    """
+    body = _function_source(CLI_SOURCE, "_scan_target")
+    assert body.index("merge_by_cve(") < body.index("epss_enrich(") < body.index("sort_by_priority(")
 
 
 def test_the_report_shows_why_a_row_ranks_where_it_does():
