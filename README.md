@@ -22,6 +22,7 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 ## ✨ Features
 
 - 🔍 **Realtime CVE monitoring** — scans NVD, MSRC and Debian Security Tracker for new vulnerabilities
+- 🎯 **Ranked by what is actually a threat** — CISA KEV for observed exploitation, FIRST EPSS for the 30-day forecast, CVSS only to break the tie
 - 📋 **Personal watchlist** — add any software you want to monitor
 - 🎨 **Beautiful web UI** — dark theme dashboard with charts and filters
 - 💻 **CLI first** — full command line interface for automation
@@ -146,6 +147,7 @@ two is not the same as a complete scan.
 | [MSRC](https://msrc.microsoft.com) | Microsoft Patch Tuesday | ✅ Active |
 | [Debian Security](https://security-tracker.debian.org) | Linux packages | ✅ Active |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Known exploited vulnerabilities | ✅ Active |
+| [FIRST EPSS](https://www.first.org/epss/) | Exploitation forecast (enrichment) | ✅ Active |
 
 KEV answers a different question from the others. They report what has been
 published about a package; KEV reports what is **being exploited right now**,
@@ -154,6 +156,28 @@ PatchRadar does not invent one — the fact travels as `known_exploited`, which
 is worth more than a score: on a sample of 695 CVEs matched against installed
 software, sorting by CVSS put five 10.0 entries on top, none of them exploited,
 while the four listed in KEV scored 9.8, 8.8, 8.6 and 7.8.
+
+EPSS is the row marked *enrichment* because it finds nothing. The four sources
+above answer "which CVEs affect this software"; FIRST answers "how likely is
+this one to be exploited in the next 30 days", for a CVE you already have. So it
+runs once per scan over the CVEs the sources returned, and adds `epss_score` and
+`epss_percentile` to them.
+
+It fills the gap between the other two measures. CVSS says how bad exploitation
+would be *if* it happened; KEV says it **is** happening — but KEV is a short list
+and a record of the past, so everything not on it came down to severity alone.
+EPSS is a forecast, which is why it ranks below CISA having observed the thing
+and above a score: a 9.8 nobody is going to touch now sorts under a 5.0 that is
+about to go. The threshold for "likely" is a 10% probability
+(`priority.EPSS_THRESHOLD`), chosen because the distribution is heavily skewed —
+most scored CVEs sit below 1%, so a rank that triggered there would apply to a
+third of the scan and order nothing.
+
+A CVE FIRST does not score carries **no** EPSS field, rather than a zero: 0.0 is
+a real reading — the floor of the scale, where tens of thousands of CVEs sit —
+and a CVE published yesterday has no model output at all. The two must not look
+alike. Needs no API key, and a scan whose EPSS lookup fails still reports every
+CVE it found, ranked without the forecast and saying so.
 
 ---
 

@@ -8,6 +8,13 @@ second one CVSS can answer.
 
 2026.41 put the fact in the scan by adding the KEV collector. This reads it.
 
+KEV is a short list, though — 1,726 entries — and it is a record of the past: a
+CVE reaches it once exploitation has been *observed*. Everything not on it was
+ranked by CVSS alone, which is why EPSS (`patchradar.epss`, from FIRST) now sits
+between the two as `RANK_EPSS`. It is a forecast rather than an observation, so
+it ranks below CISA having seen the thing happen and above a severity that only
+says how bad it would be.
+
 Two steps, and the first is not optional. `_scan_target` concatenates three
 collectors and de-duplicates nothing, so a CVE that NVD scored and CISA lists
 arrives twice: once with a score and no exploitation, once exploited with
@@ -27,15 +34,29 @@ from dataclasses import dataclass
 # because they are compared, summed into a sort key and printed.
 RANK_UNSCORED = 0          # no score from any source, not known to be exploited
 RANK_SCORED = 1            # a scoring body assigned a score
-RANK_KEV = 2               # CISA has observed it being exploited
-RANK_KEV_RANSOMWARE = 3    # …and in ransomware campaigns
+RANK_EPSS = 2              # FIRST forecasts exploitation as likely
+RANK_KEV = 3               # CISA has observed it being exploited
+RANK_KEV_RANSOMWARE = 4    # …and in ransomware campaigns
 
 RANK_LABELS = {
     RANK_UNSCORED: "unscored",
     RANK_SCORED: "scored",
+    RANK_EPSS: "likely",
     RANK_KEV: "exploited",
     RANK_KEV_RANSOMWARE: "ransomware",
 }
+
+# Where "likely" starts, as a 30-day exploitation probability. 0.1 rather than a
+# rounder-looking number because of where the distribution lies: EPSS is heavily
+# skewed — the large majority of scored CVEs sit below 0.01 — so a threshold of
+# 0.5 would promote almost nothing and 0.01 would promote a third of the scan,
+# and a rank that applies to a third of the rows ranks nothing. 0.1 selects the
+# tail without selecting the bulk.
+#
+# A score below it is not discarded: `priority` still reports it, because "FIRST
+# puts this at 3%" is a reason to leave a 9.8 until next week and the reader
+# should see it. It only does not promote the row.
+EPSS_THRESHOLD = 0.1
 
 # Severities that state the absence of a severity. KEV uses the first one
 # deliberately — it states no severity and must not appear to supply one — so a
@@ -84,8 +105,53 @@ class Priority:
         return RANK_LABELS[self.rank]
 
     def sort_key(self) -> tuple[float, float]:
-        """Descending: highest rank first, then highest score."""
+        """Descending: highest rank first, then highest score.
+
+        CVSS breaks the tie at every rank, including RANK_EPSS — the probability
+        decides which band a row is in, and severity orders it within the band.
+        Sorting the EPSS band by probability instead would mean two rows next to
+        each other were ordered by two different measures, which is the kind of
+        ordering nobody can read off the table.
+        """
         return (-self.rank, -(self.score if self.score is not None else _NO_SCORE_IN_SORT))
+
+
+def _probability(value: object) -> float | None:
+    """A probability from an EPSS field, or None when it holds no usable number.
+
+    Strict in the way the CVSS read below is strict, and for a sharper reason: a
+    string is refused because `patchradar.epss` converts before it writes, so a
+    string in this field did not come from FIRST — and a value outside [0, 1] is
+    refused rather than clamped, because clamping would promote the row.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if number != number or not 0.0 <= number <= 1.0:   # NaN fails both halves
+        return None
+    return number
+
+
+def _epss_phrase(score: float, percentile: float | None) -> str:
+    """EPSS as a reader can act on it: a percentage, with the percentile if known.
+
+    A percentage rather than the raw 0.0-1.0 figure because the raw figures are
+    mostly leading zeros — 0.00054 — and "0.05%" is the same number said in a
+    way that does not need counting. The percentile travels with it because the
+    absolute probability on its own is hard to place: 7% sounds small and is in
+    fact the top 1% of all CVEs.
+
+    Neither number is allowed to round up into a claim the data does not make.
+    Log4Shell reads 0.99999 — one decimal place turns that into "100.0%", which
+    is certainty, and its percentile 0.99997 into "p100", which is a top rank
+    that does not exist. The first is reported as ">99.9%" and the second is
+    floored, which is what a percentile means anyway: p99 is "in the top 1%".
+    """
+    shown = f"{score * 100:.1f}"
+    if shown == "100.0" and score < 1.0:
+        shown = ">99.9"
+    where = f" (p{int(percentile * 100)})" if percentile is not None else ""
+    return f"EPSS {shown}%{where}"
 
 
 def priority(record: dict) -> Priority:
@@ -109,11 +175,25 @@ def priority(record: dict) -> Priority:
         due = record.get("kev_due_date")
         deadline = f", CISA remediation date {due}" if due else ""
         return Priority(RANK_KEV, score, f"in CISA KEV{since}, exploitation observed{deadline}")
+
+    version = record.get("cvss_version")
+    scale = f" (v{version})" if version else ""
+    cvss = f"CVSS {score}{scale}" if score is not None else "no score from any source"
+
+    epss = _probability(record.get("epss_score"))
+    if epss is not None:
+        phrase = _epss_phrase(epss, _probability(record.get("epss_percentile")))
+        if epss >= EPSS_THRESHOLD:
+            return Priority(RANK_EPSS, score,
+                            f"{phrase} — exploitation likely within 30 days, "
+                            f"{cvss}, not in CISA KEV")
+        # Below the threshold the number still earns its place in the reason: it
+        # is what tells a reader a 9.8 can wait for the next patch window.
+        cvss = f"{cvss}, {phrase}"
+
     if score is not None:
-        version = record.get("cvss_version")
-        scale = f" (v{version})" if version else ""
-        return Priority(RANK_SCORED, score, f"CVSS {score}{scale}, not in CISA KEV")
-    return Priority(RANK_UNSCORED, None, "no score from any source, not in CISA KEV")
+        return Priority(RANK_SCORED, score, f"{cvss}, not in CISA KEV")
+    return Priority(RANK_UNSCORED, None, f"{cvss}, not in CISA KEV")
 
 
 def _merge_into(kept: dict, other: dict) -> None:
@@ -182,11 +262,20 @@ def merge_by_cve(records: list[dict]) -> list[dict]:
     return [merged[key] for key in order] + loose
 
 
-def order_by_priority(records: list[dict]) -> list[dict]:
-    """The scan's CVEs, merged, most urgent first.
+def sort_by_priority(rows: list[dict]) -> list[dict]:
+    """Already-merged rows, most urgent first.
+
+    Separate from `order_by_priority` because EPSS has to land between the two
+    steps: the enrichment needs one row per CVE to ask FIRST about, and the sort
+    needs the enrichment to have happened — ranking first and enriching after
+    would order the scan on the facts it had a moment ago.
 
     Stable within a rank and score, so two scans of the same machine print the
     same report and a diff of the two means something.
     """
-    rows = merge_by_cve(records)
     return sorted(rows, key=lambda row: priority(row).sort_key())
+
+
+def order_by_priority(records: list[dict]) -> list[dict]:
+    """The scan's CVEs, merged, most urgent first."""
+    return sort_by_priority(merge_by_cve(records))

@@ -36,6 +36,33 @@ def normalize_timestamp(value) -> str | None:
     return parsed.astimezone(UTC).strftime(TIMESTAMP_FORMAT)
 
 
+# Columns added to `cves` after it first shipped. The CREATE TABLE above is
+# IF NOT EXISTS, so it does nothing at all to a database that already exists —
+# a column added to it reaches new installations only. SQLite has no
+# "ADD COLUMN IF NOT EXISTS" either, hence the PRAGMA below rather than a try.
+#
+# Every entry must stay nullable and without a default: a column back-filled
+# with 0.0 would tell every CVE stored before EPSS existed that FIRST scores it
+# at zero, which is a measurement and not an absence.
+_ADDED_COLUMNS = {
+    "epss_score": "REAL",
+    "epss_percentile": "REAL",
+}
+
+
+async def _add_missing_columns(db) -> None:
+    """Bring an existing `cves` table up to the current schema."""
+    async with db.execute("PRAGMA table_info(cves)") as cursor:
+        existing = {row[1] for row in await cursor.fetchall()}
+    for column, kind in _ADDED_COLUMNS.items():
+        if column in existing:
+            continue
+        # Interpolated, because SQLite takes no parameters in DDL. The names and
+        # types come from the module constant above and never from input.
+        await db.execute(f"ALTER TABLE cves ADD COLUMN {column} {kind}")
+        logger.info("added column %s to the cves table", column)
+
+
 async def _normalize_stored_timestamps(db) -> None:
     """Rewrite published_at values saved before normalisation existed."""
     async with db.execute(
@@ -72,9 +99,12 @@ async def init_db():
                 published_at TIMESTAMP,
                 source TEXT,
                 url TEXT,
+                epss_score REAL,
+                epss_percentile REAL,
                 seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        await _add_missing_columns(db)
         await _normalize_stored_timestamps(db)
         await db.commit()
 
@@ -111,18 +141,34 @@ async def remove_from_watchlist(name: str) -> bool:
         return removed
 
 async def save_cve(cve: dict) -> bool:
+    """Store a CVE, refreshing its EPSS forecast if it is already stored.
+
+    Everything else about a stored row is left alone — first writer wins, as it
+    has since the table existed. The exception is the EPSS pair, and it is not a
+    special case so much as the nature of the field: FIRST re-runs the model
+    daily, so a probability is a reading taken on a date rather than a fact about
+    the CVE, and a row that kept its first one would go quietly stale while
+    looking exactly like a fresh one. `COALESCE` on the excluded value keeps a
+    scan that could not reach FIRST from erasing yesterday's reading with NULL.
+
+    True means a row was written — inserted, or its forecast updated.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         try:
             cursor = await db.execute("""
-                INSERT OR IGNORE INTO cves
+                INSERT INTO cves
                 (id, software, description, cvss_score, cvss_version,
-                 severity, published_at, source, url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 severity, published_at, source, url, epss_score, epss_percentile)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    epss_score = COALESCE(excluded.epss_score, cves.epss_score),
+                    epss_percentile = COALESCE(excluded.epss_percentile, cves.epss_percentile)
             """, (
                 cve["id"], cve["software"], cve["description"],
                 cve.get("cvss_score"), cve.get("cvss_version"),
                 cve.get("severity"), normalize_timestamp(cve.get("published_at")),
-                cve.get("source"), cve.get("url")
+                cve.get("source"), cve.get("url"),
+                cve.get("epss_score"), cve.get("epss_percentile")
             ))
             await db.commit()
             return cursor.rowcount > 0

@@ -23,13 +23,16 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
+from patchradar.epss import enrich as epss_enrich
 from patchradar.priority import (
+    RANK_EPSS,
     RANK_KEV,
     RANK_KEV_RANSOMWARE,
     RANK_SCORED,
     RANK_UNSCORED,
-    order_by_priority,
+    merge_by_cve,
     priority,
+    sort_by_priority,
 )
 
 
@@ -136,6 +139,10 @@ SEVERITY_STYLES = {
 PRIORITY_STYLES = {
     RANK_KEV_RANSOMWARE: "red bold",
     RANK_KEV: "red",
+    # Yellow rather than red: a forecast, not an observation. The colour is the
+    # one piece of the row a reader takes in before any of the words, so it has
+    # to carry that difference by itself.
+    RANK_EPSS: "yellow",
     RANK_SCORED: "",
     RANK_UNSCORED: "magenta",
 }
@@ -319,12 +326,26 @@ async def _scan_target(
                 if failed is not None:
                     failed.append(exc)
                 all_cves += exc.partial
-    # One row per CVE, most urgent first, before anything counts or prints it.
-    # The three collectors are concatenated and de-duplicate nothing, so a CVE
-    # that NVD scored and CISA lists arrived twice: once scored, once exploited
-    # with `severity: "UNKNOWN"`. The count therefore also changes meaning, from
+    # One row per CVE, before anything counts, enriches or prints it. The three
+    # collectors are concatenated and de-duplicate nothing, so a CVE that NVD
+    # scored and CISA lists arrived twice: once scored, once exploited with
+    # `severity: "UNKNOWN"`. The count therefore also changes meaning, from
     # records returned to CVEs found — which is what the line claims to say.
-    all_cves = order_by_priority(all_cves)
+    all_cves = merge_by_cve(all_cves)
+    # FIRST is asked about the CVEs the scan found, in one request, after the
+    # merge and before the sort: `priority` ranks on the EPSS fields, so
+    # enriching after the sort would order the report on the facts it had a
+    # moment earlier. A failure here leaves the scan complete and the ranking
+    # poorer, which is why it does not join `failures` — the warning below says
+    # exactly that, and `_report_silent_sources` speaks only about the sources
+    # that decide whether a CVE appears at all.
+    epss_failure: CollectorError | None = None
+    with _status(f"[cyan]Scoring {safe_target} with EPSS...[/cyan]"):
+        try:
+            all_cves = await epss_enrich(all_cves)
+        except CollectorError as exc:
+            epss_failure = exc
+    all_cves = sort_by_priority(all_cves)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
@@ -335,6 +356,12 @@ async def _scan_target(
         console.print(
             f"⚠️  [yellow]{escape(str(failure))}[/yellow] — "
             f"results for [bold]{safe_target}[/bold] are incomplete"
+        )
+    if epss_failure is not None:
+        console.print(
+            f"⚠️  [yellow]{escape(str(epss_failure))}[/yellow] — "
+            f"CVEs for [bold]{safe_target}[/bold] are complete but ranked "
+            f"without an exploitation forecast"
         )
     # Only an answer from every source may be reported as an all-clear.
     if not all_cves and not failures:
