@@ -260,3 +260,34 @@ with no entry fails the build whichever scanner emitted it. zlib has been in the
 same position since September.
 """
 review_by = "2026-12-31"
+
+[[exception]]
+id = "SNYK-DEBIAN13-GCC14-20386241"
+source = "Snyk Container"
+where = "gcc-14 / libstdc++6 14.2.0-19, python slim-trixie base image"
+why = """
+CVE-2026-95619, an integer overflow in gcc-14, published against the base image \
+on 2026-10-02 and reported here the same day. Read with \
+`patchradar debian CVE-2026-95619` — this repository's own command: open in trixie \
+for gcc-12 (12.4.0-5) and gcc-14 (14.2.0-19), no fixed version in any suite, no \
+Debian bug recorded. Nothing to wait for and nothing to ask for; evidence goes on \
+https://security-tracker.debian.org/tracker/CVE-2026-95619.
+
+Snyk names the source package `gcc-14`, and Debian's gcc source produces both the \
+compiler and `libstdc++6`. Which of them is installed had been asserted and never \
+measured, so `tests/docker/inspect.sh` now prints the gcc and libstdc++ packages \
+and the next `docker-build-check` run answers it — a flaw in cc1 needs something \
+to compile, and nothing in this image compiles anything.
+"""
+review_by = "2026-12-31"
+
+[[exception]]
+id = "CVE-2026-95619"
+source = "Docker Scout"
+where = "gcc-14 / libstdc++6 14.2.0-19, python slim-trixie base image"
+why = """
+The same flaw as SNYK-DEBIAN13-GCC14-20386241 above, under the other scanner's \
+id. The gate matches by id, so one flaw needs an entry per scanner — zlib and \
+CVE-2026-102010 are in the same position.
+"""
+review_by = "2026-12-31"

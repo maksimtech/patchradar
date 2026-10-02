@@ -127,7 +127,12 @@ def _probability(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     number = float(value)
-    if number != number or not 0.0 <= number <= 1.0:   # NaN fails both halves
+    # NaN needs no clause of its own: every comparison with it is false, so
+    # `0.0 <= number <= 1.0` is False and the range test refuses it. An explicit
+    # `number != number` stood here and was redundant — and SonarCloud reads
+    # identical sub-expressions as a bug (python:S1764), on a line that gets
+    # quoted into security records.
+    if not 0.0 <= number <= 1.0:
         return None
     return number
 
