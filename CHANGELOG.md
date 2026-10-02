@@ -11,6 +11,36 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ---
 
 ## [Unreleased]
+
+### Removed
+
+- **Five settled entries out of `SECURITY-EXCEPTIONS.toml`; `CVE-2026-82560` kept
+  on purpose.** `CVE-2026-57585` and `GHSA-6v7p-g79w-8964` (one msgpack copy under
+  two ids), `CVE-2025-47273`, `CVE-2026-24049` and `CVE-2026-23949` were all copies
+  vendored inside pip and setuptools in the published image, which no pin could
+  reach. The Dockerfile removed the build tooling from the runtime image on
+  2026-09-28 and each entry said it would close when the next image was published.
+  It was: GitHub closed all five at **2026-09-30T17:25:27Z**, one timestamp, and
+  Docker Scout has not mentioned any of them since. Their return would now mean the
+  removal regressed, and `tests/docker/inspect.sh` — which is what proved the
+  absence inside the built image on 2026-09-29 — is the only thing left watching
+  for that.
+
+  `CVE-2026-82560` stays, and the reason is not how long it has been quiet: it went
+  quiet *earlier* than the five, at 2026-09-29T15:26:56Z, on its own and with
+  nothing done to the image. `patchradar debian CVE-2026-82560` on 2026-10-02 still
+  reports perl no-dsa in trixie at `5.40.1-6+deb13u1`, no fix in any suite, Debian
+  bug 1148455. perl-base is still installed and still unfixed; only the reporting
+  changed, and Docker Scout has already changed its mind about this exact id once —
+  which is why the gate reads closed alerts at all. Deleting a flaw that is
+  demonstrably present because a scanner fell silent is the one direction this file
+  must not drift in, so the entry now says that.
+
+  Sixteen entries down to eleven. Checked by running `tools/security_exceptions.py`
+  against this repository's live open and closed alerts rather than by inference:
+  exit 0, with `CVE-2026-82560` the one settled entry it names. The same decision
+  was taken in exeradar, apkradar and cookieradar the same day.
+
 ### Added
 
 - **The gate reads FIRST's forecast on the CVEs it already holds.** EPSS is indexed

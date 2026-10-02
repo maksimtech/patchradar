@@ -77,6 +77,18 @@ names the source package, which is why it reads as `perl`.
 So this one is ours to record and not ours to close. The date is for re-reading \
 whether Debian has published a fix, not for trying the removal again.
 
+Docker Scout stopped reporting it at 2026-09-29T15:26:56Z, so the gate lists this \
+entry as settled. It is kept anyway, and the distinction is the whole point: the \
+five entries removed on 2026-10-02 went quiet because the thing they described left \
+the image. This one went quiet on its own, and it went quiet *earlier* than they \
+did, which is not the deciding fact. `patchradar debian CVE-2026-82560` on \
+2026-10-02 still reports perl no-dsa in trixie at 5.40.1-6+deb13u1, no fix in any \
+suite, Debian bug 1148455 — perl-base is still installed and still unfixed, and \
+only the reporting changed. Scout has already changed its mind about this exact id \
+once, which is why the gate reads closed alerts at all. Deleting a flaw that is \
+demonstrably present because a scanner fell silent is the one direction this file \
+must not drift in.
+
 And there is no fix to wait for yet: `patchradar debian CVE-2026-82560` on \
 2026-09-29 reports it open in all four suites, including sid at 5.42.3-1, with \
 Debian bug 1148455. Unlike attr and acl below, nothing is scheduled.
@@ -119,54 +131,22 @@ A local TOCTOU in recursive setfacl/chacl and symlink-following in \
 review_by = "2026-11-30"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Copies vendored inside pip and setuptools in the *published* image. Fixed in
-# the Dockerfile on 2026-09-28 by removing the build tooling from the runtime
-# image — a pin could not reach them, because the vulnerable copies live under
-# `pip/_vendor/` and `setuptools/_vendor/` and an explicit install adds a second,
-# patched copy beside them. Docker Scout reads maksimtech/patchradar:latest from
-# Docker Hub, so these five close when the next image is published and not
-# before. The short date is deliberate: if they are still here after it, the
-# publish did not happen or the fix did not work, and both are worth knowing.
+# Five entries stood here until 2026-10-02: CVE-2026-57585 and
+# GHSA-6v7p-g79w-8964 (one msgpack copy under two ids), CVE-2025-47273,
+# CVE-2026-24049 and CVE-2026-23949 — all copies vendored inside pip and
+# setuptools in the *published* image, which a pin could not reach because the
+# vulnerable copies live under `pip/_vendor/` and `setuptools/_vendor/` and an
+# explicit install only adds a second, patched copy beside them.
 #
-# That the fix works is no longer an expectation: on 2026-09-29
-# tests/docker/inspect.sh reported pip, setuptools and wheel all absent from the
-# image built out of this repository, on Linux, inside the image itself.
+# The Dockerfile removed the build tooling from the runtime image on 2026-09-28,
+# and each entry said it would close when the next image was published. It was:
+# GitHub closed all five at 2026-09-30T17:25:27Z, one timestamp, and Docker Scout
+# has not mentioned any of them since. So they are gone, and their return would
+# mean the removal regressed — which `tests/docker/inspect.sh` is now the only
+# thing watching for, since it is what proved the absence in the first place on
+# 2026-09-29: pip, setuptools and wheel all absent from the image built out of
+# this repository, measured inside it rather than expected.
 # ─────────────────────────────────────────────────────────────────────────────
-
-[[exception]]
-id = "CVE-2026-57585"
-source = "Docker Scout"
-where = "msgpack 1.1.2, vendored in pip inside the published image"
-why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
-review_by = "2026-10-31"
-
-[[exception]]
-id = "GHSA-6v7p-g79w-8964"
-source = "Docker Scout"
-where = "msgpack 1.1.2, vendored in pip inside the published image"
-why = "Same msgpack copy as CVE-2026-57585, reported under its GHSA id."
-review_by = "2026-10-31"
-
-[[exception]]
-id = "CVE-2025-47273"
-source = "Docker Scout"
-where = "setuptools 70.3.0 in the published image"
-why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
-review_by = "2026-10-31"
-
-[[exception]]
-id = "CVE-2026-24049"
-source = "Docker Scout"
-where = "wheel 0.45.1 in the published image"
-why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
-review_by = "2026-10-31"
-
-[[exception]]
-id = "CVE-2026-23949"
-source = "Docker Scout"
-where = "jaraco-context 5.3.0, shipped with setuptools in the published image"
-why = "Fixed in the Dockerfile on 2026-09-28; closes when the next image is published."
-review_by = "2026-10-31"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CodeQL findings in our own code, read line by line. Two are false positives of
