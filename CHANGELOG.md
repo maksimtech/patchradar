@@ -13,6 +13,58 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 ### Added
 
+- **The gate reads FIRST's forecast on the CVEs it already holds.** EPSS is indexed
+  by CVE, and the question was where to put it outside patchradar's scan. Measured
+  on 2026-10-02: exeradar carries no CVE ids at all, and apkradar, mailradar and
+  cookieradar one incidental mention each — so there was nothing to attach a
+  forecast to, and building a CVE surface in order to justify one would have been
+  the wrong way round.
+
+  One surface already exists in all five, and it is the one we have spent two days
+  feeding: `SECURITY-EXCEPTIONS.toml` and the code-scanning alerts it answers.
+  Docker Scout names its alerts by CVE, so the record holds CVE ids with a written
+  reason and a review date against each — and a forecast is the one thing those
+  records lacked. "No fix in any suite", accepted until December, is comfortable at
+  an EPSS of 0.1% and is something else at 40%.
+
+  Run against this repository's live alerts the moment it was written:
+
+  ```
+  8 accepted finding(s), with FIRST's forecast:
+    CVE-2025-47273   (EPSS 1.5%, p74)
+    CVE-2026-82560   (EPSS 0.6%, p48)
+    CVE-2026-85091   (EPSS 0.6%, p46)
+    CVE-2026-95619   (EPSS 0.4%, p27)
+    CVE-2026-102010  (EPSS 0.2%, p14)
+  ```
+
+  Every acceptance in the record is under 2%, the highest being setuptools'
+  CVE-2025-47273 at 1.5% and the 74th percentile. That is the reassurance the
+  record needed, and it is now measured rather than assumed.
+
+  Three rules, each with a test:
+
+  - **The forecast changes no verdict.** The gate fails on a blocking alert with no
+    entry and on an entry past its date, and on nothing else. A 90% probability on
+    something accepted with a reason is not a third failure mode — it is a reason
+    to re-read the entry. `exit_code` takes the forecasts and ignores them, so the
+    signature says they were available and did not enter the decision.
+  - **Only ids that are CVE ids are looked up.** `SNYK-DEBIAN13-GCC14-20386241` is
+    CVE-2026-95619, and its description says so in prose; reading the id is reading
+    what the scanner stated, and reading the description is guessing. A forecast
+    attached to the wrong flaw is worse than none.
+  - **An absent score is absent.** FIRST not scoring a CVE prints "not scored by
+    FIRST", never 0.0% — the floor of the scale is a real reading that tens of
+    thousands of CVEs sit on. FIRST unreachable prints nothing at all and the
+    report is the one this script produced before EPSS existed: `urllib` with a ten
+    second timeout, every failure mapping to `{}`, because this runs on a bare
+    checkout in a workflow that installs nothing.
+
+  The accepted findings are listed on a **passing** run, worst first, because that
+  is where somebody decides whether to renew a date and nothing else prompts it.
+  That block exists because the first version printed forecasts only beside lines
+  the verdict already had — and a passing verdict has one line.
+
 - **CVSS v4.0 has a scale, and the threat metric inside it is read.**
   `severity_for(score, "4.0")` answered UNKNOWN, with a comment saying the honest
   answer was that rather than "I will use the v3 one, which looks similar". That
