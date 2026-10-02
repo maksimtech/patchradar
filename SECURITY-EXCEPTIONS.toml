@@ -222,3 +222,41 @@ CVE-2026-102010. Open in trixie for both gcc-12 (12.4.0-5) and gcc-14 (14.2.0-19
 Nor is it removable. Snyk names the source package `gcc-14`, and what is installed is `libstdc++6`, the C++ runtime a long list of packages in the base image link against — unlike the full `perl`, which was removable and was removed.
 """
 review_by = "2026-12-31"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# gcc, as reported on 2026-10-02 — and the same flaw arrives twice, because the
+# two scanners name it differently. SNYK-DEBIAN13-GCC14-20335537 has been
+# recorded since 2026-09-30; Docker Scout reports that identical flaw as
+# CVE-2026-102010, and this file matches by id, so it needs its own entry. zlib
+# has had two entries for one flaw since September for exactly this reason.
+#
+# An entry is never written ahead of the alert: one that matches nothing fails
+# the build too, and that is deliberate — a record of findings nobody is
+# reporting is how a record stops describing the product. apkradar, mailradar and
+# cookieradar hold the Snyk id and not the Scout one today; when Scout reports it
+# there, they get an entry then.
+#
+# Both positions read with `patchradar debian`, not from the scanners' one line:
+# open in trixie for gcc-12 (12.4.0-5) and gcc-14 (14.2.0-19), no fixed version
+# in any suite, no Debian bug recorded. Nothing to wait for and nothing to ask
+# for; what moves a flaw in this state is evidence on the tracker page.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-102010"
+source = "Docker Scout"
+where = "gcc-14 / libstdc++6 14.2.0-19, python slim-trixie base image"
+why = """
+The same flaw already recorded here as SNYK-DEBIAN13-GCC14-20335537, reported by \
+the other scanner under its CVE number. Open in trixie for gcc-12 and gcc-14 with \
+no fixed version in any suite and no Debian bug — checked with \
+`patchradar debian CVE-2026-102010`. There is nothing to wait for and nothing to \
+ask for; what moves it is evidence on \
+https://security-tracker.debian.org/tracker/CVE-2026-102010.
+
+Two entries for one flaw is not duplication: the gate matches by id, and an id \
+with no entry fails the build whichever scanner emitted it. zlib has been in the \
+same position since September.
+"""
+review_by = "2026-12-31"
