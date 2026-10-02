@@ -14,6 +14,48 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **A published exploit now moves a row: the new `reported` rank, between `scored`
+  and `likely`.** The open question was where CVSS v4.0's `E:A` belonged against
+  CISA KEV and FIRST's EPSS. Asked of NVD on 2026-10-02, the answer was "nowhere",
+  and the counting found the metric that did have somewhere to go:
+
+  | asked | v4.0 metrics | `E:X` | `E:P` | `E:A` |
+  |---|---:|---:|---:|---:|
+  | 2000 CVEs published 2026-09-01 → 10-01 | 759 | 607 | **152** | **0** |
+  | all 1733 CVEs in CISA KEV | 98 | 86 | 0 | **12** |
+
+  Every `E:A` NVD holds is on a CVE already in KEV, where `priority` returns a
+  higher rank before it reads the maturity field at all — so a tier for `E:A` would
+  be a tier nothing can reach, which is machinery and not a ranking. `E:P` is the
+  one with rows of its own: 152 in a single month, most of them nowhere near KEV,
+  and until now it moved none of them. Two CVEs at 9.8 with EPSS below the
+  threshold ranked identically while one of them had a published exploit, and that
+  one should be patched first.
+
+  The tier sits **after** EPSS and **before** the bare score. After, because a
+  forecast of exploitation within thirty days says more than a published exploit
+  and nothing else — EPSS is trained on exploitation that happened. Before, because
+  breaking the tie the bare score leaves is the whole point.
+
+  Its label is **`reported`** and not `poc`, and its colour is cyan rather than
+  another shade of yellow, for the same reason: what puts a row here is a claim by
+  whoever scored the CVE. KEV is CISA's observation, EPSS is FIRST's forecast, and
+  the one word and the one colour a reader takes in before any of the prose have to
+  keep the three apart.
+
+  `E:U` still promotes nothing — "the provider looked and saw nothing" is
+  information, and what it says is that there is nothing to promote — and it stays
+  distinct from the field being absent. `E:A` without KEV, the case the data does
+  not contain, is ranked *with* `E:P` rather than above it: nothing measured gives a
+  position to calibrate a higher tier against, and its own sentence in the reason
+  says what the rank number cannot.
+
+  `RANK_EPSS`, `RANK_KEV` and `RANK_KEV_RANSOMWARE` all shift up by one. Nothing
+  outside `priority.py` compares a rank to a literal — `cli.PRIORITY_STYLES` and
+  `RANK_LABELS` are keyed on the constants, and `tests/test_priority.py` already
+  held that both cover every rank, which is what would have caught a half-finished
+  version of this.
+
 - **ruff now lints `tools/` as well, because it never did.** Every one of the five
   Radar lints its package and its tests and stops there, which left
   `tools/security_exceptions.py` outside the check — the script that refuses a build

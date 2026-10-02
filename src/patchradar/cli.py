@@ -28,6 +28,7 @@ from patchradar.priority import (
     RANK_EPSS,
     RANK_KEV,
     RANK_KEV_RANSOMWARE,
+    RANK_REPORTED,
     RANK_SCORED,
     RANK_UNSCORED,
     merge_by_cve,
@@ -143,6 +144,10 @@ PRIORITY_STYLES = {
     # one piece of the row a reader takes in before any of the words, so it has
     # to carry that difference by itself.
     RANK_EPSS: "yellow",
+    # Cyan rather than another shade of yellow: this row is here because somebody
+    # said so, not because anything was observed or modelled, and the colour is
+    # where that difference has to survive being skimmed.
+    RANK_REPORTED: "cyan",
     RANK_SCORED: "",
     RANK_UNSCORED: "magenta",
 }

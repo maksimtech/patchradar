@@ -34,13 +34,18 @@ from dataclasses import dataclass
 # because they are compared, summed into a sort key and printed.
 RANK_UNSCORED = 0          # no score from any source, not known to be exploited
 RANK_SCORED = 1            # a scoring body assigned a score
-RANK_EPSS = 2              # FIRST forecasts exploitation as likely
-RANK_KEV = 3               # CISA has observed it being exploited
-RANK_KEV_RANSOMWARE = 4    # …and in ransomware campaigns
+RANK_REPORTED = 2          # whoever scored it reports exploitation activity
+RANK_EPSS = 3              # FIRST forecasts exploitation as likely
+RANK_KEV = 4               # CISA has observed it being exploited
+RANK_KEV_RANSOMWARE = 5    # …and in ransomware campaigns
 
 RANK_LABELS = {
     RANK_UNSCORED: "unscored",
     RANK_SCORED: "scored",
+    # "reported" and not "poc": what puts a row here is a claim by whoever scored
+    # the CVE. KEV is CISA's observation and EPSS is FIRST's forecast, and the one
+    # word a reader takes in has to keep the three apart.
+    RANK_REPORTED: "reported",
     RANK_EPSS: "likely",
     RANK_KEV: "exploited",
     RANK_KEV_RANSOMWARE: "ransomware",
@@ -164,6 +169,27 @@ def _epss_phrase(score: float, percentile: float | None) -> str:
 # phrase of its own: "the provider looked and saw nothing" is information, and it
 # is not the same as the provider saying nothing at all, which leaves the field
 # off the record.
+#
+# Two of the three promote a row to RANK_REPORTED, and which two was settled by
+# counting rather than argued. Asked of NVD on 2026-10-02:
+#
+#   2000 CVEs published 2026-09-01 to 2026-10-01 → 759 v4.0 metrics:
+#       607 E:X (Not Defined), 152 E:P, and not one E:A.
+#   all 1733 CVEs in CISA KEV → 98 v4.0 metrics:
+#       86 E:X, 12 E:A.
+#
+# So every E:A in NVD sits on a CVE already in KEV, where `priority` has returned
+# a higher rank before it reads this field at all. A tier for E:A would be a tier
+# nothing can reach. E:P is the metric with rows of its own — 152 in one month,
+# most of them nowhere near KEV — and before this it moved no row: two CVEs at 9.8
+# with EPSS below the threshold ranked identically, and the one with a published
+# exploit should be patched first.
+#
+# E:A, in the case the data does not contain, is ranked *with* E:P rather than
+# above it: nothing measured gives a position to calibrate a higher tier against,
+# and its phrase below says what the rank number cannot.
+_PROMOTES = {"ATTACKED", "PROOF_OF_CONCEPT"}
+
 _MATURITY_PHRASE = {
     "ATTACKED": "the provider reports it attacked (CVSS v4.0 E:A)",
     "PROOF_OF_CONCEPT": "the provider reports a public proof of concept (CVSS v4.0 E:P)",
@@ -196,9 +222,8 @@ def priority(record: dict) -> Priority:
     scale = f" (v{version})" if version else ""
     cvss = f"CVSS {score}{scale}" if score is not None else "no score from any source"
 
-    # The provider's own threat metric, from a v4.0 vector. It is said and not
-    # ranked on: KEV is CISA's observation and EPSS is FIRST's forecast, and where
-    # a provider's "attacked" belongs against those is a decision, not a parse.
+    # The provider's own threat metric, from a v4.0 vector. See _MATURITY_PHRASE
+    # for what was counted before deciding that two of its three values promote.
     maturity = record.get("cvss_exploit_maturity")
     if maturity in _MATURITY_PHRASE:
         cvss = f"{cvss}, {_MATURITY_PHRASE[maturity]}"
@@ -213,6 +238,13 @@ def priority(record: dict) -> Priority:
         # Below the threshold the number still earns its place in the reason: it
         # is what tells a reader a 9.8 can wait for the next patch window.
         cvss = f"{cvss}, {phrase}"
+
+    # After EPSS, because a forecast of exploitation within thirty days says more
+    # than a published exploit and nothing else — EPSS is trained on exploitation
+    # that happened. Before the bare score, because it is the thing that breaks
+    # the tie the bare score leaves.
+    if maturity in _PROMOTES:
+        return Priority(RANK_REPORTED, score, f"{cvss}, not in CISA KEV")
 
     if score is not None:
         return Priority(RANK_SCORED, score, f"{cvss}, not in CISA KEV")
