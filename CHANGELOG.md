@@ -53,6 +53,32 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **`number != number` is gone from the EPSS parsers.** Both `epss.py` and
+  `priority.py` refused a NaN with an explicit identical-sides comparison, and
+  SonarCloud reads that as a bug (`python:S1764`) — which is what turned main red
+  after the EPSS merge, on `new_reliability_rating`, with coverage at 94.8% and
+  every other condition green.
+
+  The clause was redundant, and that was measured rather than assumed — across
+  nan, ±inf, −0.5, 1.5 and the values inside the range: every comparison with NaN
+  is false, so `0.0 <= number <= 1.0` is already False for it and the range test
+  refuses it. Removing it changes no behaviour, which is what the existing tests
+  for `"nan"` in `test_epss.py` and `float("nan")` in `test_priority.py` were
+  there to prove: green before, green after.
+
+- **CVE-2026-95619 and CVE-2026-102010 are recorded under each scanner's id.** The
+  gcc advisories reached this image on 2026-10-01 and 2026-10-02. Snyk and Docker
+  Scout give one flaw two ids, and the gate matches by id, so one flaw needs two
+  entries — zlib has been in that position since September. CVE-2026-95619 arrived
+  between one morning's survey and that afternoon's CI run, which is why it was
+  not written earlier: an entry that matches nothing fails the build too, and that
+  is deliberate.
+
+  `tests/docker/inspect.sh` now prints the gcc, g++, cpp, libgcc and libstdc++
+  packages. The entries say libstdc++6 is what is installed rather than the
+  compiler, and that sentence had been asserted and never measured; a flaw in cc1
+  needs something to compile, and nothing in this image compiles anything.
+
 - **`patchradar debian` printed two sentences spliced into one.** The clause
   naming where evidence goes was a whole sentence when the tracker recorded no
   Debian bug, and both callers put it after a preposition:
