@@ -6,8 +6,8 @@ Usage: python3 scripts/release.py
 
 import os
 import re
-import sys
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -64,13 +64,13 @@ def main():
     # Fail before anything is pushed if the entry is missing.
     notes = extract_release_notes(version)
 
-    print(f"\n🛡️  PatchRadar Release")
+    print("\n🛡️  PatchRadar Release")
     print(f"   Version: {version}")
     print(f"   Notes:   {CHANGELOG_FILE} § [{version}] ({len(notes.splitlines())} lines)")
-    print(f"\nThis will:")
-    print(f"  1. Push main to remote")
+    print("\nThis will:")
+    print("  1. Push main to remote")
     print(f"  2. Create GitHub release {version}")
-    print(f"  3. GitHub Actions publishes to PyPI automatically")
+    print("  3. GitHub Actions publishes to PyPI automatically")
     print()
 
     confirm = input("Proceed? [y/N] ").strip().lower()
@@ -98,7 +98,7 @@ def main():
         os.unlink(notes_path)
 
     print(f"\n✅ Release {version} created!")
-    print(f"   Check: https://github.com/maksimtech/patchradar/actions")
+    print("   Check: https://github.com/maksimtech/patchradar/actions")
 
 if __name__ == "__main__":
     main()

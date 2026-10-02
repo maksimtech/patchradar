@@ -5,8 +5,8 @@ Usage: python3 scripts/bump_version.py [patch|minor]
 """
 
 import re
-import sys
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -123,7 +123,7 @@ def main():
     current = get_current_version()
     new = bump_version(current, fix=fix)
 
-    print(f"\n🛡️  PatchRadar Version Bump")
+    print("\n🛡️  PatchRadar Version Bump")
     print(f"   Current: {current}")
     print(f"   New:     {new}")
     print()

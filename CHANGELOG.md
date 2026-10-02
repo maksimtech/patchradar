@@ -12,6 +12,23 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **ruff now lints `tools/` as well, because it never did.** Every one of the five
+  Radar lints its package and its tests and stops there, which left
+  `tools/security_exceptions.py` outside the check — the script that refuses a build
+  over an unexplained alert had never been seen by the linter that gates the build.
+  Found on 2026-10-02 by running ruff over the whole tree by hand while working on
+  something else, which is not a way of finding things that scales.
+
+- **`scripts/` is linted too, and had eight findings waiting.** Two unsorted import
+  blocks and six f-strings with no placeholders, in `scripts/release.py` and
+  `scripts/bump_version.py`, dating from 2026-08-16 and 2026-09-17 — checked with
+  `git blame`, because the first guess was that this morning's encoding change had
+  introduced them and it had not. All eight are mechanical and ruff's own fix was
+  taken; `tests/test_release_script_encoding.py` and `tests/test_ci_scripts.py`
+  still pass, which is what makes that safe to say.
+
 ### Removed
 
 - **Five settled entries out of `SECURITY-EXCEPTIONS.toml`; `CVE-2026-82560` kept
