@@ -13,6 +13,50 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 ### Added
 
+- **CVSS v4.0 has a scale, and the threat metric inside it is read.**
+  `severity_for(score, "4.0")` answered UNKNOWN, with a comment saying the honest
+  answer was that rather than "I will use the v3 one, which looks similar". That
+  was right while nobody had read the specification: FIRST publishes a qualitative
+  scale for v4.0 and its boundaries are the same as v3's, so the table is written
+  out now **because the standard says so** and not because the numbers resemble
+  each other.
+
+  Comparability does not follow. A 6.8 under v4.0 and a 6.8 under v3.1 are
+  different measurements that land in the same band, the way a 10.0 under v2 and
+  under v3 are different measurements that do not — so the module's rule stands:
+  never a label without its version, never an ordering by label.
+  `test_v2_still_disagrees_with_v4_where_the_bands_differ` keeps that visible at
+  9.5, which is CRITICAL on v4 and HIGH on v2.
+
+  Measured against NVD on 2026-10-02, 200 CVEs published in the preceding week:
+
+  | block | records |
+  |---|---|
+  | `cvssMetricV31` | 104 |
+  | `cvssMetricV40` | 24 |
+  | `cvssMetricV2` | 6 |
+
+  So v4.0 is already 12% of recent records. Two things about that block differ
+  from v3.1: `baseSeverity` sits inside `cvssData` rather than on the entry, and
+  the vector carries `E:` — `exploitMaturity`, FIRST's own statement about whether
+  exploitation has been seen. The scan was discarding it.
+
+  It is carried now, as `cvss_exploit_maturity`, and said in the reason: *the
+  provider reports it attacked (CVSS v4.0 E:A)*. **It does not move the rank.**
+  KEV is CISA's observation and EPSS is FIRST's forecast; where a provider's own
+  "attacked" belongs against those is a decision, not a parse, and
+  `test_priority_is_not_moved_by_the_threat_metric` is what would notice a quiet
+  promotion.
+
+  `E:X` leaves the field off the record entirely. `E:U` does not: "the provider
+  looked and saw nothing" is information, and it is not the same as the provider
+  saying nothing at all. Measured by mutation — making an undefined metric read as
+  UNREPORTED fails five tests — because that collapse is the one this whole tool is
+  built to avoid. v3.1's `E:` vocabulary (U/P/F/H) is refused rather than
+  translated: the letters overlap in form and not in meaning, and the vector's
+  prefix says which version is speaking.
+
+
 - **FIRST EPSS, as a rank between CVSS and KEV.** 2026.41 made the scan read
   CISA KEV, which answers "is this being exploited" — but KEV is 1,726 entries
   and a record of the past, so every CVE not on it was still ordered by severity

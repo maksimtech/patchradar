@@ -159,6 +159,17 @@ def _epss_phrase(score: float, percentile: float | None) -> str:
     return f"EPSS {shown}%{where}"
 
 
+
+# CVSS v4.0's exploitMaturity, in words a reader can act on. UNREPORTED earns a
+# phrase of its own: "the provider looked and saw nothing" is information, and it
+# is not the same as the provider saying nothing at all, which leaves the field
+# off the record.
+_MATURITY_PHRASE = {
+    "ATTACKED": "the provider reports it attacked (CVSS v4.0 E:A)",
+    "PROOF_OF_CONCEPT": "the provider reports a public proof of concept (CVSS v4.0 E:P)",
+    "UNREPORTED": "the provider reports no exploitation and no public proof of concept (CVSS v4.0 E:U)",
+}
+
 def priority(record: dict) -> Priority:
     """The priority of one CVE record, from the facts the record carries.
 
@@ -184,6 +195,13 @@ def priority(record: dict) -> Priority:
     version = record.get("cvss_version")
     scale = f" (v{version})" if version else ""
     cvss = f"CVSS {score}{scale}" if score is not None else "no score from any source"
+
+    # The provider's own threat metric, from a v4.0 vector. It is said and not
+    # ranked on: KEV is CISA's observation and EPSS is FIRST's forecast, and where
+    # a provider's "attacked" belongs against those is a decision, not a parse.
+    maturity = record.get("cvss_exploit_maturity")
+    if maturity in _MATURITY_PHRASE:
+        cvss = f"{cvss}, {_MATURITY_PHRASE[maturity]}"
 
     epss = _probability(record.get("epss_score"))
     if epss is not None:

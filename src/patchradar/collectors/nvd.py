@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+from patchradar.cvss import exploit_maturity
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,36 @@ def _extract_confidentiality(cve: dict) -> str | None:
     return None
 
 
+def _extract_exploit_maturity(cve: dict) -> str | None:
+    """What the v4.0 vector says about exploitation, or None.
+
+    Only the v4.0 block: v3.1 has an `E:` of its own with the values U/P/F/H, and
+    reading those as v4's A/P/U would translate a claim the provider never made.
+    `cvss.exploit_maturity` checks the vector's own prefix, so this hands it the
+    string and does not interpret it here.
+
+    None covers "no v4.0 block", "no vector", "no E: metric" and `E:X` alike —
+    none of which is a statement — and the caller leaves the field off the record
+    entirely, because a field holding "X" or "" would read like a verdict.
+    """
+    metrics = cve.get("metrics")
+    if not isinstance(metrics, dict):
+        return None
+    entries = metrics.get("cvssMetricV40")
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        data = entry.get("cvssData")
+        if not isinstance(data, dict):
+            continue
+        found = exploit_maturity(data.get("vectorString"))
+        if found is not None:
+            return found
+    return None
+
+
 def _parse_item(item: dict, keyword: str) -> dict | None:
     """Turn one `vulnerabilities[]` entry into a CVE dict, or None if unusable."""
     if not isinstance(item, dict):
@@ -105,7 +136,11 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
         return None
 
     cvss_score, cvss_version, severity = _extract_metrics(cve)
+    # Left off the record entirely when the provider defined no threat metric:
+    # the absence is the fact, and a key holding "X" would read as a verdict.
+    maturity = _extract_exploit_maturity(cve)
     return {
+        **({"cvss_exploit_maturity": maturity} if maturity else {}),
         "id": cve_id,
         "software": keyword.lower(),
         "description": _extract_description(cve),

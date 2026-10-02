@@ -84,15 +84,29 @@ def test_a_score_outside_the_scale_is_unknown(score):
     assert severity_for(score, "3.1") == "UNKNOWN"
 
 
-@pytest.mark.parametrize("version", [None, "", "4.0", "boh"])
+@pytest.mark.parametrize("version", [None, "", "5.0", "4", "v4.0", "boh"])
 def test_an_unknown_cvss_version_is_unknown(version):
     """Without knowing WHICH scale, a score has no step.
 
-    v4.0 is left out deliberately: it has its own scale, and until that is written
-    here the honest answer is UNKNOWN rather than "I will use the v3 one, which
-    looks similar".
+    "4.0" was in this list until 2026-10-02, with the note that it had a scale of
+    its own and that the honest answer was UNKNOWN until somebody wrote it down.
+    It has been written down — FIRST publishes the same qualitative boundaries for
+    v4.0 as for v3 — so the case moved to tests/test_cvss_v4.py and what is left
+    here is the rule that outlives it: a version nobody has published gets no step
+    rather than the nearest one. CVSS 5.0 is the next time that will matter.
     """
     assert severity_for(7.5, version) == "UNKNOWN"
+
+
+def test_the_published_versions_are_the_ones_with_a_scale():
+    """The whole table, so adding a version cannot be half-done: a scale with no
+    entry here, or an entry with no scale, is the kind of gap that shows up as an
+    UNKNOWN in a report and nowhere else."""
+    from patchradar.cvss import _SCALES
+
+    assert set(_SCALES) == {"2.0", "3.0", "3.1", "4.0", "4.0.0"}
+    assert severity_for(9.5, "4.0") == "CRITICAL"
+    assert severity_for(9.5, "2.0") == "HIGH"
 
 
 def test_severities_are_the_ones_the_ui_knows():
