@@ -162,7 +162,18 @@ def test_scan_sources_lists_every_source_the_cli_queries():
 @pytest.mark.parametrize("module", sorted(KNOWN_PLACEHOLDERS))
 def test_placeholder_is_empty_rather_than_broken(module):
     """An empty file is a stub; a file with code that defines no entry point
-    is a mistake, and the two look identical from the outside."""
+    is a mistake, and the two look identical from the outside.
+
+    Skipped inside mutmut's working copy, and the reason is not a technicality:
+    mutmut rewrites every file under `source_paths` and gives each one its own
+    preamble, so an empty placeholder is not empty there. The claim is about this
+    repository, and in that tree it is not the repository being read. On 2026-10-03
+    this failed the whole mutation run in the stats phase, before a single mutant
+    was tried, because mutmut's `-x` stops at the first failure.
+    """
+    if "mutants" in COLLECTORS_DIR.parts:
+        pytest.skip("mutmut's copy carries its own preamble in every source file")
+
     path = COLLECTORS_DIR / f"{module}.py"
     assert path.read_text(encoding="utf-8").strip() == "", (
         f"{module}.py has content but defines no fetch_cves"
