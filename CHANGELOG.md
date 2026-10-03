@@ -12,6 +12,10 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+---
+
+## [2026.43] — 2026-10-03
+
 ### Changed
 
 - **The CI runners are pinned to `ubuntu-26.04`, and the benchmarks job is pinned
