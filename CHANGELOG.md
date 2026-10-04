@@ -14,6 +14,44 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **The race with PyPI is closed rather than narrowed: the released image no longer
+  asks the index.** `docker.yml` installed `patchradar==<the new version>` from PyPI
+  while `publish.yml` was still uploading it. A fixed `sleep 60` lost that race
+  (2026.9.4); polling the index narrowed it; apkradar lost it anyway on 2026-10-03,
+  **fifteen seconds after** the poll had reported the version available, because the
+  poll runs on the runner and the multi-platform build resolves the index again, per
+  platform, from whichever edge answers. A bounded margin narrowed it further and still
+  did not close it, because nothing that waits can. Not asking does.
+
+  Three things follow, and none of them is obvious.
+
+  - **What builds that branch?** Not `docker.yml`: it publishes as it builds, `:latest`
+    included, so running it *is* a release and it cannot be used to find out whether the
+    image builds. `docker-build-check.yml` exists for that and was reachable **by hand
+    only** — so in practice nothing built these images between releases, and the first
+    attempt at a build was the one that published it. It now runs on every push and
+    pull request, which is what makes the rest of this safe rather than merely tidier.
+  - **A rebuild has to stand on its own tag.** `docker.yml` can be dispatched with the
+    version of an already published release. While the image installed that version from
+    the index, where the job stood in the tree did not matter; built from the checkout it
+    decides everything, and left on the default branch a rebuild would have tagged
+    `main`'s code with an old release's number.
+  - **That the file on PyPI installs** was proved by accident, by the image installing
+    it. `publish.yml` now says it on purpose, after the upload, where a slow index delays
+    a check instead of failing a build that had nothing to do with it — and with no
+    margin, because there is one resolver there and a wait that buys nothing is what this
+    change is about.
+
+  The guarantee that nothing is ever compiled survives the move: the `pypi` branch
+  passed `--only-binary :all:`, and the `local` branch now builds this package's wheel —
+  it has to, it is a source tree — then installs it under the same restriction. That
+  matters because the image is built for `linux/amd64` and `linux/arm64`: a dependency
+  with no aarch64 wheel would be compiled under QEMU emulation, which in a release means
+  tens of minutes or an out-of-memory, arriving as a surprise the first time some
+  dependency stops shipping one.
+
+  Seven mutations hold all of it, and all seven fail.
+
 - **`bump_version.py` runs the suite after the bump, and refuses before committing.**
   The script writes the new version as its first act, so a suite run *before* a
   release cannot see what the bump breaks. apkradar met that twice in two days —

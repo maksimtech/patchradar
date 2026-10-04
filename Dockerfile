@@ -46,12 +46,13 @@ COPY src/ /app/build/src/
 # package that is not installed is a warning and not an error, so the build does
 # not depend on which of the three the base image happens to ship.
 RUN case "${PATCHRADAR_SOURCE}" in \
-        local) pip install --no-cache-dir --root-user-action=ignore /app/build ;; \
+        local) pip wheel --no-deps --no-cache-dir --wheel-dir /app/wheel /app/build && \
+               pip install --no-cache-dir --root-user-action=ignore --only-binary :all: /app/wheel/*.whl ;; \
         pypi) test -n "${PATCHRADAR_VERSION}" || { echo "PATCHRADAR_VERSION is required with PATCHRADAR_SOURCE=pypi" >&2; exit 1; } && \
               pip install --no-cache-dir --root-user-action=ignore --only-binary :all: "patchradar==${PATCHRADAR_VERSION}" ;; \
         *) echo "PATCHRADAR_SOURCE must be 'local' or 'pypi'" >&2; exit 1 ;; \
     esac && \
-    rm -rf /app/build && \
+    rm -rf /app/build /app/wheel && \
     pip uninstall --yes --root-user-action=ignore pip setuptools wheel
 
 # A non-root user, and its home, which is where the volume is mounted

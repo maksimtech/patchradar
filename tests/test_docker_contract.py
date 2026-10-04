@@ -130,12 +130,47 @@ def test_a_plain_build_uses_the_working_tree():
 
 
 def test_publishing_names_its_source_rather_than_inheriting_it():
-    """docker.yml pushes to Docker Hub including :latest. It must not depend on
-    a default that something else can change — and after this commit the default
-    is the other branch."""
+    """docker.yml pushes to Docker Hub including :latest. It must not depend on a
+    default that something else can change — even now that it names the same branch
+    the default happens to be, because what the default is is not its business.
+
+    It used to name `pypi`, which meant the image installed the version publish.yml
+    was still uploading. That race was lost by a fixed sleep, then narrowed by
+    polling, then lost again by fifteen seconds on apkradar — the poll runs on the
+    runner and the multi-platform build resolves the index again. Building from the
+    tag's own source ends it.
+    """
     published = PUBLISH_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "PATCHRADAR_SOURCE=pypi" in published
+    assert "PATCHRADAR_SOURCE=local" in published
+    assert "PATCHRADAR_SOURCE=pypi" not in published
+
+
+def test_no_dependency_is_ever_built_from_source():
+    """A guarantee that moving the release off the index would otherwise have lost.
+
+    The `pypi` branch always passed `--only-binary :all:`, so nothing was ever
+    compiled while building this image. The release now takes the `local` branch, and
+    the image is built for linux/amd64 and linux/arm64: a dependency with no aarch64
+    wheel would be compiled under QEMU emulation, which for a release means tens of
+    minutes or an out-of-memory, and it would arrive as a surprise the first time
+    some dependency drops a wheel.
+
+    So the local branch builds this package's own wheel — it has to, it is a source
+    tree — and then installs that wheel under the same restriction, which leaves the
+    dependencies subject to it.
+    """
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    installs = [line for line in dockerfile.splitlines() if "pip install" in line]
+    assert installs, "nothing installs anything"
+    for line in installs:
+        if "/app/" in line or "patchradar==" in line:
+            assert "--only-binary :all:" in line, line
+
+    assert "pip wheel --no-deps" in dockerfile, (
+        "the local branch has a source tree to build before it can install a wheel"
+    )
 
 
 def test_a_pypi_build_has_to_say_which_version():

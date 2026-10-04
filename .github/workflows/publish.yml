@@ -32,3 +32,31 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           verify-metadata: false
+
+      # That the file on PyPI can be installed used to be proved by accident, by
+      # docker.yml installing it to build the image. The image now builds from this
+      # tag's source and never asks the index, so the check is made here, on purpose,
+      # and after the upload — where a slow index delays a check instead of failing a
+      # build that had nothing to do with it.
+      - name: Extract version
+        id: version
+        env:
+          RAW: ${{ github.ref_name }}
+        run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
+
+      # No margin: the grace in this script is for the case of two resolvers, the
+      # runner and the buildx container. Here there is only the runner, which is what
+      # the poll just asked, so a margin would buy nothing.
+      - name: Wait for the index to catch up
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: bash .github/scripts/wait_for_pypi.sh patchradar "$VERSION" 30 20 0
+
+      - name: Check the published wheel installs and runs
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          python -m venv "${RUNNER_TEMP}/verify"
+          "${RUNNER_TEMP}/verify/bin/pip" install --no-cache-dir \
+              --only-binary :all: "patchradar==${VERSION}"
+          "${RUNNER_TEMP}/verify/bin/patchradar" --version

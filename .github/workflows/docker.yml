@@ -17,8 +17,15 @@ jobs:
   docker:
     runs-on: ubuntu-26.04
     steps:
+      # The tag being built, not the default branch. The image is built from this
+      # checkout now, so a dispatched rebuild of an older version has to stand on
+      # that version's tag — otherwise it would tag main's code with an old
+      # release's number. On a release event this is the tag anyway; naming it
+      # keeps the two paths the same.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -30,13 +37,6 @@ jobs:
         env:
           RAW: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
-
-      # publish.yml runs in parallel on the same release event: a fixed sleep
-      # raced with it (2026.9.4 failed), so poll until pip can fetch the version.
-      - name: Wait for patchradar on PyPI
-        env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
-        run: bash .github/scripts/wait_for_pypi.sh patchradar "$VERSION"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -59,9 +59,22 @@ jobs:
           tags: |
             maksimtech/patchradar:latest
             maksimtech/patchradar:${{ steps.version.outputs.VERSION }}
+          # From the source this tag points at, not from the index.
+          #
+          # This step used to install patchradar==<the new version> from PyPI while
+          # publish.yml was still uploading it. A fixed `sleep 60` lost that race
+          # (2026.9.4), polling the index narrowed it, and apkradar still lost it by
+          # fifteen seconds on 2026-10-03 — because the poll runs on the runner and
+          # the multi-platform build resolves the index again, per platform, from
+          # whichever edge answers. Nothing that waits can close that; not asking
+          # does.
+          #
+          # `local` is the branch docker-build-check.yml builds, and that workflow now
+          # runs on every push and pull request rather than by hand alone. It had to:
+          # this workflow publishes as it builds, so until then the first attempt at
+          # building the image was the one that released it.
           build-args: |
-            PATCHRADAR_SOURCE=pypi
-            PATCHRADAR_VERSION=${{ steps.version.outputs.VERSION }}
+            PATCHRADAR_SOURCE=local
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Docker Scout CVE scan
