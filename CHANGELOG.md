@@ -13,6 +13,26 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 
 ---
+### Fixed
+
+- **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
+  failed on 2026-10-03 with `No matching distribution found` **fifteen seconds after**
+  the wait had reported the version available — 16:31:21 against 16:31:36. The poll is
+  not wrong and not enough: it establishes that the file is reachable from the runner,
+  while the build container, multi-platform through buildx, resolves the index again
+  and can reach an edge still serving the old one.
+
+  This is not the `sleep 60` that stood in that step before polling and lost the race
+  twice. That was a guess about how long publishing takes, made before knowing
+  anything; this waits for the fact first and then allows a bounded margin for it to
+  propagate, and says so in the log when it uses one.
+
+  It narrows the window; it does not close it. What closes it is not asking the index
+  during the build at all — which is what exeradar's Dockerfile already does, with
+  `pip install /app/src`, and why exeradar has no wait script and did not hit this.
+  cookieradar and patchradar are one word from that (`_SOURCE=local`); apkradar and
+  mailradar would need the build argument added. That is the follow-up.
+
 
 ## [2026.44] — 2026-10-04
 
