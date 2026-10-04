@@ -13,6 +13,9 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 
 ---
+
+## [2026.44] — 2026-10-04
+
 ### Added
 
 - **`patchradar collector` hands over the PowerShell collector, because
@@ -45,6 +48,7 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   writes every field `inventory.py` reads is about the file an operator is handed —
   by construction rather than by a test asserting two paths agree.
 
+---
 
 ## [2026.43] — 2026-10-03
 
