@@ -3,7 +3,17 @@ name: Docker Build Check
 # pushing anything. docker.yml cannot serve this purpose: it publishes to
 # Docker Hub, including the :latest tag, so it is only safe to run on a
 # released version.
+# On every change, not only when somebody remembers. While this was reachable by
+# hand alone, the only thing that built the image automatically was docker.yml — on
+# a release, pushing as it went — so the first attempt at a build was the one that
+# published it. That gap closed nothing while the released image installed from the
+# index; now that it is built from this source tree, the branch the release takes has
+# to be built by something that is not the release.
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 permissions:
   contents: read

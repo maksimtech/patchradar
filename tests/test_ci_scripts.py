@@ -1,24 +1,39 @@
-"""The wait that keeps the Docker build from racing its own publish.
+"""The release's two jobs, and the race between them that is now gone.
 
-`docker.yml` and `publish.yml` both fire on the release, in parallel, and the
-Dockerfile installs `patchradar==<new version>` from PyPI. A fixed `sleep 60`
-stood in for the wait and lost that race on 2026.9.4, so the polling script was
-ported from cookieradar — and then had no test of its own, which is the gap this
-file closes. The same guess is still in place in the other two Radar that install
-from the index, and cost apkradar a red build twice, on 2026-09-24 and
-2026-09-30.
+`docker.yml` and `publish.yml` both fire on the release, in parallel. The image
+used to install `patchradar==<new version>` from PyPI while publish.yml was still
+uploading it, which is a race, and the history of it is the argument for how this
+is arranged now:
 
-The failure is worth naming because it does not look like itself: pip reports
-`No matching distribution found for patchradar==<version>`, listing versions up
-to the *previous* release, which reads as "the publish failed" when PyPI already
-holds the files and only the index has not caught up. On 2026-09-30 the wait did
-its job during the 2026.42 release, and the job sitting on this step for minutes
-was briefly read as a Docker build that had published nothing.
+  * a fixed `sleep 60` stood in for a wait and lost it (2026.9.4);
+  * polling the index until pip could fetch the version narrowed it;
+  * apkradar lost it anyway on 2026-10-03, fifteen seconds after the poll had
+    reported the version available — because the poll runs on the runner and the
+    multi-platform build resolves the index again, per platform, from whichever
+    edge answers;
+  * a bounded margin after the poll narrowed it further, and still did not close
+    it, because nothing that waits can.
 
-Two things have to be right, and the second is not obvious: the wait asks pip,
-because pip is what the Dockerfile uses and what the index answers for; and it
-runs *after* the version is extracted, because a release names 2026.42 while the
-other Radar tag `v2026.41`, and `==v2026.41` is not a version pip can ever find.
+So the image is built from the source the tag points at and does not ask the index
+about this package at all.
+
+Which raised a question with an uncomfortable answer: what builds that branch? Not
+docker.yml, which publishes as it builds. docker-build-check.yml exists for it and
+was reachable by hand alone, so in practice nothing built these images between
+releases, and the first attempt at a build was the one that published it. It now runs
+on every push and pull request, which is what makes moving the release onto that
+branch safe rather than merely cleaner.
+
+Two things follow, and neither is obvious. A dispatched rebuild of an old version
+has to check that version's tag out, because where the job stands in the tree now
+decides what ships. And the one thing the old arrangement proved by accident — that
+the file on PyPI installs — has to be said on purpose, which publish.yml now does,
+after the upload, where a slow index delays a check instead of failing a build.
+
+The failure this all came from is worth naming because it does not look like
+itself: pip reports `No matching distribution found for patchradar==<version>`,
+listing versions up to the *previous* release, which reads as "the publish failed"
+when PyPI already holds the files and only the index has not caught up.
 """
 
 from __future__ import annotations
@@ -188,22 +203,105 @@ def _docker_steps():
     return _workflow("docker.yml")["jobs"]["docker"]["steps"]
 
 
-def test_the_wait_runs_after_the_version_is_known_and_before_the_build():
+def _publish_steps():
+    return _workflow("publish.yml")["jobs"]["build-and-publish"]["steps"]
+
+
+def test_the_release_image_is_built_from_the_tag_and_not_from_the_index():
+    """What closes the race instead of narrowing it.
+
+    The image used to install `patchradar==<new version>` from PyPI while
+    publish.yml was still uploading it — a race no margin wins outright, because
+    the runner and the multi-platform build container resolve different edges of
+    the index. Built from the source the tag points at, the image asks the index
+    nothing about this package.
+
+    `local` is the branch docker-build-check.yml builds, and that workflow now runs
+    on every push and pull request rather than by hand alone — the case above is
+    about why. Until it did, nothing built either branch except the release.
+    """
     steps = _docker_steps()
+    build = next(s for s in steps if "build-push-action" in s.get("uses", ""))
+    args = build["with"]["build-args"]
+
+    assert "PATCHRADAR_SOURCE=local" in args
+    assert "pypi" not in args
+    assert not [s for s in steps if "wait_for_pypi.sh" in s.get("run", "")], (
+        "nothing here needs the index now, so nothing here should wait for it"
+    )
+
+
+def test_the_image_is_built_before_a_release_and_not_only_during_one():
+    """Otherwise the first attempt at building the image is the one that publishes it.
+
+    docker.yml pushes to Docker Hub, `:latest` included, so it cannot be used to find
+    out whether the image builds — running it *is* a release. docker-build-check.yml
+    exists for that and was reachable only by hand, which means in practice nothing
+    built these images between releases.
+
+    That mattered more once the release stopped installing from the index: the branch
+    the release takes is now the one that builds from this source tree, so it has to
+    be built by something other than the release itself.
+    """
+    triggers = _workflow("docker-build-check.yml")["on"]
+
+    assert "pull_request" in triggers, "a change that breaks the image should say so in its PR"
+    assert "push" in triggers, "and on main, because that is what the next release builds"
+
+
+def test_a_rebuild_checks_out_the_version_it_was_asked_for():
+    """The trap that building from the checkout sets, and that the index did not.
+
+    This workflow can be dispatched with the version of an already published
+    release to rebuild. While the image installed that version from PyPI, where the
+    job stood in the tree did not matter. Built from the checkout it matters
+    entirely: left on the default branch, a rebuild would tag `main`'s code with an
+    old release's number — the same accident `ARG PATCHRADAR_VERSION=2026.8.33` used
+    to cause from the other direction.
+
+    A version whose tag is spelled differently fails the checkout, loudly, which is
+    the right way round.
+    """
+    checkout = next(s for s in _docker_steps() if "actions/checkout" in s.get("uses", ""))
+
+    assert "inputs.version" in checkout.get("with", {}).get("ref", "")
+
+
+def test_the_published_file_is_still_checked_where_it_was_published():
+    """The old arrangement proved one thing by accident: that what lands on PyPI
+    can be installed. Taking the image off the index would lose that, so the job
+    that uploads says it on purpose — and *after* the upload, where a slow index
+    delays a check instead of failing a build.
+    """
+    steps = _publish_steps()
     names = [s.get("name", s.get("uses", "")) for s in steps]
 
+    upload = next(i for i, s in enumerate(steps) if "gh-action-pypi-publish" in s.get("uses", ""))
     version = next(i for i, s in enumerate(steps) if s.get("id") == "version")
     wait = next(i for i, s in enumerate(steps) if "wait_for_pypi.sh" in s.get("run", ""))
-    build = next(i for i, s in enumerate(steps) if "build-push-action" in s.get("uses", ""))
+    verify = next(i for i, s in enumerate(steps) if "--version" in s.get("run", ""))
 
-    assert version < wait < build, names
+    assert upload < version < wait < verify, names
+    assert 'patchradar==${VERSION}' in steps[verify]["run"], "it has to be the new one"
 
 
-def test_the_version_the_wait_is_given_has_no_tag_prefix():
+def test_the_check_asks_for_no_margin_because_there_is_one_resolver():
+    """The grace exists because the runner and the buildx container ask different
+    edges of the index. Here there is only the runner, which has just had `pip
+    download` answer — so a margin would buy nothing, and a wait that buys nothing
+    is the thing this script was rewritten to stop doing.
+    """
+    wait = next(s for s in _publish_steps() if "wait_for_pypi.sh" in s.get("run", ""))
+    arguments = wait["run"].split("wait_for_pypi.sh", 1)[1].split()
+
+    assert arguments[-1] == "0", wait["run"]
+
+
+def test_the_version_the_check_is_given_has_no_tag_prefix():
     """A release here is named 2026.42, but `gh release create` has also been
     given a `v` before now, and the other Radar tag with one. What reaches pip
     must be the distribution version either way."""
-    steps = _docker_steps()
+    steps = _publish_steps()
     version = next(s for s in steps if s.get("id") == "version")
     wait = next(s for s in steps if "wait_for_pypi.sh" in s.get("run", ""))
 
