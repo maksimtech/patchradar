@@ -127,3 +127,97 @@ class TestFixes:
     @pytest.mark.parametrize("fix", [True, False])
     def test_whichever_level_moves_the_answer_sorts_after(self, current, fix):
         assert bump.is_after(bump.bump_version(current, fix=fix), current)
+
+
+class TestTheSuiteGate:
+    """The suite has to run with the new version in place, before the commit.
+
+    `bump_version.py` writes the version first, so a suite run before a release
+    cannot see what the bump breaks. apkradar met this twice in two days — its
+    README states the version its examples were captured with, and the test that
+    holds that failed in CI, on main, with the tag already pushed. patchradar has
+    the same shape of test and the same gap.
+
+    Before the commit on purpose: a refusal then leaves the two version files
+    modified and nothing else touched, and `git checkout` undoes it. A gate after
+    the commit would have to undo one.
+    """
+
+    def test_a_failing_suite_is_refused(self, tmp_path):
+        # A tests/ directory, or the gate returns early on having nothing to run —
+        # which is what the third case below is about.
+        (tmp_path / "tests").mkdir()
+        failed = tmp_path / "ran"
+        result = bump.check_suite(
+            command=[sys.executable, "-c",
+                     f"open(r'{failed}', 'w').write('x'); raise SystemExit(1)"],
+            cwd=tmp_path,
+        )
+
+        assert result is False
+        assert failed.is_file(), "it reported without running anything"
+
+    def test_a_passing_suite_is_accepted(self, tmp_path):
+        (tmp_path / "tests").mkdir()
+
+        assert bump.check_suite(
+            command=[sys.executable, "-c", "raise SystemExit(0)"], cwd=tmp_path,
+        ) is True
+
+    def test_a_tree_with_no_tests_is_not_held_up(self, tmp_path):
+        """Nothing to run is not a failure — and `tests/` is absent here."""
+        assert bump.check_suite(cwd=tmp_path) is True
+
+    def _driven(self, monkeypatch, suite_passes: bool) -> list:
+        """`main()` with everything that touches the world replaced, so what is
+        asserted is the order of its decisions and nothing else."""
+        calls: list[str] = []
+
+        def answer(prompt: str) -> str:
+            # Keyed on the question, not on call order: "Proceed?" has to be yes or
+            # nothing below it runs, and "Push to remote?" has to be no or this test
+            # pushes for real.
+            if "Proceed" in prompt:
+                return "y"
+            if "Push" in prompt:
+                return "n"
+            raise AssertionError(f"main() asked something unexpected: {prompt!r}")
+
+        monkeypatch.setattr("builtins.input", answer)
+        monkeypatch.setattr(bump, "git_push", lambda *a: calls.append("push"))
+        monkeypatch.setattr(bump, "get_current_version", lambda: "2026.43")
+        monkeypatch.setattr(bump, "update_pyproject", lambda *a: calls.append("pyproject"))
+        monkeypatch.setattr(bump, "update_init", lambda *a: calls.append("init"))
+        monkeypatch.setattr(bump, "git_commit", lambda *a: calls.append("commit"))
+        monkeypatch.setattr(bump, "check_suite", lambda *a, **k: suite_passes)
+        monkeypatch.setattr(sys, "argv", ["bump_version.py"])
+        return calls
+
+    def test_main_writes_the_version_and_then_refuses_to_commit(self, monkeypatch):
+        """The case the gate exists for, and the one the tests above could not see:
+        they exercise `check_suite` in isolation, so removing the call from `main`
+        left all of them green. This is what notices.
+        """
+        calls = self._driven(monkeypatch, suite_passes=False)
+
+        with pytest.raises(SystemExit) as exit_code:
+            bump.main()
+
+        assert exit_code.value.code == 1
+        assert "commit" not in calls, "it committed a version its suite refuses"
+        assert calls == ["pyproject", "init"], (
+            "the version has to be written before the suite runs, or the suite "
+            "cannot see what the bump breaks"
+        )
+
+    def test_main_commits_when_the_suite_passes(self, monkeypatch):
+        calls = self._driven(monkeypatch, suite_passes=True)
+
+        bump.main()
+
+        assert calls == ["pyproject", "init", "commit"]
+
+    def test_the_default_command_is_this_project_suite(self):
+        """Read off the module rather than written here, so renaming it fails."""
+        assert bump.SUITE_COMMAND[:2] == [sys.executable, "-m"]
+        assert "pytest" in bump.SUITE_COMMAND

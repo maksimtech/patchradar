@@ -12,7 +12,29 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
----
+### Changed
+
+- **`bump_version.py` runs the suite after the bump, and refuses before committing.**
+  The script writes the new version as its first act, so a suite run *before* a
+  release cannot see what the bump breaks. apkradar met that twice in two days —
+  2026.42 on 2026-10-03 and 2026.43 on 2026-10-04, both times the test that holds
+  the version its README was captured with, both times in CI on `main` with the tag
+  already pushed, both fixed by hand afterwards. patchradar has the same shape of
+  test and had the same gap; `release.sh` in the other three Radar got the same gate.
+
+  Between writing the version and committing it, not after: a refusal leaves
+  `pyproject.toml` and the package `__init__` modified and nothing else touched,
+  which is what somebody needs to see, and `git checkout` on both undoes the bump.
+  A gate after the commit would have to undo a commit. A repository with no `tests/`
+  is not held up by a suite it does not have.
+
+  Six cases hold it. Four exercise the check itself; two drive `main()` with its two
+  prompts answered, because with only the first four, removing the call from `main()`
+  altogether left every one of them green — the gate was present and nothing measured
+  that it was wired in. Those two were checked against three mutations: the call
+  removed, the refusal weakened to `exit 0`, and the gate moved above the write
+  (where it would pass on the old version and tell nobody anything).
+
 ### Fixed
 
 - **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
@@ -32,6 +54,20 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   `pip install /app/src`, and why exeradar has no wait script and did not hit this.
   cookieradar and patchradar are one word from that (`_SOURCE=local`); apkradar and
   mailradar would need the build argument added. That is the follow-up.
+
+  Three cases hold the margin, and they were needed twice over. The two cases that
+  already drove this script pass the retry interval as zero so they stay fast, and the
+  new default made every success wait 45 seconds past their timeout — so the suite was
+  red in all four repositories until those two were told to ask for no grace. Telling
+  them that alone would have left the margin itself unmeasured, which is the shape of
+  defect this script was written to fix in the first place. So: one case times a
+  two-second grace and checks the log says why it waited, one checks that no grace
+  waits for nothing and claims nothing, and one measures the *default* without the
+  suite paying 45 seconds for it — started with no grace argument, the script must
+  still be running three seconds after the index answered. All four ways of undoing
+  the margin were checked against them: the default set to zero, the wait removed
+  while the log still claims it, the log removed while the wait still happens, and the
+  guard removed so zero waits anyway.
 
 
 ## [2026.44] — 2026-10-04

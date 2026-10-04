@@ -104,6 +104,34 @@ def update_init(old: str, new: str) -> None:
     INIT.write_text(updated, encoding="utf-8")
     print(f"✅ __init__.py: {old} → {new}")
 
+
+# What the gate runs. `sys.executable` rather than "python3": whoever releases is
+# in a virtual environment, and that is the interpreter that has the suite.
+SUITE_COMMAND = [sys.executable, "-m", "pytest", "-q"]
+
+
+def check_suite(command: list | None = None, cwd=None) -> bool:
+    """Whether the suite passes with the new version already written.
+
+    True when it passes and true when there is nothing to run: a repository with no
+    `tests/` is not held up by a suite it does not have. False only when a suite
+    exists and fails.
+
+    Called between writing the version and committing it. apkradar released 2026.42
+    and 2026.43 with its README still naming the previous version, both times caught
+    by CI on main after the tag had gone out — because a suite run before the bump
+    cannot see what the bump breaks.
+    """
+    root = Path(cwd) if cwd else PYPROJECT.parent
+    if not (root / "tests").is_dir():
+        print("🧪 No tests/ directory — nothing to run")
+        return True
+
+    print("🧪 Suite, with the new version in place...")
+    completed = subprocess.run(command or SUITE_COMMAND, cwd=root)
+    return completed.returncode == 0
+
+
 def git_commit(version: str) -> None:
     subprocess.run(["git", "add", "pyproject.toml", str(INIT)], check=True)
     subprocess.run(
@@ -135,6 +163,15 @@ def main():
 
     update_pyproject(current, new)
     update_init(current, new)
+
+    if not check_suite():
+        print(
+            f"\n❌ The suite fails with {new} in place. Nothing was committed:\n"
+            f"   pyproject.toml and the package __init__ are left modified so you\n"
+            f"   can see what broke. `git checkout` on both undoes the bump."
+        )
+        sys.exit(1)
+
     git_commit(new)
 
     push = input("Push to remote? [y/N] ").strip().lower()
