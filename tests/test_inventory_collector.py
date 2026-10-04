@@ -8,7 +8,10 @@ produce is half a feature, and the corpus behind every measurement in the
 changelog — 147 registry entries, 109 products — could not be reproduced by
 anyone, including from another machine.
 
-`tools/inventory.ps1` is that collector. It is not packaged and not installed: it
+`src/patchradar/data/inventory.ps1` is that collector. It ships inside the
+package and `patchradar collector` writes it out — it used to live in `tools/`
+and reach the sdist and not the wheel, which left the machine worth surveying,
+the one without a checkout, unable to get it. It
 is a fixture recorder, run by hand on the machine being surveyed, and the file
 boundary in the middle is what lets every judgement live in Python where it can
 be tested.
@@ -23,6 +26,7 @@ Windows, and pretending otherwise would be the green check that measures nothing
 """
 from __future__ import annotations
 
+import importlib.resources
 import json
 import pathlib
 import re
@@ -33,7 +37,12 @@ import pytest
 
 from patchradar.inventory import read_snapshot, survey
 
-COLLECTOR = pathlib.Path(__file__).resolve().parent.parent / "tools" / "inventory.ps1"
+# Read as the package resource, the same way `patchradar collector` reads it, so
+# that what this contract checks is what an operator is handed — by construction
+# rather than by a test asserting two paths agree.
+COLLECTOR = pathlib.Path(
+    str(importlib.resources.files("patchradar") / "data" / "inventory.ps1")
+)
 
 # What `inventory.py` reads: the envelope, and the row fields `classify` touches.
 # Kept as literals rather than derived, so that renaming one in Python without

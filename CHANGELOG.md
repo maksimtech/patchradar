@@ -13,6 +13,38 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 ## [Unreleased]
 
 ---
+### Added
+
+- **`patchradar collector` hands over the PowerShell collector, because
+  `pip install` could not.** The machine worth surveying is by definition the one
+  without a checkout: no git, no development folder, often no Python until you put
+  it there. The collector lived in `tools/inventory.ps1` and reached the sdist and
+  not the wheel — checked against the published 2026.43 on 2026-10-04, **29 files
+  in the wheel and not one `.ps1`** — so `pip install patchradar` gave you the half
+  that reads a snapshot and not the half that takes one, while the README said "run
+  it by hand, from the checkout".
+
+  The script moved to `src/patchradar/data/inventory.ps1`, so it travels with the
+  package: the rebuilt wheel carries it, byte-identical to the source, at
+  `patchradar/data/inventory.ps1`.
+
+  It writes a file rather than printing, and that is not a preference. Windows
+  PowerShell 5.1 encodes `>` as UTF-16LE, so `patchradar collector > inventory.ps1`
+  would produce a file PowerShell itself cannot parse — on the one platform the
+  script exists for. `--stdout` is there for a shell that does not do that.
+
+  It refuses to overwrite without `--force`: the file it writes is the one an
+  operator is about to run elevated on a machine under diagnosis, which is not a
+  thing to replace quietly. And it prints the three steps a clean machine needs and
+  the script does not provide — `Unblock-File`, the execution policy, and
+  administrator rights, without which the driver store and the event log come back
+  empty, and those are the two sources that resolved both real cases.
+
+  `tests/test_inventory_collector.py` now reads the collector through
+  `importlib.resources`, the same way the command does, so the contract that it
+  writes every field `inventory.py` reads is about the file an operator is handed —
+  by construction rather than by a test asserting two paths agree.
+
 
 ## [2026.43] — 2026-10-03
 

@@ -90,17 +90,19 @@ Take the snapshot on the Windows machine you want to survey, then read it
 anywhere:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/inventory.ps1
+patchradar collector                     # writes inventory.ps1 beside you
+Unblock-File .\inventory.ps1
+powershell -ExecutionPolicy Bypass -File .\inventory.ps1
 ```
 
 ```bash
 patchradar import inventory-20260929-120000.json
 ```
 
-`tools/inventory.ps1` collects and judges nothing — it reads the registry, device
-state, the driver store and the event log, and writes one JSON file. It is not
-installed with the package: run it by hand, from the checkout, on the machine
-being surveyed. It never enumerates `Win32_Product`, which would trigger an MSI
+`patchradar collector` writes the script; it collects and judges nothing — it reads the registry, device
+state, the driver store and the event log, and writes one JSON file. It ships inside the
+package, because the machine worth surveying is the one without a checkout: run
+`patchradar collector` there, elevated, and read the JSON anywhere. It never enumerates `Win32_Product`, which would trigger an MSI
 reconfiguration of every installed product, and it changes nothing else either.
 
 `patchradar import` then reports, per product, whether a vendor source can answer

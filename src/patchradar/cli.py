@@ -529,9 +529,64 @@ def serve(
     uvicorn.run("patchradar.api.main:app", host=host, port=port, reload=False)
 
 
+@app.command()
+def collector(
+    output: str = typer.Option("inventory.ps1", "--output", "-o",
+                               help="Where to write the collector"),
+    to_stdout: bool = typer.Option(False, "--stdout",
+                                   help="Print it instead, for a shell whose > is UTF-8"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing file"),
+) -> None:
+    """Write out the PowerShell collector that produces a snapshot.
+
+    The machine worth surveying is the one without a checkout: no git, no
+    development folder, often no Python until you put it there. The collector used
+    to live in `tools/` and shipped in the sdist and not in the wheel, so
+    `pip install patchradar` gave you the half that reads a snapshot and not the
+    half that takes one. It travels with the package now, and this hands it over.
+
+    A file by default, and not stdout: Windows PowerShell 5.1 writes UTF-16LE for
+    `>`, so `patchradar collector > inventory.ps1` would produce a file PowerShell
+    itself cannot parse — on the one platform the script exists for. `--stdout` is
+    for a shell that does not do that.
+    """
+    import importlib.resources
+    from pathlib import Path
+
+    script = importlib.resources.files("patchradar") / "data" / "inventory.ps1"
+    body = script.read_bytes()
+
+    if to_stdout:
+        # Written to the buffer, not printed: `print` would translate the line
+        # endings and rich would be tempted to wrap it.
+        sys.stdout.buffer.write(body)
+        return
+
+    target = Path(output)
+    if target.exists() and not force:
+        console.print(
+            f"[red]{target} exists already.[/red] Pass [bold]--force[/bold] to "
+            f"replace it — this is the file you are about to run elevated on a "
+            f"machine under diagnosis, so it is not replaced quietly."
+        )
+        raise typer.Exit(1)
+
+    target.write_bytes(body)
+
+    console.print(f"🛡️  [bold]{target}[/bold] — {len(body):,} bytes\n")
+    console.print("Three things a clean machine needs, and none of them is the script:")
+    console.print(f"  [cyan]Unblock-File .\\{target.name}[/cyan]"
+                  "                    the download mark, or PowerShell refuses it")
+    console.print(f"  [cyan]powershell -ExecutionPolicy Bypass -File .\\{target.name}[/cyan]")
+    console.print("  …and run it [bold]as administrator[/bold]: without that the driver "
+                  "store and the event log come back empty, which are the two sources "
+                  "that resolved both real cases.")
+    console.print("\nThen, here or anywhere: [cyan]patchradar import <snapshot>.json[/cyan]")
+
+
 @app.command(name="import")
 def import_inventory(
-    path: str = typer.Argument(..., help="Inventory snapshot written by tools/inventory.ps1"),
+    path: str = typer.Argument(..., help="Inventory snapshot written by `patchradar collector`"),
     show: int = typer.Option(12, "--show", "-n",
                              help="How many entries to list per group; 0 for all"),
 ):
