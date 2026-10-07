@@ -18,10 +18,14 @@ work.
 
 from __future__ import annotations
 
+import json
+import pathlib
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 
+import httpx
 import pytest
+import respx
 from typer.testing import CliRunner
 
 import patchradar.cli as cli
@@ -89,31 +93,25 @@ def test_a_window_of_nothing_is_refused_rather_than_guessed_at(days):
         windows(days)
 
 
-def test_the_cli_refuses_a_window_of_nothing_without_a_traceback(monkeypatch):
+def test_the_cli_refuses_a_window_of_nothing_without_a_traceback(unreachable_network):
     """`patchradar scan x --days 0` must end in a usage error, not a traceback:
     the ValueError above is not a CollectorError, and it went through the
-    whole CLI."""
-    async def nothing(*args, **kwargs):
-        return []
-
-    monkeypatch.setattr(cli, "msrc_fetch", nothing)
-    monkeypatch.setattr(cli, "kev_fetch", nothing)
+    whole CLI. No upstream is reachable, so a source asked anything fails at
+    once instead of reaching the internet."""
     result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", "0"])
     assert not isinstance(result.exception, ValueError), repr(result.exception)
     assert result.exit_code != 0
 
 
 @pytest.mark.parametrize("days", ["0", "-1", "-400"])
-def test_the_cli_refuses_a_window_of_nothing_as_a_usage_error(monkeypatch, days):
+def test_the_cli_refuses_a_window_of_nothing_as_a_usage_error(unreachable_network, days):
     """A usage error (exit 2, as for any invalid Typer option) before any
-    request: no collector is asked anything."""
-    async def must_not_run(*args, **kwargs):
-        raise AssertionError("a collector ran for an invalid --days")
-
-    for name in ("fetch_cves", "msrc_fetch", "kev_fetch"):
-        monkeypatch.setattr(cli, name, must_not_run)
+    request: no collector is asked anything. With no upstream reachable, one
+    that was asked would fail, and the scan would say its results are
+    incomplete — or, for NVD's ValueError, end with exit 1."""
     result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", days])
     assert result.exit_code == 2, result.output
+    assert "incomplete" not in result.output
 
 
 # --------------------------------------------------------------------------
@@ -173,46 +171,50 @@ async def test_a_short_window_still_makes_one_request(monkeypatch):
     assert len(calls) == 1
 
 
-def _sent_windows(calls: list[dict]) -> list[tuple[datetime, datetime]]:
+# What NVD answers when a keyword matches nothing, recorded on 2026-10-07 for
+# keywordSearch=patchradar&pubStartDate=2026-09-30T00:00:00.000&pubEndDate=
+# 2026-10-07T23:59:59.999&resultsPerPage=2000&startIndex=0: no CVE carries the
+# word, so it is the answer for any window the collector's clock asks about.
+NO_RESULTS = json.loads(
+    (pathlib.Path(__file__).parent / "fixtures" / "nvd_no_results.json").read_text(encoding="utf-8"))
+
+
+def nvd_with_nothing_for_patchradar() -> respx.Route:
+    return respx.get(nvd.NVD_API, params={"keywordSearch": "patchradar"}).mock(
+        return_value=httpx.Response(200, json=NO_RESULTS))
+
+
+def _sent_windows(route: respx.Route) -> list[tuple[datetime, datetime]]:
+    sent = [call.request.url.params for call in route.calls]
     return sorted((datetime.fromisoformat(params["pubStartDate"]),
-                   datetime.fromisoformat(params["pubEndDate"])) for params in calls)
+                   datetime.fromisoformat(params["pubEndDate"])) for params in sent)
 
 
 @pytest.mark.asyncio
-async def test_the_windows_sent_to_nvd_do_not_overlap(monkeypatch):
+@respx.mock
+async def test_the_windows_sent_to_nvd_do_not_overlap():
     """Adjacent windows must not ask for the same day twice. The request covers
     whole days, so a window ending at 'D 23:59:59.999' followed by one starting
     at 'D 00:00:00.000' returned the CVEs published on D twice — and the API
     counted them twice."""
-    calls: list[dict] = []
+    route = nvd_with_nothing_for_patchradar()
+    await nvd.fetch_cves("patchradar", days_back=200)
 
-    async def fake_get(self, url, params=None, **kwargs):
-        calls.append(params)
-        return _Response({"totalResults": 0, "vulnerabilities": []})
-
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    await nvd.fetch_cves("nginx", days_back=200)
-
-    sent = _sent_windows(calls)
+    sent = _sent_windows(route)
     assert len(sent) >= 2
     for (_, end_prev), (start_next, _) in pairwise(sent):
         assert end_prev < start_next, f"windows overlap: {end_prev} >= {start_next}"
 
 
 @pytest.mark.asyncio
-async def test_the_windows_sent_to_nvd_leave_no_gap(monkeypatch):
+@respx.mock
+async def test_the_windows_sent_to_nvd_leave_no_gap():
     """Removing the overlap must not open a hole: window N+1 starts on the
     millisecond after window N ends."""
-    calls: list[dict] = []
+    route = nvd_with_nothing_for_patchradar()
+    await nvd.fetch_cves("patchradar", days_back=365)
 
-    async def fake_get(self, url, params=None, **kwargs):
-        calls.append(params)
-        return _Response({"totalResults": 0, "vulnerabilities": []})
-
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    await nvd.fetch_cves("nginx", days_back=365)
-
-    sent = _sent_windows(calls)
+    sent = _sent_windows(route)
     assert len(sent) >= 4
     for (_, end_prev), (start_next, _) in pairwise(sent):
         assert start_next - end_prev == timedelta(milliseconds=1)

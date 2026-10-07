@@ -1,0 +1,10 @@
+{
+  "_derived": "Not a recording. This is nvd_7zip_window_page_1.json, the real NVD 2.0 answer recorded on 2026-10-07 for keywordSearch=7-zip&pubStartDate=2024-11-01T00:00:00.000&pubEndDate=2025-02-28T23:59:59.999&resultsPerPage=1&startIndex=1, with two changes: the one record it carried (CVE-2024-11612) is left out of vulnerabilities, and resultsPerPage says 0 to match. totalResults still says 3. NVD was never seen to do this; the collector has to survive it anyway, because stopping on an empty page would present one record of three as the whole answer.",
+  "resultsPerPage": 0,
+  "startIndex": 1,
+  "totalResults": 3,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2026-10-07T20:09:34.956",
+  "vulnerabilities": []
+}
