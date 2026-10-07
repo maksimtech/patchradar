@@ -97,6 +97,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **NVD results are no longer cut at 50 per window.** The collector asked for one page
+  of `resultsPerPage=50` and ignored `totalResults`, so a keyword with more CVEs than
+  that in a window — "linux", "chrome", "windows" — came back with the first 50 and a
+  count that looked complete. Pages are now followed with `startIndex` until
+  `totalResults`, at NVD's maximum of 2000 per page, and every page after the first
+  request is paced like a window. A page that fails hands back the earlier ones as
+  `partial`, and an empty page before the stated total is reported, not taken as the end.
+- **Adjacent NVD windows no longer ask for the same day twice.** A request covers whole
+  days, and the window after another started on the day the previous one ended.
 - **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
   failed on 2026-10-03 with `No matching distribution found` **fifteen seconds after**
   the wait had reported the version available — 16:31:21 against 16:31:36. The poll is

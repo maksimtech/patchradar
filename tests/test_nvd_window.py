@@ -144,6 +144,53 @@ async def test_a_short_window_still_makes_one_request(monkeypatch):
     assert len(calls) == 1
 
 
+def _sent_windows(calls: list[dict]) -> list[tuple[datetime, datetime]]:
+    return sorted((datetime.fromisoformat(params["pubStartDate"]),
+                   datetime.fromisoformat(params["pubEndDate"])) for params in calls)
+
+
+@pytest.mark.asyncio
+async def test_the_windows_sent_to_nvd_do_not_overlap(monkeypatch):
+    """Adjacent windows must not ask for the same day twice. The request covers
+    whole days, so a window ending at 'D 23:59:59.999' followed by one starting
+    at 'D 00:00:00.000' returned the CVEs published on D twice — and the API
+    counted them twice."""
+    calls: list[dict] = []
+
+    async def fake_get(self, url, params=None, **kwargs):
+        calls.append(params)
+        return _Response({"totalResults": 0, "vulnerabilities": []})
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    await nvd.fetch_cves("nginx", days_back=200)
+
+    sent = _sent_windows(calls)
+    assert len(sent) >= 2
+    for (_, end_prev), (start_next, _) in pairwise(sent):
+        assert end_prev < start_next, f"windows overlap: {end_prev} >= {start_next}"
+
+
+@pytest.mark.asyncio
+async def test_the_windows_sent_to_nvd_leave_no_gap(monkeypatch):
+    """Removing the overlap must not open a hole: window N+1 starts on the
+    millisecond after window N ends."""
+    calls: list[dict] = []
+
+    async def fake_get(self, url, params=None, **kwargs):
+        calls.append(params)
+        return _Response({"totalResults": 0, "vulnerabilities": []})
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    await nvd.fetch_cves("nginx", days_back=365)
+
+    sent = _sent_windows(calls)
+    assert len(sent) >= 4
+    for (_, end_prev), (start_next, _) in pairwise(sent):
+        assert start_next - end_prev == timedelta(milliseconds=1)
+    for start, end in sent:
+        assert (end - start) < timedelta(days=120)
+
+
 class _Response:
     def __init__(self, payload):
         self._payload = payload
