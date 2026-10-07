@@ -171,6 +171,29 @@ def test_a_version_that_is_not_a_version_is_not_a_match():
         assert affects(data, version=nonsense, vendor=VENDOR, cpe_product=PRODUCT) == []
 
 
+# ── one scheme, however many components ─────────────────────────────────────
+
+def test_a_range_contains_a_version_with_two_fewer_components():
+    """8.9 < 8.9.6.4, so with versionEndExcluding 8.9.6.4 the 8.9 is vulnerable.
+    A tolerance of one component declared the two "not comparable", and the
+    answer became "not affected" — a silent false negative."""
+    assert Range(end="8.9.6.4").contains("8.9") is True
+
+
+@pytest.mark.parametrize("span, version, expected", [
+    (Range(end="2.0.1"), "2", True),            # 2 < 2.0.1
+    (Range(end="8.9.6.4"), "8.10", False),      # 8.10 > 8.9.6.4
+    (Range(start="8.9.6.4"), "8.10", True),
+    (Range(end="8.9.6.4", end_inclusive=True), "8.9.6.4.0.0", True),
+    # Different schemes stay incomparable: a year against an Office build, a
+    # 2.07 BIOS against 16.0.14334.20918.
+    (Range(end="16.0.14334.20906"), "2010", False),
+    (Range(start="2.07"), "16.0.14334.20918", False),
+])
+def test_versions_of_one_scheme_compare_whatever_their_length(span, version, expected):
+    assert span.contains(version) is expected
+
+
 # ── the score ───────────────────────────────────────────────────────────────
 
 def test_the_severity_is_derived_when_the_payload_omits_it():

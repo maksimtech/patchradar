@@ -120,6 +120,14 @@ patchradar serve
 # Open http://localhost:8000
 ```
 
+Without `PATCHRADAR_API_KEY` the scan and watchlist endpoints need no key, which is
+meant for use on the same machine: `patchradar serve` listens on 127.0.0.1 and the
+`docker-compose.yml` publishes the port on 127.0.0.1 only. Set the key (see
+`.env.example`) before exposing it any further. Either way, a write that a browser
+sends on behalf of another web site (`Sec-Fetch-Site: cross-site`, or an `Origin`
+that is not this server) is refused with 403, so a page you visit cannot add to your
+watchlist or start scans through your browser.
+
 ### NVD API key (optional)
 
 NVD limits clients without an API key to 5 requests per 30 seconds; a key raises

@@ -283,3 +283,82 @@ async def test_key_comparison_is_constant_time(monkeypatch):
 
     src = inspect.getsource(api.require_api_key)
     assert "compare_digest" in src
+
+
+# ─── Cross-site writes ───────────────────────────────────────────────────────
+# With no key configured — the default — any page the user visits could send a
+# "simple" POST (no body, so no CORS preflight) to localhost:8000 and the write
+# happened; the browser only hid the answer.
+
+@pytest.fixture
+async def empty_database():
+    await database.init_db()
+
+
+async def _write(method: str, path: str, headers: dict, monkeypatch) -> httpx.Response:
+    async def nothing(sw, *args, **kwargs):
+        return []
+
+    for name in ("nvd_fetch", "kev_fetch", "msrc_fetch", "debian_fetch"):
+        monkeypatch.setattr(api, name, nothing)
+    async with AsyncClient(transport=ASGITransport(app=api.app),
+                           base_url="http://localhost:8000") as ac:
+        return await ac.request(method, path, headers=headers)
+
+
+@pytest.mark.asyncio
+async def test_a_cross_origin_post_cannot_modify_the_watchlist_when_no_key_is_set(empty_database):
+    async with AsyncClient(transport=ASGITransport(app=api.app),
+                           base_url="http://localhost:8000") as ac:
+        r = await ac.post("/api/watchlist/evilsoftware",
+                          headers={"Origin": "https://evil.example"})
+    assert r.status_code in (401, 403)
+    assert "evilsoftware" not in await database.get_watchlist()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method, path", [
+    ("POST", "/api/scan"),
+    ("POST", "/api/watchlist/evilsoftware"),
+    ("DELETE", "/api/watchlist/nginx"),
+])
+async def test_a_browser_write_from_another_site_is_refused(empty_database, monkeypatch, method, path):
+    """Fetch Metadata: a modern browser states where the request comes from."""
+    await database.add_to_watchlist("nginx")
+    r = await _write(method, path, {"Origin": "https://evil.example",
+                                    "Sec-Fetch-Site": "cross-site"}, monkeypatch)
+    assert r.status_code == 403
+    assert sorted(await database.get_watchlist()) == ["nginx"]
+
+
+@pytest.mark.asyncio
+async def test_the_bundled_ui_can_still_write(empty_database, monkeypatch):
+    """The UI PatchRadar serves itself: same-origin, with Origin equal to the host."""
+    r = await _write("POST", "/api/watchlist/nginx", {
+        "Origin": "http://localhost:8000", "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json"}, monkeypatch)
+    assert r.status_code == 200
+    assert await database.get_watchlist() == ["nginx"]
+
+
+@pytest.mark.asyncio
+async def test_a_browser_without_fetch_metadata_is_judged_by_its_origin(empty_database, monkeypatch):
+    r = await _write("POST", "/api/watchlist/nginx", {"Origin": "http://localhost:8000"}, monkeypatch)
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_client_that_is_not_a_browser_is_unaffected(empty_database, monkeypatch):
+    """curl, scripts, the CLI: no Origin and no Sec-Fetch-Site, so no CSRF is possible."""
+    r = await _write("POST", "/api/scan", {}, monkeypatch)
+    assert r.status_code == 200
+
+
+def test_every_write_route_carries_the_origin_guard():
+    """A write endpoint added tomorrow without the guard would be CSRF again."""
+    from fastapi.routing import APIRoute
+
+    for route in api.app.routes:
+        if isinstance(route, APIRoute) and route.methods - {"GET", "HEAD", "OPTIONS"}:
+            calls = {dep.call for dep in route.dependant.dependencies}
+            assert api.require_same_origin in calls, route.path

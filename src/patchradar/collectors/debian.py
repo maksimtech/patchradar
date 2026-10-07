@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-from datetime import UTC, datetime
 
 import httpx
 
@@ -151,7 +150,11 @@ def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> l
                 "cvss_score": None,
                 "cvss_version": None,
                 "severity": severity,
-                "published_at": datetime.now(UTC).isoformat(),
+                # None, not the clock: the tracker states no publication date,
+                # and `now()` made a CVE from 2014 "published today" — first in
+                # every newest-first list, above the ones that really are new.
+                # The KEV collector says why a clock reading is not a date.
+                "published_at": None,
                 "source": "Debian",
                 "url": f"https://security-tracker.debian.org/tracker/{cve_id}",
             })

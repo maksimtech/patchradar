@@ -104,8 +104,21 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   `totalResults`, at NVD's maximum of 2000 per page, and every page after the first
   request is paced like a window. A page that fails hands back the earlier ones as
   `partial`, and an empty page before the stated total is reported, not taken as the end.
+- **A CVE that concerns two watched products belongs to both.** `cves.id` was the only
+  key, so a CVE found for openssl and then for nginx stayed openssl's: invisible under
+  nginx, and deleted when openssl was removed although nginx was still watched. The
+  links now live in a `cve_software` table, filled from the existing rows by `init_db`
+  — an existing database keeps every row and gains the table, nothing is rebuilt — and
+  removing a product deletes a CVE only when no other product is linked to it.
+  `/api/stats` counts a shared CVE once in the total and once per product.
 - **Adjacent NVD windows no longer ask for the same day twice.** A request covers whole
   days, and the window after another started on the day the previous one ended.
+- **Debian CVEs are no longer "published" at scan time.** The tracker states no date and
+  the collector used `now()`, which put a 2014 CVE at the top of every newest-first list.
+  The date is now left empty, as it is for any source that does not state one.
+- **Versions compare across component counts within a scheme.** `8.9` against a fix in
+  `8.9.6.4` answered "not affected". Versions sharing a major number are now padded
+  and compared.
 - **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
   failed on 2026-10-03 with `No matching distribution found` **fifteen seconds after**
   the wait had reported the version available — 16:31:21 against 16:31:36. The poll is
@@ -137,6 +150,20 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   the margin were checked against them: the default set to zero, the wait removed
   while the log still claims it, the log removed while the wait still happens, and the
   guard removed so zero waits anyway.
+
+### Security
+
+- **Cross-site writes are refused.** With no `PATCHRADAR_API_KEY` — the default — any web
+  page the user visited could `POST` to `localhost:8000/api/watchlist/<x>` or
+  `/api/scan`: a request with no body needs no CORS preflight, so the browser sent it and
+  only hid the answer. Every write endpoint now refuses, with 403, a request whose
+  `Sec-Fetch-Site` is not `same-origin` or, from a browser that does not send that header,
+  whose `Origin` is not the server's own. The bundled UI is same-origin and unaffected,
+  and so are clients that are not browsers (curl, scripts), which send neither header.
+- **`docker-compose.yml` publishes the port on 127.0.0.1.** `"8000:8000"` exposed the
+  unauthenticated API to the whole network. The compose file also passes
+  `PATCHRADAR_API_KEY` and `NVD_API_KEY` through from `.env`, and `.env.example`, which was
+  empty, documents both.
 
 
 ## [2026.44] — 2026-10-04

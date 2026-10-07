@@ -41,6 +41,7 @@ async def clean_tables(isolated_database):
     async with aiosqlite.connect(database.DB_PATH) as db:
         await db.execute("DELETE FROM watchlist")
         await db.execute("DELETE FROM cves")
+        await db.execute("DELETE FROM cve_software")
         await db.commit()
     yield
 

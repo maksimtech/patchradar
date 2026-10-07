@@ -15,10 +15,12 @@ The fix normalises every timestamp to one fixed-width UTC form,
 YYYY-MM-DDTHH:MM:SSZ, when it is saved — and rewrites rows saved before.
 """
 import time
+from datetime import UTC, datetime, timedelta
 
 import aiosqlite
 import pytest
 
+from patchradar.collectors import debian
 from patchradar.db import database
 
 # (raw value as a collector produced it, canonical UTC value)
@@ -156,6 +158,22 @@ async def test_migration_is_idempotent_and_keeps_other_columns():
     await database.init_db()
     assert await database.get_cves() == first
     assert {r["source"] for r in first} == {"NVD", "MSRC", "Debian"}
+
+
+def test_debian_publication_date_is_not_the_scan_clock():
+    """The Debian value in the table above was `datetime.now()`: the tracker
+    states no publication date, so a CVE from 2014 was "published today" and,
+    with ORDER BY published_at DESC, sat above the ones that really are new.
+    The KEV collector says why a clock reading is not a date."""
+    data = {"openssl": {"CVE-2014-0160": {
+        "description": "Heartbleed",
+        "releases": {"trixie": {"status": "open", "urgency": "high"}},
+    }}}
+    before = datetime.now(UTC) - timedelta(minutes=1)
+    [record] = debian.filter_tracker(data, "openssl", "trixie")
+    published = record["published_at"]
+    if published:
+        assert datetime.fromisoformat(published) < before, published
 
 
 def _assert_naive_values_are_utc():

@@ -6,6 +6,7 @@ import re
 from contextlib import asynccontextmanager
 from importlib.metadata import version as pkg_version
 from pathlib import Path as FilePath
+from urllib.parse import urlsplit
 
 import aiosqlite
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
@@ -57,6 +58,37 @@ async def require_api_key(provided: str | None = Depends(_api_key_header)) -> No
             detail=f"Missing or invalid {API_KEY_HEADER} header",
             headers={"WWW-Authenticate": API_KEY_HEADER},
         )
+
+
+# What a browser's Sec-Fetch-Site may say about a write it is allowed to send:
+# the page came from this server, or the user started the request directly.
+_OWN_FETCH_SITES = {"same-origin", "none"}
+
+
+async def require_same_origin(request: Request) -> None:
+    """Refuse a write a browser sends on behalf of another site.
+
+    Without a key the write endpoints are open, and any page the user visits
+    could POST to http://localhost:8000/api/watchlist/x or /api/scan: a request
+    with no body is a "simple" one, so the browser sends it without a CORS
+    preflight and only hides the answer — the write has already happened.
+
+    Browsers say where a request comes from, in Sec-Fetch-Site and, on every
+    cross-origin POST or DELETE, in Origin. Sec-Fetch-Site is preferred because
+    it survives a reverse proxy that rewrites Host; Origin against Host covers
+    the browsers that predate it. A client that sends neither header is not a
+    browser — curl, a script — and cannot be used for CSRF, so it is let through
+    to the key check like before.
+    """
+    site = request.headers.get("sec-fetch-site")
+    if site is not None:
+        if site in _OWN_FETCH_SITES:
+            return
+    else:
+        origin = request.headers.get("origin")
+        if origin is None or urlsplit(origin).netloc == request.headers.get("host"):
+            return
+    raise HTTPException(status_code=403, detail="Cross-site request refused")
 
 
 @asynccontextmanager
@@ -172,10 +204,11 @@ async def api_watchlist():
 
 @app.post(
     "/api/watchlist/import",
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
     responses={
         400: {"description": "Invalid payload — expected a list of software names"},
         401: {"description": "Missing or invalid API key"},
+        403: {"description": "Cross-site request refused"},
     },
 )
 async def api_watchlist_import(payload: dict):
@@ -201,8 +234,9 @@ async def api_watchlist_import(payload: dict):
 
 @app.post(
     "/api/watchlist/{software}",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_add(
     software: str = Path(
@@ -219,8 +253,9 @@ async def api_add(
 
 @app.delete(
     "/api/watchlist/{software}",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_remove(software: str = Path(..., min_length=1, max_length=200)):
     removed = await remove_from_watchlist(software)
@@ -280,8 +315,9 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
 
 @app.post(
     "/api/scan",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_scan(days: int = Query(7, ge=1, le=90)):
     watchlist = await get_watchlist()
@@ -328,9 +364,15 @@ async def api_stats():
             "SELECT severity, COUNT(*) FROM cves GROUP BY severity"
         ) as cur:
             by_severity = dict(await cur.fetchall())
-        async with db.execute(
-            "SELECT software, COUNT(*) FROM cves GROUP BY software ORDER BY COUNT(*) DESC"
-        ) as cur:
+        # Per product through the links: a CVE that concerns two products is
+        # one CVE in `total` and one in each of their counts.
+        async with db.execute("""
+            SELECT software, COUNT(*) FROM (
+                SELECT id AS cve_id, software FROM cves
+                UNION SELECT cve_id, software FROM cve_software
+                WHERE cve_id IN (SELECT id FROM cves)
+            ) GROUP BY software ORDER BY COUNT(*) DESC
+        """) as cur:
             by_software = dict(await cur.fetchall())
     watchlist = await get_watchlist()
     return {

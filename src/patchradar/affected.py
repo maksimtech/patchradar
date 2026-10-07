@@ -50,11 +50,14 @@ _NUMERIC = re.compile(r"^\d+(\.\d+)*$")
 # and treating them as one is how a range comes to match everything.
 _NOT_A_VERSION = {"*", "-", ""}
 
-# Two versions whose component counts differ by more than this are treated as
-# belonging to different schemes and are not ordered. `2.07` (a ThinkPad BIOS)
-# against `16.0.14334.20918` (an Office build) is not a comparison with a wrong
-# answer, it is a comparison with no meaning; `8.9.6` against `8.9.6.4` happens
-# inside one scheme and must work.
+# Two versions whose component counts differ by more than this, and whose first
+# components differ too, are treated as belonging to different schemes and are
+# not ordered. `2.07` (a ThinkPad BIOS) against `16.0.14334.20918` (an Office
+# build) is not a comparison with a wrong answer, it is a comparison with no
+# meaning; `8.9.6` against `8.9.6.4` happens inside one scheme and must work.
+# So must `8.9` against `8.9.6.4`: a shared major version is one scheme however
+# many components either side writes, and refusing it answered "not affected"
+# for a version older than the fix.
 _SCHEME_TOLERANCE = 1
 
 
@@ -76,7 +79,7 @@ def _parts(text: object) -> tuple[int, ...] | None:
 
 
 def _comparable(left: tuple[int, ...], right: tuple[int, ...]) -> tuple[tuple, tuple] | None:
-    if abs(len(left) - len(right)) > _SCHEME_TOLERANCE:
+    if abs(len(left) - len(right)) > _SCHEME_TOLERANCE and left[0] != right[0]:
         return None
     width = max(len(left), len(right))
     return left + (0,) * (width - len(left)), right + (0,) * (width - len(right))
