@@ -15,6 +15,10 @@ an upstream feed therefore aborted the whole scan:
 The governing principle across all three: one bad record may drop itself, never
 its neighbours and never the batch.
 """
+import json
+import logging
+import pathlib
+
 import httpx
 import pytest
 import respx
@@ -181,6 +185,65 @@ async def test_good_record_still_parses_fully():
     assert cves[0]["software"] == "nginx"
     assert cves[0]["source"] == "NVD"
     assert cves[0]["url"].endswith("CVE-2026-0001")
+
+
+# ─── the safety net, on a page NVD actually sent ─────────────────────────────
+# Every malformed input above makes the parser return None, so none of them ever
+# reached the except around it. A record does get there when a field NVD sends
+# as a string arrives as an array: `vulnStatus` is looked up in a set, and a list
+# cannot be. `nvd_7zip_page.json` is the real answer to
+# keywordSearch=7-zip&resultsPerPage=3&startIndex=0, recorded on 2026-10-07 (its
+# own `timestamp` says when); the `_unparseable_record` variant changes that one
+# field of one record, and says so in its `_derived` key.
+
+NVD_FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def nvd_fixture(name: str) -> dict:
+    return json.loads((NVD_FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def test_the_derived_page_differs_from_the_recording_only_where_it_says():
+    """The variant is only as honest as its `_derived` note: undo the one change
+    it declares and the recording has to come back, field for field."""
+    recorded = nvd_fixture("nvd_7zip_page.json")
+    derived = nvd_fixture("nvd_7zip_page_unparseable_record.json")
+
+    assert "CVE-2007-4725" in derived.pop("_derived")
+    assert derived["vulnerabilities"][1]["cve"]["vulnStatus"] == ["Modified"]
+    derived["vulnerabilities"][1]["cve"]["vulnStatus"] = "Modified"
+    assert derived == recorded
+
+
+def test_the_recorded_page_parses_every_record():
+    """Without the change, all three records come through: whatever the variant
+    loses, it loses to the change and not to the recording."""
+    from patchradar.collectors.nvd import _parse_page
+
+    page = nvd_fixture("nvd_7zip_page.json")
+    records = _parse_page(page["vulnerabilities"], "7-zip")
+    assert [r["id"] for r in records] == ["CVE-2005-3051", "CVE-2007-4725", "CVE-2008-6536"]
+
+
+def test_a_record_that_makes_the_parser_raise_drops_only_itself(caplog):
+    """The middle record raises; the ones on either side of it stay, parsed in
+    full, and the skip leaves a debug line carrying the exception."""
+    from patchradar.collectors.nvd import _parse_item, _parse_page
+
+    page = nvd_fixture("nvd_7zip_page_unparseable_record.json")
+    with pytest.raises(TypeError):
+        _parse_item(page["vulnerabilities"][1], "7-zip")
+
+    with caplog.at_level(logging.DEBUG, logger="patchradar.collectors.nvd"):
+        records = _parse_page(page["vulnerabilities"], "7-zip")
+
+    assert [r["id"] for r in records] == ["CVE-2005-3051", "CVE-2008-6536"]
+    assert records[0]["cvss_score"] == 9.3
+    assert records[1]["patch_available"] is True
+    skipped = [r for r in caplog.records if r.getMessage() == "skipping unparseable NVD record"]
+    assert len(skipped) == 1
+    assert skipped[0].levelno == logging.DEBUG
+    assert skipped[0].exc_info is not None and skipped[0].exc_info[0] is TypeError
 
 
 # ─── parser-level guarantees ─────────────────────────────────────────────────

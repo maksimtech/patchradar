@@ -169,6 +169,25 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
     }
 
 
+def _parse_page(vulnerabilities: list, keyword: str) -> list[dict]:
+    """The usable records of one page's `vulnerabilities[]`, in NVD's order.
+
+    A malformed record may drop itself, never its neighbours. Its own function,
+    apart from the request loop, so that a page NVD actually sent can be run
+    through it without standing up a server.
+    """
+    records: list[dict] = []
+    for item in vulnerabilities:
+        try:
+            parsed = _parse_item(item, keyword)
+        except Exception:
+            logger.debug("skipping unparseable NVD record", exc_info=True)
+            continue
+        if parsed:
+            records.append(parsed)
+    return records
+
+
 # NVD answers HTTP 404 — not 400 — when pubStartDate and pubEndDate are more
 # than 120 days apart, which reads as "no such endpoint" rather than "your
 # range is too wide". Measured against the live API on 2026-09-23: 119 days
@@ -282,15 +301,7 @@ async def _fetch_window(
         if not isinstance(vulnerabilities, list):
             return
 
-        for item in vulnerabilities:
-            # A malformed record may drop itself, never its neighbours.
-            try:
-                parsed = _parse_item(item, keyword)
-            except Exception:
-                logger.debug("skipping unparseable NVD record", exc_info=True)
-                continue
-            if parsed:
-                results.append(parsed)
+        results.extend(_parse_page(vulnerabilities, keyword))
 
         total = data.get("totalResults")
         start_index += len(vulnerabilities)
