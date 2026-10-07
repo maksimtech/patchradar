@@ -14,6 +14,7 @@ Two distinct failure modes are covered here:
 * G3 — hostile text forges the output: applying colours, or planting a
   clickable OSC-8 hyperlink in a security tool.
 """
+import asyncio
 from io import StringIO
 
 import pytest
@@ -21,6 +22,7 @@ import typer
 from rich.console import Console
 
 import patchradar.cli as cli
+from patchradar.db.database import add_to_watchlist, get_watchlist
 
 
 def render(fn, *args, **kwargs) -> str:
@@ -179,31 +181,26 @@ def test_print_cves_escapes_id_column():
 MARKUP_NAME = "evil[bold]x"
 
 
-def test_cli_add_escapes_software_name(monkeypatch):
+def test_cli_add_escapes_software_name():
     # `add` refuses what the API refuses, brackets included, so a name with
     # markup in it never reaches the watchlist — and the refusal is where it is
     # echoed back, verbatim.
-    async def fake_add(name):
-        raise AssertionError("a refused name reached the database")
-
     def refused(name):
         with pytest.raises(typer.Exit):
             cli.add(name)
 
-    monkeypatch.setattr(cli, "add_to_watchlist", fake_add)
     out = render(refused, MARKUP_NAME)
     assert MARKUP_NAME in out
+    assert asyncio.run(get_watchlist()) == []
 
 
-def test_cli_add_escapes_on_duplicate(monkeypatch):
+def test_cli_add_escapes_on_duplicate():
     # Markup cannot get this far any more (see above): what the duplicate
     # message prints is the canonical name, and it prints it verbatim.
-    async def fake_add(name):
-        return False
-
-    monkeypatch.setattr(cli, "add_to_watchlist", fake_add)
+    asyncio.run(add_to_watchlist("windows 10"))
     out = render(cli.add, "  Windows 10  ")
-    assert "windows 10" in out
+    assert "windows 10 is already in your watchlist" in out
+    assert asyncio.run(get_watchlist()) == ["windows 10"]
 
 
 def test_cli_remove_escapes_software_name(monkeypatch):

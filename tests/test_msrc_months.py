@@ -112,14 +112,11 @@ def test_clamped_range_never_exceeds_four_months():
         assert len(_months_in_range(datetime(2026, month, 28), 90)) <= 4
 
 
-def test_the_cli_says_msrc_stops_at_its_limit(monkeypatch):
+def test_the_cli_says_msrc_stops_at_its_limit(unreachable_network):
     """`scan --days 365` asks MSRC about the last 90 days only, and the clamp
-    above did it without a word: it has to be said."""
-    async def nothing(*args, **kwargs):
-        return []
-
-    for name in ("fetch_cves", "msrc_fetch", "kev_fetch"):
-        monkeypatch.setattr(cli, name, nothing)
+    above did it without a word: it has to be said. It is said about the
+    request, not about the answer, so it has to appear even when no source
+    could be reached — which is how this test runs."""
     runner = CliRunner()
     long_scan = runner.invoke(cli.app, ["scan", "nginx", "--days", "365"])
     short_scan = runner.invoke(cli.app, ["scan", "nginx", "--days", "30"])

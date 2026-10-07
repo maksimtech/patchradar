@@ -1,0 +1,70 @@
+{
+  "_derived": "Not a recording. This is kev_sample.json, entries of the real CISA KEV catalogue version 2026.09.25, with three changes to cveID and nothing else: the Oracle Java SE entry (CVE-2015-2590) has no cveID key at all, the first Adobe entry (CVE-2021-21017) has \"   \", and the VMware vCenter entry (CVE-2026-59310) has the number 202659310 instead of a string. The second Adobe entry (CVE-2023-26369) is untouched. CISA has never been seen to publish such an id; the collector must drop one rather than store a record whose primary key is blank or not a string.",
+  "title": "CISA Catalog of Known Exploited Vulnerabilities",
+  "catalogVersion": "2026.09.25",
+  "dateReleased": "2026-09-25T18:58:16.5029Z",
+  "count": 4,
+  "vulnerabilities": [
+    {
+      "vendorProject": "Oracle",
+      "product": "Java SE",
+      "vulnerabilityName": "Oracle Java SE and Java SE Embedded Remote Code Execution Vulnerability",
+      "dateAdded": "2022-03-03",
+      "shortDescription": "An unspecified vulnerability exists within Oracle Java Runtime Environment that allows an attacker to perform remote code execution.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2022-03-24",
+      "knownRansomwareCampaignUse": "Unknown",
+      "forensicTriage": "No",
+      "notes": "https://nvd.nist.gov/vuln/detail/CVE-2015-2590",
+      "cwes": []
+    },
+    {
+      "cveID": "   ",
+      "vendorProject": "Adobe",
+      "product": "Acrobat and Reader",
+      "vulnerabilityName": "Adobe Acrobat and Reader Heap-based Buffer Overflow Vulnerability",
+      "dateAdded": "2021-11-03",
+      "shortDescription": "Acrobat Acrobat and Reader contain a heap-based buffer overflow vulnerability that could allow an unauthenticated attacker to achieve code execution in the context of the current user.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2021-11-17",
+      "knownRansomwareCampaignUse": "Unknown",
+      "forensicTriage": "No",
+      "notes": "https://nvd.nist.gov/vuln/detail/CVE-2021-21017",
+      "cwes": [
+        "CWE-122"
+      ]
+    },
+    {
+      "cveID": "CVE-2023-26369",
+      "vendorProject": "Adobe",
+      "product": "Acrobat and Reader",
+      "vulnerabilityName": "Adobe Acrobat and Reader Out-of-Bounds Write Vulnerability",
+      "dateAdded": "2023-09-14",
+      "shortDescription": "Adobe Acrobat and Reader contains an out-of-bounds write vulnerability that allows for code execution.",
+      "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+      "dueDate": "2023-10-05",
+      "knownRansomwareCampaignUse": "Unknown",
+      "forensicTriage": "No",
+      "notes": "https://helpx.adobe.com/security/products/acrobat/apsb23-34.html;  https://nvd.nist.gov/vuln/detail/CVE-2023-26369",
+      "cwes": [
+        "CWE-787"
+      ]
+    },
+    {
+      "cveID": 202659310,
+      "vendorProject": "Broadcom",
+      "product": "VMware vCenter",
+      "vulnerabilityName": "Broadcom VMware vCenter Path Traversal Vulnerability",
+      "dateAdded": "2026-08-18",
+      "shortDescription": "Broadcom VMware vCenter contains a path traversal vulnerability which could allow a threat actor with network access to vCenter to execute arbitrary code.",
+      "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+      "dueDate": "2026-08-21",
+      "knownRansomwareCampaignUse": "Known",
+      "forensicTriage": "Yes",
+      "notes": "https://support.broadcom.com/web/ecx/support-content-notification/-/external/content/SecurityAdvisories/0/38017 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https://nvd.nist.gov/vuln/detail/CVE-2026-59310",
+      "cwes": [
+        "CWE-22"
+      ]
+    }
+  ]
+}

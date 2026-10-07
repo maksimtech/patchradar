@@ -1,5 +1,7 @@
 """Shared test fixtures."""
 import asyncio
+import json
+import pathlib
 import time
 
 import aiosqlite
@@ -144,3 +146,41 @@ def _isolate_law_checker(tmp_path, monkeypatch):
         raise law_fetcher.LawFetchError("network disabled in tests")
 
     monkeypatch.setattr(law_fetcher, "fetch_html", no_network)
+
+
+@pytest.fixture
+def unreachable_network(monkeypatch):
+    """Every request made through httpx fails at once, as with no network at all.
+
+    Nothing is replaced. httpx takes its proxy from the environment, as any
+    program does, and the proxy named here is port 0 of 0.0.0.0, where nothing
+    can listen: the operating system refuses the connection before a byte leaves
+    the machine, and the collectors meet the same httpx.ConnectError a pulled
+    cable gives them. 0.0.0.0 rather than 127.0.0.1 because a refused loopback
+    connection costs two seconds of retries on Windows; this one fails in a
+    millisecond there and on Linux.
+
+    For tests that must reach no upstream: a command that should stop before
+    asking anything, or a message that has to appear whatever the sources said.
+    Both spellings of each variable, because on Linux the lower-case one wins.
+    """
+    for name in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"):
+        monkeypatch.setenv(name, "http://0.0.0.0:0")
+        monkeypatch.setenv(name.lower(), "http://0.0.0.0:0")
+    for name in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture
+def debian_tracker_excerpt() -> dict:
+    """Ten source packages of the real Debian tracker dump, entries verbatim.
+
+    `tests/fixtures/debian_tracker_excerpt.json` says in its `_derived` key what
+    was kept of the 82 MB recorded on 2026-10-07, and that nothing was changed.
+    The note is taken off here, where the collector would otherwise read it as
+    an eleventh package; a fresh copy per test, since the parsers get to keep it.
+    """
+    path = pathlib.Path(__file__).parent / "fixtures" / "debian_tracker_excerpt.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert "verbatim" in data.pop("_derived")
+    return data

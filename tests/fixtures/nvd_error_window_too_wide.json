@@ -1,0 +1,19 @@
+{
+  "status": 404,
+  "headers": {
+    "date": "Wed, 07 Oct 2026 20:09:57 GMT",
+    "content-length": "0",
+    "connection": "keep-alive",
+    "message": "Date range cannot exceed 120 days.",
+    "x-frame-options": "SAMEORIGIN",
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "accept, apiKey, content-type, origin, x-requested-with",
+    "access-control-allow-methods": "GET, HEAD, OPTIONS",
+    "access-control-allow-credentials": "false",
+    "strict-transport-security": "max-age=31536000",
+    "cf-cache-status": "DYNAMIC",
+    "server": "cloudflare",
+    "cf-ray": "a46f8be4097f8c5d-EWR"
+  },
+  "body": ""
+}

@@ -314,7 +314,10 @@ async def _fetch_window(
                                  detail=f"empty page at {start_index} of {total}")
 
 
-async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
+async def fetch_cves(
+    keyword: str, days_back: int = 7, *,
+    wait: Callable[[float], Awaitable[None]] | None = None,
+) -> list[dict]:
     """Fetch CVEs from NVD for a given keyword.
 
     A window wider than NVD accepts is split into several requests, and an
@@ -329,7 +332,12 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
 
     The key, when set, travels in a header. In the query string it would be
     written to every log and proxy record that sees the URL.
+
+    `wait` is what spends the pause between two requests, `_pace` unless the
+    caller hands over its own: a test that is about the pacing passes one that
+    writes down what it was asked to wait, rather than replacing `_pace`.
     """
+    sleep = wait or _pace
     key = api_key()
     headers = {"apiKey": key} if key else {}
     delay = KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS
@@ -338,7 +346,7 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
     async def pace() -> None:
         nonlocal sent
         if sent:
-            await _pace(delay)
+            await sleep(delay)
         sent += 1
 
     results: list[dict] = []

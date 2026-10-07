@@ -22,6 +22,9 @@ actually known.
 """
 from __future__ import annotations
 
+import json
+import pathlib
+
 import pytest
 
 from patchradar.affected import Hit, Range, affects, ranges_in, summarise, target_version
@@ -232,30 +235,35 @@ def test_the_worst_comes_first_and_the_unscored_last():
     assert order == ["CVE-HIGH", "CVE-LOW", "CVE-NONE"]
 
 
-def _metric(score: float, kind: str, source: str) -> dict:
-    return {"source": source, "type": kind,
-            "cvssData": {"version": "3.1", "baseScore": score, "baseSeverity": "X",
-                         "confidentialityImpact": "HIGH" if score > 8 else "LOW"},
-            "baseSeverity": "CRITICAL" if score > 8 else "HIGH"}
+# Which of two scores: on answers NVD sent, recorded on 2026-10-07 with
+# cveId=CVE-2026-48092 and cveId=CVE-2026-48095 — two 7-Zip CVEs from GitHub's
+# CNA. The first lists the CNA's cvssMetricV31 (Secondary, 4.3, C:N) before
+# NVD's own (Primary, 8.1, C:H); the second has only the CNA's (8.8).
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def recorded(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def test_nvd_s_own_primary_score_is_preferred_whatever_the_order():
     """NVD does not promise the order of `cvssMetricV31`: with the CNA's entry
     (Secondary) before NVD's (Primary) the score depended on that order — and
     the collector and this module must read the same one."""
-    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example"),
-                                 _metric(7.5, "Primary", "nvd@nist.gov")]}
-    assert nvd._extract_metrics({"metrics": metrics}) == (7.5, "3.1", "HIGH")
-    assert nvd._extract_confidentiality({"metrics": metrics}) == "LOW"
-    item = cve("CVE-2026-0002", match(versionEndExcluding="2.0"))
-    item["cve"]["metrics"] = metrics
-    [hit] = affects(payload(item), version="1.0", vendor=VENDOR, cpe_product=PRODUCT)
-    assert hit.score == 7.5
+    answer = recorded("nvd_cve_2026_48092.json")
+    [item] = answer["vulnerabilities"]
+    assert [m["type"] for m in item["cve"]["metrics"]["cvssMetricV31"]] == ["Secondary", "Primary"]
+    assert nvd._extract_metrics(item["cve"]) == (8.1, "3.1", "HIGH")
+    assert nvd._extract_confidentiality(item["cve"]) == "HIGH"
+    [hit] = affects(answer, version="26.00", vendor="7-zip", cpe_product="7-zip")
+    assert hit.score == 8.1
 
 
 def test_the_cna_score_is_used_when_nvd_has_none():
-    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example")]}
-    assert nvd._extract_metrics({"metrics": metrics})[0] == 9.8
+    [item] = recorded("nvd_cve_2026_48095.json")["vulnerabilities"]
+    assert [m["type"] for m in item["cve"]["metrics"]["cvssMetricV31"]] == ["Secondary"]
+    assert nvd._extract_metrics(item["cve"])[0] == 8.8
 
 
 # ── where to go ─────────────────────────────────────────────────────────────
@@ -338,14 +346,15 @@ def test_at_or_above_the_fix_is_not_affected(version):
 # Before 3.0 OpenSSL numbered its releases 1.1.1t, 1.1.1u, and after 1.0.2z came
 # 1.0.2za. NVD records the fixes as written, and a suffix used to make any
 # version "not a version": every lettered 1.0.2 and 1.1.1 was "not affected".
+# The answer NVD sent for cveId=CVE-2023-0464, recorded on 2026-10-07, declares
+# 1.0.2 up to 1.0.2zh and 1.1.1 up to 1.1.1u, both excluded.
 
 def test_letter_suffixed_versions_like_openssl_are_matched():
     """1.1.1t against versionEndExcluding 1.1.1u is vulnerable, not "no CVE"."""
-    data = payload(cve("CVE-2023-0464", match(vendor="openssl", product="openssl",
-                                              versionStartIncluding="1.1.1",
-                                              versionEndExcluding="1.1.1u")))
-    hits = affects(data, version="1.1.1t", vendor="openssl")
-    assert [h.cve for h in hits] == ["CVE-2023-0464"]
+    answer = recorded("nvd_cve_2023_0464.json")
+    assert [h.cve for h in affects(answer, version="1.1.1t", vendor="openssl")] == ["CVE-2023-0464"]
+    assert [h.cve for h in affects(answer, version="1.0.2z", vendor="openssl")] == ["CVE-2023-0464"]
+    assert affects(answer, version="1.1.1u", vendor="openssl") == []
 
 
 @pytest.mark.parametrize("span, version, expected", [

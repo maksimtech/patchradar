@@ -152,28 +152,39 @@ async def test_severity_still_derives_from_urgency_after_scoping():
 
 # ─── which packages a keyword selects ────────────────────────────────────────
 # The keyword was matched as a substring of the package name: "git" collected
-# the CVEs of python-digitalocean, "ssh" those of libssh, a different project
-# from openssh. It now has to be a word of the name.
+# the CVEs of gitsign and of golang-github-cli-go-gh, "ssh" those of tinyssh and
+# python-asyncssh, other projects from openssh. It now has to be a word of the
+# name. The packages are the tracker's own, from the excerpt recorded on
+# 2026-10-07 (`debian_tracker_excerpt` in conftest.py), each carrying CVEs that
+# are open in trixie — so a package the keyword selects always shows up.
 
-def tracker(*packages: str) -> dict:
-    return {name: {f"CVE-2026-{i:04d}": {
-        "description": name,
-        "releases": {"trixie": {"status": "open", "urgency": "low"}},
-    }} for i, name in enumerate(packages)}
+def packages_selected(data: dict, keyword: str) -> list[str]:
+    """The packages whose CVEs `filter_tracker` returned, in the tracker's order."""
+    found = {r["id"] for r in filter_tracker(data, keyword, "trixie")}
+    return [name for name, cves in data.items() if found & cves.keys()]
 
 
-def test_a_keyword_does_not_match_an_unrelated_package_by_substring():
-    assert filter_tracker(tracker("python-digitalocean"), "git", "trixie") == []
+def test_every_package_of_the_excerpt_has_a_cve_open_in_trixie(debian_tracker_excerpt):
+    """What the tests below rely on: no package is missing from a result for
+    lack of something to report."""
+    for name, cves in debian_tracker_excerpt.items():
+        assert cves, name
+        for cve_id, entry in cves.items():
+            assert entry["releases"]["trixie"]["status"] in ("open", "undetermined"), (name, cve_id)
+
+
+def test_a_keyword_does_not_match_an_unrelated_package_by_substring(debian_tracker_excerpt):
+    assert packages_selected(debian_tracker_excerpt, "git") == ["git"]
 
 
 @pytest.mark.parametrize("keyword, expected", [
-    ("ssh", []),                                   # libssh and openssh are other projects
+    ("ssh", []),                                   # openssh, tinyssh, asyncssh: other projects
     ("openssh", ["openssh"]),
-    ("python", ["python3.13", "python-urllib3"]),  # a version in the name: the same project
-    ("nginx", ["nginx"]),
+    # "python" is a word of python-asyncssh and python-urllib3; in python3.13
+    # the digits are the version, not another word.
+    ("python", ["python-asyncssh", "python3.13", "python-urllib3"]),
+    ("nginx", ["nginx"]),                          # not libnginx-mod-js
     ("NGINX", ["nginx"]),
 ])
-def test_a_keyword_matches_whole_words_of_the_package_name(keyword, expected):
-    data = tracker("libssh", "openssh", "python3.13", "python-urllib3", "nginx", "libnginx-mod-http")
-    found = [r["description"] for r in filter_tracker(data, keyword, "trixie")]
-    assert found == expected
+def test_a_keyword_matches_whole_words_of_the_package_name(debian_tracker_excerpt, keyword, expected):
+    assert packages_selected(debian_tracker_excerpt, keyword) == expected

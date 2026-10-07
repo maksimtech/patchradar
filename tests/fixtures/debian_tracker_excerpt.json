@@ -1,0 +1,863 @@
+{
+  "_derived": "An excerpt, not the whole answer. The source is the Debian security tracker's dump, https://security-tracker.debian.org/tracker/data/json, downloaded on 2026-10-07 at 20:08 UTC (Last-Modified: Wed, 07 Oct 2026 19:11:32 GMT; 82,204,856 bytes, 4,063 source packages). Kept: the 10 source packages git, gitsign, golang-github-cli-go-gh, openssh, tinyssh, python-asyncssh, python3.13, python-urllib3, nginx, libnginx-mod-js, and within each the first 3 CVEs (in the dump's order) whose trixie status is open or undetermined. Every kept entry is copied verbatim; nothing was added or changed, only left out.",
+  "git": {
+    "CVE-2018-1000021": {
+      "description": "GIT version 2.15.1 and earlier contains a Input Validation Error vulnerability in Client that can result in problems including messing up terminal configuration to RCE. This attack appear to be exploitable via The user must interact with a malicious git server, (or have their traffic modified in a MITM attack).",
+      "debianbug": 889680,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:2.39.5-0+deb12u3",
+            "bookworm-security": "1:2.39.5-0+deb12u2"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:2.53.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:2.55.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:2.47.3-0+deb13u1"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    },
+    "CVE-2022-24975": {
+      "description": "The --mirror documentation for Git through 2.35.1 does not mention the availability of deleted content, aka the \"GitBleed\" issue. This could present a security risk if information-disclosure auditing processes rely on a clone operation without the --mirror option. Note: This has been disputed by multiple 3rd parties who believe this is an intended feature of the git binary and does not pose a security risk.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:2.39.5-0+deb12u3",
+            "bookworm-security": "1:2.39.5-0+deb12u2"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:2.53.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:2.55.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:2.47.3-0+deb13u1"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    },
+    "CVE-2024-52005": {
+      "description": "Git is a source code management tool. When cloning from a server (or fetching, or pushing), informational or error messages are transported from the remote Git process to the client via the so-called \"sideband channel\". These messages will be prefixed with \"remote:\" and printed directly to the standard error output. Typically, this standard error output is connected to a terminal that understands ANSI escape sequences, which Git did not protect against. Most modern terminals support control sequences that can be used by a malicious actor to hide and misrepresent information, or to mislead the user into executing untrusted scripts. As requested on the git-security mailing list, the patches are under discussion on the public mailing list. Users are advised to update as soon as possible. Users unable to upgrade should avoid recursive clones unless they are from trusted sources.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:2.39.5-0+deb12u3",
+            "bookworm-security": "1:2.39.5-0+deb12u2"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:2.53.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:2.55.0-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:2.47.3-0+deb13u1"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    }
+  },
+  "gitsign": {
+    "CVE-2026-44309": {
+      "description": "Gitsign is a keyless Sigstore to signing tool for Git commits with your a GitHub / OIDC identity. Prior to 0.16.0, gitsign verify and gitsign verify-tag re-encode commit/tag objects through go-git's EncodeWithoutSignature before checking the signature, instead of verifying against the raw git object bytes. For malformed objects with duplicate tree headers, git-core and go-git parse different trees: git-core uses the first, go-git uses the second. A signature crafted over the go-git-normalized form (second tree) passes gitsign verify while git-core resolves the commit to a completely different tree. This breaks the invariant that a verified signature, the commit semantics git-core presents to users, and the object hash logged in Rekor all refer to the same content. This vulnerability is fixed in 0.16.0.",
+      "debianbug": 1136789,
+      "scope": "local",
+      "releases": {
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "0.16.1-3"
+          },
+          "fixed_version": "0.16.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "0.16.1-3"
+          },
+          "fixed_version": "0.16.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "0.13.0-2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    },
+    "CVE-2026-44310": {
+      "description": "Gitsign is a keyless Sigstore to signing tool for Git commits with your a GitHub / OIDC identity. From 0.4.0 to before 0.15.0, CertVerifier.Verify() in pkg/git/verifier.go unconditionally dereferences certs[0] after sd.GetCertificates() without checking the slice length. A CMS/PKCS7 signed message with an empty certificate set is a structurally valid DER payload; GetCertificates() returns an empty slice with no error, causing an immediate index-out-of-range panic. On the gitsign --verify code path (the GPG-compatible mode invoked by git verify-commit), the panic is silently recovered by internal/io/streams.go's Wrap() function, which returns nil instead of an error. main.go then exits with code 0, causing exit-code-only verification callers to interpret the failed verification as success. This vulnerability is fixed in 0.15.0.",
+      "debianbug": 1136789,
+      "scope": "local",
+      "releases": {
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "0.16.1-3"
+          },
+          "fixed_version": "0.16.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "0.16.1-3"
+          },
+          "fixed_version": "0.16.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "0.13.0-2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    }
+  },
+  "golang-github-cli-go-gh": {
+    "CVE-2025-48938": {
+      "description": "go-gh is a collection of Go modules to make authoring GitHub CLI extensions easier. A security vulnerability has been identified in versions prior to 2.12.1 where an attacker-controlled GitHub Enterprise Server could result in executing arbitrary commands on a user's machine by replacing HTTP URLs provided by GitHub with local file paths for browsing. In `2.12.1`, `Browser.Browse()` has been enhanced to allow and disallow a variety of scenarios to avoid opening or executing files on the filesystem without unduly impacting HTTP URLs. No known workarounds are available other than upgrading.",
+      "debianbug": 1107084,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.0.0-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1.2.1-2"
+          },
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1.2.1-2"
+          },
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1.2.1-2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    }
+  },
+  "openssh": {
+    "CVE-2007-2243": {
+      "description": "OpenSSH 4.6 and earlier, when ChallengeResponseAuthentication is enabled, allows remote attackers to determine the existence of user accounts by attempting to authenticate via S/KEY, which displays a different response if the user account exists, a similar issue to CVE-2001-1483.",
+      "debianbug": 436571,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:9.2p1-2+deb12u10",
+            "bookworm-security": "1:9.2p1-2+deb12u9"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:10.5p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:10.6p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:10.0p1-7+deb13u4",
+            "trixie-security": "1:10.0p1-7+deb13u2"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    },
+    "CVE-2007-2768": {
+      "description": "OpenSSH, when using OPIE (One-Time Passwords in Everything) for PAM, allows remote attackers to determine the existence of certain user accounts, which displays a different response if the user account exists and is configured to use one-time passwords (OTP), a similar issue to CVE-2007-2243.",
+      "debianbug": 436571,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:9.2p1-2+deb12u10",
+            "bookworm-security": "1:9.2p1-2+deb12u9"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:10.5p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:10.6p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:10.0p1-7+deb13u4",
+            "trixie-security": "1:10.0p1-7+deb13u2"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    },
+    "CVE-2008-3234": {
+      "description": "sshd in OpenSSH 4 on Debian GNU/Linux, and the 20070303 OpenSSH snapshot, allows remote authenticated users to obtain access to arbitrary SELinux roles by appending a :/ (colon slash) sequence, followed by the role name, to the username.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1:9.2p1-2+deb12u10",
+            "bookworm-security": "1:9.2p1-2+deb12u9"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1:10.5p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1:10.6p1-1"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1:10.0p1-7+deb13u4",
+            "trixie-security": "1:10.0p1-7+deb13u2"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    }
+  },
+  "tinyssh": {
+    "CVE-2026-4541": {
+      "description": "A flaw has been found in janmojzis tinyssh up to 20250501. Impacted is an unknown function of the file tinyssh/crypto_sign_ed25519_tinyssh.c of the component Ed25519 Signature Handler. This manipulation causes improper verification of cryptographic signature. The attack is restricted to local execution. The attack's complexity is rated as high. The exploitability is considered difficult. The exploit has been published and may be used. Upgrading to version 20260301 is recommended to address this issue. Patch name: 9c87269607e0d7d20174df742accc49c042cff17. Upgrading the affected component is recommended.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "resolved",
+          "repositories": {
+            "bookworm": "20230101-1"
+          },
+          "fixed_version": "0",
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "20261001-2"
+          },
+          "fixed_version": "20260301-1",
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "20261001-2"
+          },
+          "fixed_version": "20260301-1",
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "20250501-1"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    }
+  },
+  "python-asyncssh": {
+    "CVE-2026-45309": {
+      "description": "AsyncSSH is a Python package which provides an asynchronous client and server implementation of the SSHv2 protocol on top of the Python asyncio framework. Prior to 2.23.0, AsyncSSH expands the OpenSSH-compatible AuthorizedKeysFile %u token in asyncssh/config.py, asyncssh/connection.py, asyncssh/auth_keys.py, and asyncssh/misc.py with the raw SSH username during pre-authentication server config reload, allowing a server configured with AuthorizedKeysFile authorized_keys/%u to read an authorized-keys file outside the intended directory when the SSH username contains /, \\, or .. path traversal segments and authenticate with an attacker-selected key file. This issue is fixed in version 2.23.0.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "2.10.1-2+deb12u2",
+            "bookworm-security": "2.10.1-2+deb12u1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "2.24.0-2"
+          },
+          "fixed_version": "2.23.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "2.24.0-2"
+          },
+          "fixed_version": "2.23.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.20.0-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    },
+    "CVE-2026-54591": {
+      "description": "AsyncSSH is a Python package which provides an asynchronous client and server implementation of the SSHv2 protocol on top of the Python asyncio framework. Prior to 2.23.1, a malicious SSH server can write arbitrary files on the asyncssh SCP client's filesystem by sending filenames containing ../ traversal sequences because _parse_cd_args in scp.py returns server-provided names verbatim and _recv_files joins them to the destination path without enforcing the target directory boundary. This issue is fixed in version 2.23.1.",
+      "debianbug": 1141818,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "2.10.1-2+deb12u2",
+            "bookworm-security": "2.10.1-2+deb12u1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "2.24.0-2"
+          },
+          "fixed_version": "2.24.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "2.24.0-2"
+          },
+          "fixed_version": "2.24.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.20.0-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    },
+    "CVE-2026-62949": {
+      "description": "AsyncSSH is a Python package which provides an asynchronous client and server implementation of the SSHv2 protocol on top of the Python asyncio framework. Prior to 2.24.0, _process_channel_open and _process_channel_open_confirmation in asyncssh/connection.py accept a peer-supplied send_pktsize value of zero. When channel data reaches SSHChannel._flush_send_buf in asyncssh/channel.py, the zero value causes each loop iteration to slice and remove zero bytes without reducing the send window, leaving the synchronous loop permanently true with no await point. A malicious SSH server can trigger the client path through SSH_MSG_CHANNEL_OPEN_CONFIRMATION before the first channel write, while an authenticated client can trigger the server path through SSH_MSG_CHANNEL_OPEN and freeze every current and future connection handled by the process. This vulnerability is fixed in 2.24.0.",
+      "debianbug": 1148448,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "2.10.1-2+deb12u2",
+            "bookworm-security": "2.10.1-2+deb12u1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "2.24.0-2"
+          },
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "2.24.0-2"
+          },
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.20.0-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    }
+  },
+  "python3.13": {
+    "CVE-2025-12781": {
+      "description": "When passing data to the b64decode(), standard_b64decode(), and urlsafe_b64decode() functions in the \"base64\" module the characters \"+/\" will always be accepted, regardless of the value of \"altchars\" parameter, typically used to establish an \"alternative base64 alphabet\" such as the URL safe alphabet. This behavior matches what is recommended in earlier base64 RFCs, but newer RFCs now recommend either dropping characters outside the specified base64 alphabet or raising an error. The old behavior has the possibility of causing data integrity issues.     This behavior can only be insecure if your application uses an alternate base64 alphabet (without \"+/\"). If your application does not use the \"altchars\" parameter or the urlsafe_b64decode() function, then your application does not use an alternative base64 alphabet.     The attached patches DOES NOT make the base64-decode behavior raise an error, as this would be a change in behavior and break existing programs. Instead, the patch deprecates the behavior which will be replaced with the newly recommended behavior in a future version of Python. Users are recommended to mitigate by verifying user-controlled inputs match the base64  alphabet they are expecting or verify that their application would not be  affected if the b64decode() functions accepted \"+\" or \"/\" outside of altchars.",
+      "scope": "local",
+      "releases": {
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "3.13.5-2+deb13u5"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Not backported to older Python releases due to compat concerns",
+          "nodsa_reason": "ignored"
+        }
+      }
+    },
+    "CVE-2025-15366": {
+      "description": "The imaplib module, when passed a user-controlled command, can have additional commands injected using newlines. Mitigation rejects commands containing control characters.",
+      "scope": "local",
+      "releases": {
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "3.13.5-2+deb13u5"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Not backported to older Python releases due to compat concerns",
+          "nodsa_reason": "ignored"
+        }
+      }
+    },
+    "CVE-2025-15367": {
+      "description": "The poplib module, when passed a user-controlled command, can have additional commands injected using newlines. Mitigation rejects commands containing control characters.",
+      "scope": "local",
+      "releases": {
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "3.13.15-1"
+          },
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "3.13.5-2+deb13u5"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Not backported to older Python releases due to compat concerns",
+          "nodsa_reason": "ignored"
+        }
+      }
+    }
+  },
+  "python-urllib3": {
+    "CVE-2025-66471": {
+      "description": "urllib3 is a user-friendly HTTP client library for Python. Starting in version 1.0 and prior to 2.6.0, the Streaming API improperly handles highly compressed data. urllib3's streaming API is designed for the efficient handling of large HTTP responses by reading the content in chunks, rather than loading the entire response body into memory at once. When streaming a compressed response, urllib3 can perform decoding or decompression based on the HTTP Content-Encoding header (e.g., gzip, deflate, br, or zstd). The library must read compressed data from the network and decompress it until the requested chunk size is met. Any resulting decompressed data that exceeds the requested amount is held in an internal buffer for the next read operation. The decompression logic could cause urllib3 to fully decode a small amount of highly compressed data in a single operation. This can result in excessive resource consumption (high CPU usage and massive memory allocation for the decompressed data.",
+      "debianbug": 1122029,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.26.12-1+deb12u4",
+            "bookworm-security": "1.26.12-1+deb12u4"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Intrusive to backport; requires update for src:brotli for effective fix",
+          "nodsa_reason": "ignored"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "2.8.0-1"
+          },
+          "fixed_version": "2.6.3-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "2.8.0-2"
+          },
+          "fixed_version": "2.6.3-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.3.0-3+deb13u2",
+            "trixie-security": "2.3.0-3+deb13u2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Intrusive to backport; requires update for src:brotli for effective fix",
+          "nodsa_reason": "ignored"
+        }
+      }
+    },
+    "CVE-2026-97687": {
+      "description": "urllib3 is an HTTP client library for Python. From 1.26.0 until 2.8.0, the proxy_ssl_context, proxy_assert_hostname, proxy_assert_fingerprint, ssl_context, cert_reqs, verify_mode, use_forwarding_for_https=True, and CERT_NONE configuration paths fail to remain separated because target-server TLS settings are incorrectly applied to the HTTPS proxy connection. The trigger is that an application uses an HTTPS proxy and configures target-server TLS settings that must remain separate from the proxy TLS handshake, including HTTPS forwarding with target-specific identity or credentials. Applying cert_reqs=CERT_NONE can overwrite proxy_ssl_context.verify_mode in place, and the mutation persists so later connections reusing the same context may connect to the HTTPS proxy without certificate verification. The attack mechanism is that an attacker intercepts and impersonates the HTTPS proxy after the effective proxy policy accepts the attacker's certificate. The impact is that the attacker can observe or modify forwarded traffic or receive a target TLS client certificate, while CONNECT tunneling still preserves the separate end-to-end target TLS connection. This issue is fixed in version 2.8.0.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.26.12-1+deb12u4",
+            "bookworm-security": "1.26.12-1+deb12u4"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "postponed"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "2.8.0-1"
+          },
+          "fixed_version": "2.8.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "2.8.0-2"
+          },
+          "fixed_version": "2.8.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.3.0-3+deb13u2",
+            "trixie-security": "2.3.0-3+deb13u2"
+          },
+          "urgency": "not yet assigned"
+        }
+      }
+    },
+    "CVE-2026-97689": {
+      "description": "urllib3 is an HTTP client library for Python. From 1.10.3 until 2.8.0, the HTTPResponse.read_chunked and HTTPResponse.stream methods can allocate unbounded memory because the streaming chunk parser buffers the chunk-size field until newline or EOF without a length bound. The trigger is that a malicious server returns Transfer-Encoding: chunked followed by a very long run of bytes without a newline. The attack mechanism is that a malicious HTTP server sends a very long unterminated chunk-size line. The impact is that unbounded memory allocation can exhaust the client process. This issue is fixed in version 2.8.0.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.26.12-1+deb12u4",
+            "bookworm-security": "1.26.12-1+deb12u4"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "postponed"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "2.8.0-1"
+          },
+          "fixed_version": "2.8.0-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "2.8.0-2"
+          },
+          "fixed_version": "2.8.0-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "2.3.0-3+deb13u2",
+            "trixie-security": "2.3.0-3+deb13u2"
+          },
+          "urgency": "not yet assigned"
+        }
+      }
+    }
+  },
+  "nginx": {
+    "CVE-2009-4487": {
+      "description": "nginx 0.7.64 writes data to a log file without sanitizing non-printable characters, which might allow remote attackers to modify a window's title, or possibly execute arbitrary commands or overwrite files, via an HTTP request containing an escape sequence for a terminal emulator.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.22.1-9+deb12u9",
+            "bookworm-security": "1.22.1-9+deb12u10"
+          },
+          "urgency": "unimportant"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1.30.4-7"
+          },
+          "urgency": "unimportant"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1.30.4-7"
+          },
+          "urgency": "unimportant"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1.26.3-3+deb13u7",
+            "trixie-security": "1.26.3-3+deb13u9"
+          },
+          "urgency": "unimportant"
+        }
+      }
+    },
+    "CVE-2013-0337": {
+      "description": "The default configuration of nginx, possibly 1.3.13 and earlier, uses world-readable permissions for the (1) access.log and (2) error.log files, which allows local users to obtain sensitive information by reading the files.",
+      "debianbug": 701112,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "1.22.1-9+deb12u9",
+            "bookworm-security": "1.22.1-9+deb12u10"
+          },
+          "urgency": "low",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "ignored"
+        },
+        "forky": {
+          "status": "open",
+          "repositories": {
+            "forky": "1.30.4-7"
+          },
+          "urgency": "low"
+        },
+        "sid": {
+          "status": "open",
+          "repositories": {
+            "sid": "1.30.4-7"
+          },
+          "urgency": "low"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "1.26.3-3+deb13u7",
+            "trixie-security": "1.26.3-3+deb13u9"
+          },
+          "urgency": "low",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "ignored"
+        }
+      }
+    }
+  },
+  "libnginx-mod-js": {
+    "CVE-2026-78222": {
+      "description": "A vulnerability exists in NGINX JavaScript where a malformed HTTP response received by ngx.fetch() can crash an NGINX worker when trusted JavaScript reads Response.statusText. Exploitation requires control or influence over the fetched HTTP response.  Impact: This vulnerability may allow remote attackers to cause a denial-of-service (DoS) on the NGINX system. There is no control plane exposure; this is a data plane issue only.     Note: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "0.7.9-2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "postponed"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "1.0.1-1"
+          },
+          "fixed_version": "1.0.1-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "1.0.1-1"
+          },
+          "fixed_version": "1.0.1-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "0.8.9-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    },
+    "CVE-2026-78689": {
+      "description": "Description   NGINX JavaScript (njs) has a vulnerability in the XML module's namespace prefix list parser, reachable through the xml.exclusiveC14n() method. An unauthenticated remote attacker can trigger it when an affected NGINX configuration passes an externally controlled XML namespace prefix list to that method. Both the njs and the QuickJS (qjs) engines are affected. A crafted prefix list causes an out-of-bounds write past the end of a heap allocation. With the njs engine, which is the engine used when the js_engine directive is absent, this corrupts adjacent objects and crashes the NGINX worker. With the QuickJS engine, the same call additionally leaks the prefix list on every invocation, causing worker memory to grow across requests. The official nginxinc/nginx-saml reference implementation is affected during SAML signature verification. It reads InclusiveNamespaces/@PrefixList from an untrusted SAML message and passes it to xml.exclusiveC14n() before the signature has been verified, so a valid SAML signature is not required. A crafted SAML Response, Assertion, LogoutRequest, or LogoutResponse is sufficient. Code execution has not been demonstrated and cannot be ruled out for all platforms, as the effect of the out-of-bounds write depends on conditions beyond the attacker's control.            Impact   This vulnerability allows remote attackers to cause a denial of service on the NGINX system, either through repeatable worker restarts or through worker memory growth or possibly trigger code execution. There is no control plane exposure; this is a data plane issue only.       Note: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "open",
+          "repositories": {
+            "bookworm": "0.7.9-2"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": "postponed"
+        },
+        "forky": {
+          "status": "resolved",
+          "repositories": {
+            "forky": "1.0.1-1"
+          },
+          "fixed_version": "1.0.1-1",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "1.0.1-1"
+          },
+          "fixed_version": "1.0.1-1",
+          "urgency": "not yet assigned"
+        },
+        "trixie": {
+          "status": "open",
+          "repositories": {
+            "trixie": "0.8.9-1"
+          },
+          "urgency": "not yet assigned",
+          "nodsa": "Minor issue",
+          "nodsa_reason": ""
+        }
+      }
+    }
+  }
+}

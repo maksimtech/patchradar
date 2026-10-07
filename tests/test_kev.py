@@ -126,22 +126,41 @@ async def test_ransomware_known_is_true():
     assert entry["kev_ransomware"] is True
 
 
+# ── an entry without a usable id ─────────────────────────────────────────────
+# CISA has never published one, so the catalogue below is derived from the
+# recording rather than recorded: `kev_sample_unusable_ids.json` is
+# `kev_sample.json` with three `cveID`s spoiled, and its `_derived` key says
+# which and how.
+
+UNUSABLE_IDS = json.loads(
+    (pathlib.Path(__file__).parent / "fixtures" / "kev_sample_unusable_ids.json").read_text(encoding="utf-8")
+)
+
+
+def test_the_derived_catalogue_differs_from_the_recording_only_where_it_says():
+    derived = json.loads(json.dumps(UNUSABLE_IDS))
+    assert "CVE-2015-2590" in derived.pop("_derived")
+    entries = {e["vendorProject"] + " " + e["product"] + " " + e["dateAdded"]: e
+               for e in derived["vulnerabilities"]}
+    entries["Oracle Java SE 2022-03-03"]["cveID"] = "CVE-2015-2590"
+    entries["Adobe Acrobat and Reader 2021-11-03"]["cveID"] = "CVE-2021-21017"
+    entries["Broadcom VMware vCenter 2026-08-18"]["cveID"] = "CVE-2026-59310"
+    # The key order of the restored entry is not part of the comparison.
+    assert derived == FIXTURE
+
+
 def test_an_entry_without_a_cve_id_is_dropped():
     """An entry with no `cveID` became a record with id '' — the database's
     primary key, colliding with every other id-less record. NVD and MSRC drop
     theirs; KEV has to do the same."""
-    data = {"vulnerabilities": [{"vendorProject": "Acme", "product": "Widget"}]}
-    assert kev.filter_catalogue(data, "acme") == []
+    assert kev.filter_catalogue(UNUSABLE_IDS, "oracle") == []
 
 
 def test_an_entry_with_an_unusable_id_drops_itself_not_its_neighbours():
-    data = {"vulnerabilities": [
-        {"vendorProject": "Acme", "product": "Widget", "cveID": "   "},
-        {"vendorProject": "Acme", "product": "Widget", "cveID": None},
-        {"vendorProject": "Acme", "product": "Widget", "cveID": 2026},
-        {"vendorProject": "Acme", "product": "Widget", "cveID": "CVE-2026-9999"},
-    ]}
-    assert [r["id"] for r in kev.filter_catalogue(data, "acme")] == ["CVE-2026-9999"]
+    """A blank id drops its own entry and leaves the other Adobe one in place;
+    an id that is not a string at all goes the same way."""
+    assert [r["id"] for r in kev.filter_catalogue(UNUSABLE_IDS, "adobe")] == ["CVE-2023-26369"]
+    assert kev.filter_catalogue(UNUSABLE_IDS, "vcenter") == []
 
 
 # ── the shape of a record, shared with the other collectors ──────────────────

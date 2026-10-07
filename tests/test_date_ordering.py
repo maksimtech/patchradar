@@ -160,20 +160,20 @@ async def test_migration_is_idempotent_and_keeps_other_columns():
     assert {r["source"] for r in first} == {"NVD", "MSRC", "Debian"}
 
 
-def test_debian_publication_date_is_not_the_scan_clock():
+def test_debian_publication_date_is_not_the_scan_clock(debian_tracker_excerpt):
     """The Debian value in the table above was `datetime.now()`: the tracker
-    states no publication date, so a CVE from 2014 was "published today" and,
+    states no publication date, so a CVE from 2009 was "published today" and,
     with ORDER BY published_at DESC, sat above the ones that really are new.
-    The KEV collector says why a clock reading is not a date."""
-    data = {"openssl": {"CVE-2014-0160": {
-        "description": "Heartbleed",
-        "releases": {"trixie": {"status": "open", "urgency": "high"}},
-    }}}
+    The KEV collector says why a clock reading is not a date.
+
+    The tracker as recorded on 2026-10-07 (conftest.py): nginx's CVE-2009-4487
+    and CVE-2013-0337 are both still open in trixie."""
     before = datetime.now(UTC) - timedelta(minutes=1)
-    [record] = debian.filter_tracker(data, "openssl", "trixie")
-    published = record["published_at"]
-    if published:
-        assert datetime.fromisoformat(published) < before, published
+    records = {r["id"]: r for r in debian.filter_tracker(debian_tracker_excerpt, "nginx", "trixie")}
+    for cve_id in ("CVE-2009-4487", "CVE-2013-0337"):
+        published = records[cve_id]["published_at"]
+        if published:
+            assert datetime.fromisoformat(published) < before, (cve_id, published)
 
 
 def _assert_naive_values_are_utc():
