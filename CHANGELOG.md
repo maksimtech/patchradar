@@ -95,6 +95,21 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   removed, the refusal weakened to `exit 0`, and the gate moved above the write
   (where it would pass on the old version and tell nobody anything).
 
+### Removed
+
+- **APScheduler is no longer a dependency.** It was declared and never imported:
+  nothing in PatchRadar schedules a scan, and the README promised continuous monitoring
+  with alerts, which it does not do. The README now says what happens — a
+  scan runs when one is started, from the CLI or the web UI, and cron or the Task
+  Scheduler is how to run it on a schedule — and the image no longer installs a package
+  nothing uses. Building the scheduler would be a feature; this only stops promising it.
+- **The product description no longer promises immediacy.** The tagline in
+  `pyproject.toml` (so on PyPI), the image's `org.opencontainers.image.description`
+  label, `patchradar --help` and the package docstring is now "CVE intelligence for
+  your software stack": nothing runs until a scan is started, so the old word in front
+  of it described a product this is not. A test sweeps every tracked file for it, the
+  released entries of this changelog and Windows Defender's own property name excepted.
+
 ### Fixed
 
 - **NVD results are no longer cut at 50 per window.** The collector asked for one page
@@ -132,7 +147,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   rule moved to `patchradar.names` so the CLI can share it without importing the web app.
 - **Smaller ones.** CISA KEV entries without a `cveID` are dropped like NVD's and MSRC's;
   `patchradar debian cve-2026-1234` finds the CVE in lower case; `scan --days 0` is a
-  usage error instead of a `ValueError` traceback.
+  usage error instead of a `ValueError` traceback; `scan --days` beyond 90 says that MSRC
+  stops at 90; `DELETE /api/watchlist/{name}` strips the name as adding does; a CVE that
+  cannot be stored is logged instead of vanishing; an invalid `PATCHRADAR_SCAN_TIMEOUT`
+  falls back to the default with a warning instead of stopping the server from starting
+  (or, at `0`, timing out every scan); NVD's own CVSS metric (`Primary`) is preferred to
+  the CNA's whatever their order in the payload.
 - **Shell scripts are checked out with LF everywhere.** With `core.autocrlf` on Windows
   `wait_for_pypi.sh` came out with CRLF and the suite's seven cases for it failed there,
   together with `bash` resolving to WSL's launcher; `.gitattributes` and the test's own

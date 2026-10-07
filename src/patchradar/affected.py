@@ -38,7 +38,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from patchradar.collectors.nvd import CVSS_METRIC_KEYS
+from patchradar.collectors.nvd import CVSS_METRIC_KEYS, scoring_entry
 from patchradar.cvss import severity_for
 
 # A dotted numeric version, optionally ending in lower-case letters the way
@@ -216,10 +216,9 @@ def _score_of(cve: dict) -> tuple[float | None, str | None, str]:
     if not isinstance(metrics, dict):
         return None, None, "UNKNOWN"
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
-        entry = entries[0]
         # Bound before the check, so the narrowing applies to what is read below.
         raw = entry.get("cvssData")
         data = raw if isinstance(raw, dict) else {}

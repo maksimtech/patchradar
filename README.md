@@ -9,7 +9,9 @@
 
 > Know when your software is vulnerable — before attackers do.
 
-PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerability affects your software stack. No more manually checking NVD, MSRC, or Snyk — just add your software and let PatchRadar watch for you.
+PatchRadar checks the CVE feeds for the software on your watchlist and tells you which vulnerabilities affect it, most urgent first. No more manually checking NVD, MSRC, or Snyk — just add your software and run a scan.
+
+Scans run when you start one — `patchradar scan`, or **Scan** in the web UI. There is no scheduler and no notification inside PatchRadar: to scan on a schedule, run `patchradar scan` from cron or the Windows Task Scheduler.
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)
 ![CalVer](https://img.shields.io/badge/calver-2026.8.2-green?style=flat-square)
@@ -21,7 +23,7 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 
 ## ✨ Features
 
-- 🔍 **Realtime CVE monitoring** — scans NVD, MSRC and Debian Security Tracker for new vulnerabilities
+- 🔍 **On-demand CVE scans** — `patchradar scan` queries NVD, MSRC and CISA KEV; a scan from the web UI (`POST /api/scan`) also queries the Debian Security Tracker
 - 🎯 **Ranked by what is actually a threat** — CISA KEV for observed exploitation, FIRST EPSS for the 30-day forecast, CVSS only to break the tie
 - 📋 **Personal watchlist** — add any software you want to monitor
 - 🎨 **Beautiful web UI** — dark theme dashboard with charts and filters

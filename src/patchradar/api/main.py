@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import logging
+import math
 import os
 import re
 from contextlib import asynccontextmanager
@@ -30,7 +31,30 @@ API_KEY_ENV = "PATCHRADAR_API_KEY"
 API_KEY_HEADER = "X-API-Key"
 SCAN_TIMEOUT_ENV = "PATCHRADAR_SCAN_TIMEOUT"
 DEFAULT_SCAN_TIMEOUT = 600.0
-SCAN_TIMEOUT_SECONDS = float(os.environ.get(SCAN_TIMEOUT_ENV) or DEFAULT_SCAN_TIMEOUT)
+
+
+def scan_timeout_from_env() -> float:
+    """The scan deadline in seconds, or the default when the setting is not one.
+
+    A value that was not a number ended the import of this module — the server
+    did not start, with a ValueError about float() — and "0" or a negative one
+    timed every scan out before its first request. Both now fall back, saying so.
+    """
+    raw = os.environ.get(SCAN_TIMEOUT_ENV)
+    if not raw:
+        return DEFAULT_SCAN_TIMEOUT
+    try:
+        seconds = float(raw)
+    except ValueError:
+        seconds = math.nan
+    if not math.isfinite(seconds) or seconds <= 0:
+        logger.warning("%s=%r is not a positive number of seconds; using %ss",
+                       SCAN_TIMEOUT_ENV, raw, DEFAULT_SCAN_TIMEOUT)
+        return DEFAULT_SCAN_TIMEOUT
+    return seconds
+
+
+SCAN_TIMEOUT_SECONDS = scan_timeout_from_env()
 
 _api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
@@ -234,8 +258,11 @@ async def api_add(
                403: {"description": "Cross-site request refused"}},
 )
 async def api_remove(software: str = Path(..., min_length=1, max_length=200)):
-    removed = await remove_from_watchlist(software)
-    return {"removed": removed, "software": software}
+    # The canonical form the add routes store: " nginx " added "nginx", and
+    # removing " nginx " looked for a name that was never there.
+    name = software.strip().lower()
+    removed = await remove_from_watchlist(name)
+    return {"removed": removed, "software": name}
 
 @app.get("/api/cves")
 async def api_cves(software: str = Query(None, min_length=1, max_length=100), limit: int = Query(50, ge=1, le=200)):

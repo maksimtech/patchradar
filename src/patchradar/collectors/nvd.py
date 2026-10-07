@@ -33,6 +33,22 @@ def _extract_description(cve: dict) -> str:
     return ""
 
 
+def scoring_entry(entries: object) -> dict | None:
+    """The metric a score is read from: NVD's own when there is one.
+
+    A CVE can carry the same CVSS version twice, NVD's assessment ("type":
+    "Primary") and the CNA's ("Secondary"), and the API does not promise their
+    order — taking the first made the score depend on it. NVD's is preferred
+    because it is the one assessed for every CVE by the same body; the CNA's is
+    used when NVD has not scored it, which is the common case for new CVEs.
+    """
+    if not isinstance(entries, list):
+        return None
+    usable = [entry for entry in entries if isinstance(entry, dict)]
+    return next((entry for entry in usable if entry.get("type") == "Primary"),
+                usable[0] if usable else None)
+
+
 def _extract_metrics(cve: dict) -> tuple[float | None, str | None, str]:
     """(score, cvss_version, severity), degrading to UNKNOWN on any oddity."""
     metrics = cve.get("metrics")
@@ -40,11 +56,8 @@ def _extract_metrics(cve: dict) -> tuple[float | None, str | None, str]:
         return None, None, "UNKNOWN"
 
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries:
-            continue
-        entry = entries[0]
-        if not isinstance(entry, dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
         cvss_data = entry.get("cvssData")
         if not isinstance(cvss_data, dict):
@@ -82,10 +95,10 @@ def _extract_confidentiality(cve: dict) -> str | None:
     if not isinstance(metrics, dict):
         return None
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
-        cvss_data = entries[0].get("cvssData")
+        cvss_data = entry.get("cvssData")
         if not isinstance(cvss_data, dict):
             return None
         value = cvss_data.get("confidentialityImpact") or cvss_data.get("vulnConfidentialityImpact")

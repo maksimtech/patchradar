@@ -205,6 +205,25 @@ async def test_completed_scan_is_not_flagged_timed_out(client):
     assert body["scanned"] == len(WATCHED)
 
 
+@pytest.mark.parametrize("raw, expected", [
+    (None, api.DEFAULT_SCAN_TIMEOUT),
+    ("", api.DEFAULT_SCAN_TIMEOUT),
+    ("120", 120.0),
+    ("2.5", 2.5),
+    ("ten minutes", api.DEFAULT_SCAN_TIMEOUT),   # was a ValueError at import: no server
+    ("0", api.DEFAULT_SCAN_TIMEOUT),             # was every scan timed out at once
+    ("-5", api.DEFAULT_SCAN_TIMEOUT),
+    ("nan", api.DEFAULT_SCAN_TIMEOUT),
+    ("inf", api.DEFAULT_SCAN_TIMEOUT),
+])
+def test_the_deadline_setting_falls_back_on_values_that_are_not_a_deadline(monkeypatch, raw, expected):
+    if raw is None:
+        monkeypatch.delenv(api.SCAN_TIMEOUT_ENV, raising=False)
+    else:
+        monkeypatch.setenv(api.SCAN_TIMEOUT_ENV, raw)
+    assert api.scan_timeout_from_env() == expected
+
+
 # ─── API key ─────────────────────────────────────────────────────────────────
 
 PROTECTED = [

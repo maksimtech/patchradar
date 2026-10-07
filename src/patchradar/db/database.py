@@ -216,7 +216,12 @@ async def save_cve(cve: dict) -> bool:
             ))
             await db.commit()
             return cursor.rowcount > 0
-        except Exception:
+        except Exception as exc:
+            # Still False rather than a raise, so one bad record cannot end a
+            # scan — but said: no caller reads the return value, and a CVE lost
+            # to "database is locked" or a malformed record left no trace.
+            logger.warning("could not store %s: %s", cve.get("id", "<no id>"), exc)
+            logger.debug("save_cve failure", exc_info=True)
             return False
 
 async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:

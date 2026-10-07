@@ -248,3 +248,17 @@ async def test_after_the_migration_removal_keeps_a_cve_another_product_still_nee
     # the link that was just removed.
     await database.init_db()
     assert await database.get_cves(software="openssl") == []
+
+
+# ─── a row that cannot be stored ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_a_cve_that_cannot_be_stored_is_logged_not_swallowed(caplog):
+    """`save_cve` returns False and no caller reads it: without a log line the
+    lost record (a locked database, a malformed record) leaves no trace — the
+    silence this file's docstring describes."""
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="patchradar.db.database"):
+        assert await database.save_cve({"id": "CVE-2026-0001", "software": "x"}) is False
+    assert "CVE-2026-0001" in caplog.text

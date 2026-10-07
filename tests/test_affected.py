@@ -25,6 +25,7 @@ from __future__ import annotations
 import pytest
 
 from patchradar.affected import Hit, Range, affects, ranges_in, summarise, target_version
+from patchradar.collectors import nvd
 
 VENDOR = "notepad-plus-plus"
 # The product field as NVD really writes it. CPE 2.3 requires the special
@@ -229,6 +230,32 @@ def test_the_worst_comes_first_and_the_unscored_last():
                    cve("CVE-HIGH", match(version="*"), score=9.1))
     order = [h.cve for h in affects(data, version="1.0", vendor=VENDOR, cpe_product=PRODUCT)]
     assert order == ["CVE-HIGH", "CVE-LOW", "CVE-NONE"]
+
+
+def _metric(score: float, kind: str, source: str) -> dict:
+    return {"source": source, "type": kind,
+            "cvssData": {"version": "3.1", "baseScore": score, "baseSeverity": "X",
+                         "confidentialityImpact": "HIGH" if score > 8 else "LOW"},
+            "baseSeverity": "CRITICAL" if score > 8 else "HIGH"}
+
+
+def test_nvd_s_own_primary_score_is_preferred_whatever_the_order():
+    """NVD does not promise the order of `cvssMetricV31`: with the CNA's entry
+    (Secondary) before NVD's (Primary) the score depended on that order — and
+    the collector and this module must read the same one."""
+    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example"),
+                                 _metric(7.5, "Primary", "nvd@nist.gov")]}
+    assert nvd._extract_metrics({"metrics": metrics}) == (7.5, "3.1", "HIGH")
+    assert nvd._extract_confidentiality({"metrics": metrics}) == "LOW"
+    item = cve("CVE-2026-0002", match(versionEndExcluding="2.0"))
+    item["cve"]["metrics"] = metrics
+    [hit] = affects(payload(item), version="1.0", vendor=VENDOR, cpe_product=PRODUCT)
+    assert hit.score == 7.5
+
+
+def test_the_cna_score_is_used_when_nvd_has_none():
+    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example")]}
+    assert nvd._extract_metrics({"metrics": metrics})[0] == 9.8
 
 
 # ── where to go ─────────────────────────────────────────────────────────────

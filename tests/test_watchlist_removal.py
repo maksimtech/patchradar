@@ -201,3 +201,16 @@ async def test_stats_count_a_shared_cve_for_every_product(client):
 
     assert stats["total_cves"] == 1
     assert stats["by_software"] == {"nginx": 1, "openssl": 1}
+
+
+@pytest.mark.asyncio
+async def test_api_delete_strips_the_name_like_the_add_does(client, monkeypatch):
+    """Adding " nginx " stored "nginx", and removing " nginx " looked for a name
+    that was never there."""
+    monkeypatch.delenv(api.API_KEY_ENV, raising=False)
+    await add_to_watchlist("nginx")
+
+    r = await client.delete("/api/watchlist/%20nginx%20")
+
+    assert r.json() == {"removed": True, "software": "nginx"}
+    assert await get_watchlist() == []

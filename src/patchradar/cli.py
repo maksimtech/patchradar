@@ -19,6 +19,7 @@ from patchradar.collectors.debian import get_tracker_snapshot
 from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import SOURCE as kev_source
 from patchradar.collectors.kev import fetch_cves as kev_fetch
+from patchradar.collectors.msrc import MAX_DAYS_BACK as msrc_max_days
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
@@ -69,7 +70,7 @@ enable_utf8_output()
 
 app = typer.Typer(
     name="patchradar",
-    help="Realtime CVE intelligence for your software stack 🛡️",
+    help="CVE intelligence for your software stack 🛡️",
     add_completion=False,
 )
 console = Console()
@@ -459,6 +460,10 @@ def scan(
         console.print(f"\n Total: [bold]{total}[/bold] CVEs found\n")
         # After the total, because it is the total it qualifies.
         _report_silent_sources(failures, list(targets))
+        if days > msrc_max_days:
+            # The collector caps its window without a word, so `--days 365`
+            # looked like a year of Patch Tuesdays and was three months of them.
+            console.print(f"ℹ️  MSRC covers the last {msrc_max_days} days only, not {days}.")
         _print_law_check(_law_check(cves))
     run(_scan())
 
