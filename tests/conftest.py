@@ -1,5 +1,7 @@
 """Shared test fixtures."""
 import asyncio
+import json
+import pathlib
 import time
 
 import aiosqlite
@@ -168,3 +170,17 @@ def unreachable_network(monkeypatch):
     for name in ("NO_PROXY", "no_proxy"):
         monkeypatch.delenv(name, raising=False)
 
+
+@pytest.fixture
+def debian_tracker_excerpt() -> dict:
+    """Ten source packages of the real Debian tracker dump, entries verbatim.
+
+    `tests/fixtures/debian_tracker_excerpt.json` says in its `_derived` key what
+    was kept of the 82 MB recorded on 2026-10-07, and that nothing was changed.
+    The note is taken off here, where the collector would otherwise read it as
+    an eleventh package; a fresh copy per test, since the parsers get to keep it.
+    """
+    path = pathlib.Path(__file__).parent / "fixtures" / "debian_tracker_excerpt.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert "verbatim" in data.pop("_derived")
+    return data

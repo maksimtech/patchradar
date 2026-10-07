@@ -346,19 +346,21 @@ def test_the_urgency_and_the_installed_version_travel_with_it():
 
 
 # ── how the CVE is written ──────────────────────────────────────────────────
+# On the tracker as recorded on 2026-10-07 (`debian_tracker_excerpt` in
+# conftest.py), not on a hand-made one: nginx's CVE-2013-0337 is open in trixie,
+# and Debian has decided not to issue an update for it.
 
-def test_a_lower_case_cve_id_is_found():
-    """`patchradar debian cve-2026-5555` must find the CVE as the upper-case id
+def test_a_lower_case_cve_id_is_found(debian_tracker_excerpt):
+    """`patchradar debian cve-2013-0337` must find the CVE as the upper-case id
     does — KEV and EPSS already normalise it; it answered 'untracked'."""
-    data = tracker(attr={"CVE-2026-5555": entry({"trixie": release("open", urgency="low")})})
-    [standing] = standings(data, "cve-2026-5555", release=TRIXIE)
+    [standing] = standings(debian_tracker_excerpt, "cve-2013-0337", release=TRIXIE)
     assert standing.position is not Position.UNTRACKED
+    assert standing.package == "nginx"
 
 
-def test_the_standing_reports_the_canonical_id():
+def test_the_standing_reports_the_canonical_id(debian_tracker_excerpt):
     """Spaces around a pasted id must not mean 'untracked' either, and the
     result names the id the way the tracker writes it."""
-    data = tracker(attr={"CVE-2026-5555": entry({"trixie": release("open", urgency="low")})})
-    [standing] = standings(data, "  cve-2026-5555\n", release=TRIXIE)
-    assert standing.cve == "CVE-2026-5555"
+    [standing] = standings(debian_tracker_excerpt, "  cve-2013-0337\n", release=TRIXIE)
+    assert standing.cve == "CVE-2013-0337"
     assert standing.position is not Position.UNTRACKED
