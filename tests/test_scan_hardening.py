@@ -9,6 +9,8 @@ Three separate defects on one endpoint:
 * the endpoint was unauthenticated while the Docker image binds 0.0.0.0.
 """
 import asyncio
+import json
+import pathlib
 
 import httpx
 import pytest
@@ -17,6 +19,7 @@ from httpx import ASGITransport, AsyncClient
 
 import patchradar.api.main as api
 import patchradar.collectors.debian as debian
+from patchradar.collectors import kev, nvd
 from patchradar.db import database
 
 DEBIAN_URL = "https://security-tracker.debian.org/tracker/data/json"
@@ -337,12 +340,11 @@ async def empty_database():
     await database.init_db()
 
 
-async def _write(method: str, path: str, headers: dict, monkeypatch) -> httpx.Response:
-    async def nothing(sw, *args, **kwargs):
-        return []
+# The tests below run with no upstream reachable (`unreachable_network`): a write
+# that is refused never scans, and a scan that the guard wrongly let through
+# would meet failing sources and answer 200 — never a 403, never the internet.
 
-    for name in ("nvd_fetch", "kev_fetch", "msrc_fetch", "debian_fetch"):
-        monkeypatch.setattr(api, name, nothing)
+async def _write(method: str, path: str, headers: dict) -> httpx.Response:
     async with AsyncClient(transport=ASGITransport(app=api.app),
                            base_url="http://localhost:8000") as ac:
         return await ac.request(method, path, headers=headers)
@@ -364,35 +366,35 @@ async def test_a_cross_origin_post_cannot_modify_the_watchlist_when_no_key_is_se
     ("POST", "/api/watchlist/evilsoftware"),
     ("DELETE", "/api/watchlist/nginx"),
 ])
-async def test_a_browser_write_from_another_site_is_refused(empty_database, monkeypatch, method, path):
+async def test_a_browser_write_from_another_site_is_refused(empty_database, unreachable_network, method, path):
     """Fetch Metadata: a modern browser states where the request comes from."""
     await database.add_to_watchlist("nginx")
     r = await _write(method, path, {"Origin": "https://evil.example",
-                                    "Sec-Fetch-Site": "cross-site"}, monkeypatch)
+                                    "Sec-Fetch-Site": "cross-site"})
     assert r.status_code == 403
     assert sorted(await database.get_watchlist()) == ["nginx"]
 
 
 @pytest.mark.asyncio
-async def test_the_bundled_ui_can_still_write(empty_database, monkeypatch):
+async def test_the_bundled_ui_can_still_write(empty_database, unreachable_network):
     """The UI PatchRadar serves itself: same-origin, with Origin equal to the host."""
     r = await _write("POST", "/api/watchlist/nginx", {
         "Origin": "http://localhost:8000", "Sec-Fetch-Site": "same-origin",
-        "Content-Type": "application/json"}, monkeypatch)
+        "Content-Type": "application/json"})
     assert r.status_code == 200
     assert await database.get_watchlist() == ["nginx"]
 
 
 @pytest.mark.asyncio
-async def test_a_browser_without_fetch_metadata_is_judged_by_its_origin(empty_database, monkeypatch):
-    r = await _write("POST", "/api/watchlist/nginx", {"Origin": "http://localhost:8000"}, monkeypatch)
+async def test_a_browser_without_fetch_metadata_is_judged_by_its_origin(empty_database, unreachable_network):
+    r = await _write("POST", "/api/watchlist/nginx", {"Origin": "http://localhost:8000"})
     assert r.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_a_client_that_is_not_a_browser_is_unaffected(empty_database, monkeypatch):
+async def test_a_client_that_is_not_a_browser_is_unaffected(empty_database, unreachable_network):
     """curl, scripts, the CLI: no Origin and no Sec-Fetch-Site, so no CSRF is possible."""
-    r = await _write("POST", "/api/scan", {}, monkeypatch)
+    r = await _write("POST", "/api/scan", {})
     assert r.status_code == 200
 
 
@@ -407,33 +409,44 @@ def test_every_write_route_carries_the_origin_guard():
 
 
 # ─── Counting ────────────────────────────────────────────────────────────────
+# Two real answers that share a CVE. CISA's catalogue (`kev_sample.json`, version
+# 2026.09.25, see tests/test_kev.py) lists CVE-2026-59310 in VMware vCenter, and
+# NVD answered keywordSearch=vcenter&pubStartDate=2026-07-30T00:00:00.000&
+# pubEndDate=2026-07-30T23:59:59.999&resultsPerPage=2000&startIndex=0 with it and
+# CVE-2026-59309 when recorded on 2026-10-07 (`nvd_vcenter_2026_07_30.json`). The
+# scan asks NVD about the week before its own clock, so the route answers by
+# keyword. MSRC and Debian go to the network, which is unreachable: they fail,
+# as the response says, and count nothing.
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def _recorded(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
 
 @pytest.mark.asyncio
-async def test_the_scan_counts_each_cve_once_across_sources(empty_database, monkeypatch):
+async def test_the_scan_counts_each_cve_once_across_sources(empty_database, unreachable_network):
     """A CVE that NVD and CISA KEV both report is one CVE, as `patchradar scan`
-    counts it with merge_by_cve; `_scan_one` added up every source and said 2."""
-    def record(cve_id, software, source):
-        return {"id": cve_id, "software": software, "description": "d", "cvss_score": 7.5,
-                "cvss_version": "3.1", "severity": "HIGH", "published_at": "2026-09-01T00:00:00",
-                "source": source, "url": "https://example.invalid"}
+    counts it with merge_by_cve; `_scan_one` added up every source and said 3."""
+    kev.clear_cache()   # this test is about a catalogue, not the suite's empty one
+    await database.add_to_watchlist("vcenter")
+    # respx at the httpx layer: its pass-through at the httpcore layer, the
+    # default, mangles the URL when the request goes through a proxy.
+    with respx.mock(using="httpx") as upstream:
+        upstream.get(kev.KEV_URL).mock(return_value=httpx.Response(200, json=_recorded("kev_sample.json")))
+        upstream.get(nvd.NVD_API, params={"keywordSearch": "vcenter"}).mock(
+            return_value=httpx.Response(200, json=_recorded("nvd_vcenter_2026_07_30.json")))
+        upstream.route(host="api.msrc.microsoft.com").pass_through()
+        upstream.route(host="security-tracker.debian.org").pass_through()
+        upstream.route(host="test").pass_through()   # the app itself, over ASGI
 
-    async def nvd_fake(sw, days_back=7):
-        return [record("CVE-2026-3333", sw, "NVD")]
+        async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
+            r = await ac.post("/api/scan?days=7")
 
-    async def kev_fake(sw, days_back=30):
-        return [record("CVE-2026-3333", sw, "CISA KEV")]
-
-    async def nothing(sw, *args, **kwargs):
-        return []
-
-    monkeypatch.setattr(api, "nvd_fetch", nvd_fake)
-    monkeypatch.setattr(api, "kev_fetch", kev_fake)
-    monkeypatch.setattr(api, "msrc_fetch", nothing)
-    monkeypatch.setattr(api, "debian_fetch", nothing)
-    await database.add_to_watchlist("foo")
-
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
-        r = await ac.post("/api/scan?days=7")
     assert r.status_code == 200
-    assert r.json()["by_software"]["foo"] == 1
-    assert r.json()["total"] == 1
+    assert r.json()["by_software"]["vcenter"] == 2
+    assert r.json()["total"] == 2
+    assert {e["source"] for e in r.json()["errors"]} == {"MSRC", "Debian"}
+    assert sorted(c["id"] for c in await database.get_cves(software="vcenter")) == [
+        "CVE-2026-59309", "CVE-2026-59310"]
