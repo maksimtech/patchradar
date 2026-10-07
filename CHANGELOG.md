@@ -95,8 +95,68 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   removed, the refusal weakened to `exit 0`, and the gate moved above the write
   (where it would pass on the old version and tell nobody anything).
 
+### Removed
+
+- **APScheduler is no longer a dependency.** It was declared and never imported:
+  nothing in PatchRadar schedules a scan, and the README promised continuous monitoring
+  with alerts, which it does not do. The README now says what happens — a
+  scan runs when one is started, from the CLI or the web UI, and cron or the Task
+  Scheduler is how to run it on a schedule — and the image no longer installs a package
+  nothing uses. Building the scheduler would be a feature; this only stops promising it.
+- **The product description no longer promises immediacy.** The tagline in
+  `pyproject.toml` (so on PyPI), the image's `org.opencontainers.image.description`
+  label, `patchradar --help` and the package docstring is now "CVE intelligence for
+  your software stack": nothing runs until a scan is started, so the old word in front
+  of it described a product this is not. A test sweeps every tracked file for it, the
+  released entries of this changelog and Windows Defender's own property name excepted.
+
 ### Fixed
 
+- **NVD results are no longer cut at 50 per window.** The collector asked for one page
+  of `resultsPerPage=50` and ignored `totalResults`, so a keyword with more CVEs than
+  that in a window — "linux", "chrome", "windows" — came back with the first 50 and a
+  count that looked complete. Pages are now followed with `startIndex` until
+  `totalResults`, at NVD's maximum of 2000 per page, and every page after the first
+  request is paced like a window. A page that fails hands back the earlier ones as
+  `partial`, and an empty page before the stated total is reported, not taken as the end.
+- **A CVE that concerns two watched products belongs to both.** `cves.id` was the only
+  key, so a CVE found for openssl and then for nginx stayed openssl's: invisible under
+  nginx, and deleted when openssl was removed although nginx was still watched. The
+  links now live in a `cve_software` table, filled from the existing rows by `init_db`
+  — an existing database keeps every row and gains the table, nothing is rebuilt — and
+  removing a product deletes a CVE only when no other product is linked to it.
+  `/api/stats` counts a shared CVE once in the total and once per product.
+- **`/api/scan` counts each CVE once.** It added up what every source returned, so a CVE
+  from NVD and CISA KEV was two, and the HTTP scan and `patchradar scan` gave different
+  totals for one machine. It now merges by CVE first, as the CLI does.
+- **Adjacent NVD windows no longer ask for the same day twice.** A request covers whole
+  days, and the window after another started on the day the previous one ended.
+- **Debian CVEs are no longer "published" at scan time.** The tracker states no date and
+  the collector used `now()`, which put a 2014 CVE at the top of every newest-first list.
+  The date is now left empty, as it is for any source that does not state one.
+- **The Debian match is on words of the package name, not substrings.** "git" no longer
+  collects python-digitalocean's CVEs, nor "ssh" those of libssh; "python" still finds
+  python3.13.
+- **Versions compare across component counts within a scheme, and OpenSSL's lettered
+  releases compare at all.** `8.9` against a fix in `8.9.6.4`, and `1.1.1t` against a fix
+  in `1.1.1u`, both answered "not affected". Versions sharing a major number are now
+  padded and compared, and a trailing lower-case letter orders as OpenSSL released them;
+  other suffixes (`-rc1`, `b1`) are still not compared, as before.
+- **`patchradar add` validates and normalises like the API.** `add "  Proxmox  "` stored
+  the spaces, beside the `proxmox` the API stores, and a multi-line name was accepted. The
+  rule moved to `patchradar.names` so the CLI can share it without importing the web app.
+- **Smaller ones.** CISA KEV entries without a `cveID` are dropped like NVD's and MSRC's;
+  `patchradar debian cve-2026-1234` finds the CVE in lower case; `scan --days 0` is a
+  usage error instead of a `ValueError` traceback; `scan --days` beyond 90 says that MSRC
+  stops at 90; `DELETE /api/watchlist/{name}` strips the name as adding does; a CVE that
+  cannot be stored is logged instead of vanishing; an invalid `PATCHRADAR_SCAN_TIMEOUT`
+  falls back to the default with a warning instead of stopping the server from starting
+  (or, at `0`, timing out every scan); NVD's own CVSS metric (`Primary`) is preferred to
+  the CNA's whatever their order in the payload.
+- **Shell scripts are checked out with LF everywhere.** With `core.autocrlf` on Windows
+  `wait_for_pypi.sh` came out with CRLF and the suite's seven cases for it failed there,
+  together with `bash` resolving to WSL's launcher; `.gitattributes` and the test's own
+  choice of bash fix both.
 - **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
   failed on 2026-10-03 with `No matching distribution found` **fifteen seconds after**
   the wait had reported the version available — 16:31:21 against 16:31:36. The poll is
@@ -128,6 +188,22 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   the margin were checked against them: the default set to zero, the wait removed
   while the log still claims it, the log removed while the wait still happens, and the
   guard removed so zero waits anyway.
+
+### Security
+
+- **Cross-site writes are refused.** With no `PATCHRADAR_API_KEY` — the default — any web
+  page the user visited could `POST` to `localhost:8000/api/watchlist/<x>` or
+  `/api/scan`: a request with no body needs no CORS preflight, so the browser sent it and
+  only hid the answer. Every write endpoint now refuses, with 403, a request whose
+  `Sec-Fetch-Site` is not `same-origin` or, from a browser that does not send that header,
+  whose `Origin` is not the server's own. The bundled UI is same-origin and unaffected,
+  and so are clients that are not browsers (curl, scripts), which send neither header.
+- **`docker-compose.yml` publishes the port on 127.0.0.1.** `"8000:8000"` exposed the
+  unauthenticated API to the whole network. The compose file also passes
+  `PATCHRADAR_API_KEY` and `NVD_API_KEY` through from `.env`, and `.env.example`, which was
+  empty, documents both.
+- **A non-ASCII `X-API-Key` is a 401, not a 500.** `hmac.compare_digest` raises on two
+  `str` when either holds a non-ASCII character; the key is now compared as bytes.
 
 
 ## [2026.44] — 2026-10-04

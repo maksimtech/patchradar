@@ -339,6 +339,9 @@ def standings(data: Mapping, cve: str, *, release: str,
     single `untracked` standing, because "no rows" and "Debian has not triaged
     it" read the same at a call site and mean very different things.
     """
+    # The tracker keys CVEs in upper case; `patchradar debian cve-2026-1234`
+    # answered "untracked" for one it carries. KEV and EPSS normalise the same way.
+    cve = cve.strip().upper()
     found = [
         _standing(cve, name, entry, release)
         for name, entries in data.items()

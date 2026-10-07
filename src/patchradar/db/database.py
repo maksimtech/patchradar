@@ -78,6 +78,25 @@ async def _normalize_stored_timestamps(db) -> None:
         await db.executemany("UPDATE cves SET published_at = ? WHERE id = ?", updates)
 
 
+async def _link_stored_cves(db) -> None:
+    """Give every stored CVE a link to the product its row names.
+
+    `cves.id` is the primary key, so a CVE is one row however many watched
+    products it concerns; which products those are lives in `cve_software`.
+    Until 2026.44 only the row's own `software` column said it, and a CVE
+    shared by openssl and nginx belonged to whichever was scanned first:
+    invisible under the other, and deleted with the first one's removal.
+
+    Run on every start, not once: `INSERT OR IGNORE` makes it idempotent, and
+    it links rows written since by anything that does not know the table.
+    `remove_from_watchlist` keeps the column pointing at a product still
+    linked, so this never brings back a link that was taken away.
+    """
+    await db.execute(
+        "INSERT OR IGNORE INTO cve_software (cve_id, software) SELECT id, software FROM cves"
+    )
+
+
 async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
@@ -104,8 +123,16 @@ async def init_db():
                 seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS cve_software (
+                cve_id TEXT NOT NULL,
+                software TEXT NOT NULL,
+                PRIMARY KEY (cve_id, software)
+            )
+        """)
         await _add_missing_columns(db)
         await _normalize_stored_timestamps(db)
+        await _link_stored_cves(db)
         await db.commit()
 
 async def add_to_watchlist(name: str) -> bool:
@@ -135,6 +162,16 @@ async def remove_from_watchlist(name: str) -> bool:
         # that was never on the list.
         if removed:
             await db.execute(
+                "DELETE FROM cve_software WHERE software = ?", (name.lower(),)
+            )
+            # A CVE another product is still linked to stays, and is handed to
+            # that product so the row never names one it no longer belongs to.
+            await db.execute("""
+                UPDATE cves SET software = (
+                    SELECT MIN(software) FROM cve_software WHERE cve_id = cves.id
+                ) WHERE software = ? AND id IN (SELECT cve_id FROM cve_software)
+            """, (name.lower(),))
+            await db.execute(
                 "DELETE FROM cves WHERE software = ?", (name.lower(),)
             )
         await db.commit()
@@ -151,10 +188,17 @@ async def save_cve(cve: dict) -> bool:
     looking exactly like a fresh one. `COALESCE` on the excluded value keeps a
     scan that could not reach FIRST from erasing yesterday's reading with NULL.
 
+    The CVE is also linked to `software`, so one already stored for another
+    product is listed for this one too.
+
     True means a row was written — inserted, or its forecast updated.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         try:
+            await db.execute(
+                "INSERT OR IGNORE INTO cve_software (cve_id, software) VALUES (?, ?)",
+                (cve["id"], cve["software"]),
+            )
             cursor = await db.execute("""
                 INSERT INTO cves
                 (id, software, description, cvss_score, cvss_version,
@@ -172,18 +216,28 @@ async def save_cve(cve: dict) -> bool:
             ))
             await db.commit()
             return cursor.rowcount > 0
-        except Exception:
+        except Exception as exc:
+            # Still False rather than a raise, so one bad record cannot end a
+            # scan — but said: no caller reads the return value, and a CVE lost
+            # to "database is locked" or a malformed record left no trace.
+            logger.warning("could not store %s: %s", cve.get("id", "<no id>"), exc)
+            logger.debug("save_cve failure", exc_info=True)
             return False
 
 async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         if software:
-            async with db.execute(
-                "SELECT * FROM cves WHERE software = ? ORDER BY published_at DESC LIMIT ?",
-                (software.lower(), limit)
-            ) as cursor:
+            # The column as well as the links, so a row written without a link
+            # (by hand, or by an older release after the migration) still shows.
+            async with db.execute("""
+                SELECT * FROM cves
+                WHERE software = ? OR id IN (SELECT cve_id FROM cve_software WHERE software = ?)
+                ORDER BY published_at DESC LIMIT ?
+            """, (software.lower(), software.lower(), limit)) as cursor:
                 rows = await cursor.fetchall()
+            # Named after the product asked about, not the first one to find it.
+            return [{**dict(row), "software": software.lower()} for row in rows]
         else:
             async with db.execute(
                 "SELECT * FROM cves ORDER BY published_at DESC LIMIT ?",

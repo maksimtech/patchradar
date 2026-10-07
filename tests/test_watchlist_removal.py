@@ -137,3 +137,80 @@ async def test_api_delete_of_watched_software_clears_cves(client):
 
     assert r.json()["removed"] is True
     assert await get_cves(software="api-watched") == []
+
+
+# ─── a CVE that two watched products share ───────────────────────────────────
+# `cves.id` was the only key, so the second product to find a CVE was ignored:
+# the CVE was missing from its listing, and removing the first product deleted
+# it although the second was still watched.
+
+@pytest.mark.asyncio
+async def test_a_cve_affecting_two_watched_products_is_listed_for_both():
+    await add_to_watchlist("openssl")
+    await add_to_watchlist("nginx")
+    await save_cve(cve_for("openssl", "CVE-2026-1111"))
+    await save_cve(cve_for("nginx", "CVE-2026-1111"))
+
+    assert "CVE-2026-1111" in [c["id"] for c in await get_cves(software="nginx")]
+
+
+@pytest.mark.asyncio
+async def test_removing_one_product_keeps_the_cves_another_still_needs():
+    await add_to_watchlist("openssl")
+    await add_to_watchlist("nginx")
+    await save_cve(cve_for("openssl", "CVE-2026-2222"))
+    await save_cve(cve_for("nginx", "CVE-2026-2222"))
+
+    await remove_from_watchlist("openssl")
+
+    assert "CVE-2026-2222" in [c["id"] for c in await get_cves()]
+
+
+@pytest.mark.asyncio
+async def test_removing_the_last_product_of_a_cve_still_deletes_it():
+    await add_to_watchlist("openssl")
+    await add_to_watchlist("nginx")
+    await save_cve(cve_for("openssl", "CVE-2026-7778"))
+    await save_cve(cve_for("nginx", "CVE-2026-7778"))
+
+    await remove_from_watchlist("openssl")
+    await remove_from_watchlist("nginx")
+
+    assert await get_cves() == []
+
+
+@pytest.mark.asyncio
+async def test_a_cve_listed_for_a_product_names_that_product():
+    """Filtered by 'nginx', the row says 'nginx', not the first product that
+    happened to find it."""
+    await save_cve(cve_for("openssl", "CVE-2026-7779"))
+    await save_cve(cve_for("nginx", "CVE-2026-7779"))
+
+    [row] = await get_cves(software="nginx")
+
+    assert row["software"] == "nginx"
+
+
+@pytest.mark.asyncio
+async def test_stats_count_a_shared_cve_for_every_product(client):
+    await add_to_watchlist("openssl")
+    await save_cve(cve_for("openssl", "CVE-2026-7780"))
+    await save_cve(cve_for("nginx", "CVE-2026-7780"))
+
+    stats = (await client.get("/api/stats")).json()
+
+    assert stats["total_cves"] == 1
+    assert stats["by_software"] == {"nginx": 1, "openssl": 1}
+
+
+@pytest.mark.asyncio
+async def test_api_delete_strips_the_name_like_the_add_does(client, monkeypatch):
+    """Adding " nginx " stored "nginx", and removing " nginx " looked for a name
+    that was never there."""
+    monkeypatch.delenv(api.API_KEY_ENV, raising=False)
+    await add_to_watchlist("nginx")
+
+    r = await client.delete("/api/watchlist/%20nginx%20")
+
+    assert r.json() == {"removed": True, "software": "nginx"}
+    assert await get_watchlist() == []

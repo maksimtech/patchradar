@@ -22,7 +22,9 @@ from itertools import pairwise
 import httpx
 import pytest
 import respx
+from typer.testing import CliRunner
 
+import patchradar.cli as cli
 from patchradar.collectors import msrc
 from patchradar.collectors.msrc import MONTH_ABBR, _months_in_range, fetch_cves
 
@@ -108,6 +110,22 @@ def test_large_lookback_clamps_to_ninety_days():
 def test_clamped_range_never_exceeds_four_months():
     for month in range(1, 13):
         assert len(_months_in_range(datetime(2026, month, 28), 90)) <= 4
+
+
+def test_the_cli_says_msrc_stops_at_its_limit(monkeypatch):
+    """`scan --days 365` asks MSRC about the last 90 days only, and the clamp
+    above did it without a word: it has to be said."""
+    async def nothing(*args, **kwargs):
+        return []
+
+    for name in ("fetch_cves", "msrc_fetch", "kev_fetch"):
+        monkeypatch.setattr(cli, name, nothing)
+    runner = CliRunner()
+    long_scan = runner.invoke(cli.app, ["scan", "nginx", "--days", "365"])
+    short_scan = runner.invoke(cli.app, ["scan", "nginx", "--days", "30"])
+    assert long_scan.exit_code == 0, long_scan.output
+    assert "MSRC" in long_scan.output and "90 days" in long_scan.output
+    assert "90 days" not in short_scan.output
 
 
 # ─── month names must not depend on the machine's locale (W5) ────────────────

@@ -99,6 +99,24 @@ def test_compose_declares_a_named_volume_for_persistence():
     )
 
 
+# ─── who can reach the published port ────────────────────────────────────────
+
+def test_compose_does_not_publish_an_unauthenticated_api_on_every_interface():
+    """`"8000:8000"` publishes on every interface of the host, the container
+    listens on 0.0.0.0, and without PATCHRADAR_API_KEY the scan and watchlist
+    writes are open to anyone on the network. Expected: a loopback bind, or the
+    key required in the environment."""
+    import yaml
+
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    service = compose["services"]["patchradar"]
+    ports = [str(p) for p in service.get("ports", [])]
+    env = service.get("environment") or {}
+    env_text = str(env) + str(service.get("env_file", ""))
+    loopback_only = all(p.startswith("127.0.0.1:") for p in ports)
+    assert loopback_only or "PATCHRADAR_API_KEY" in env_text
+
+
 # ─── building the image from the source being tested ─────────────────────────
 
 

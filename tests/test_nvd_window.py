@@ -22,7 +22,9 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 
 import pytest
+from typer.testing import CliRunner
 
+import patchradar.cli as cli
 from patchradar.collectors import nvd
 
 
@@ -87,6 +89,33 @@ def test_a_window_of_nothing_is_refused_rather_than_guessed_at(days):
         windows(days)
 
 
+def test_the_cli_refuses_a_window_of_nothing_without_a_traceback(monkeypatch):
+    """`patchradar scan x --days 0` must end in a usage error, not a traceback:
+    the ValueError above is not a CollectorError, and it went through the
+    whole CLI."""
+    async def nothing(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(cli, "msrc_fetch", nothing)
+    monkeypatch.setattr(cli, "kev_fetch", nothing)
+    result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", "0"])
+    assert not isinstance(result.exception, ValueError), repr(result.exception)
+    assert result.exit_code != 0
+
+
+@pytest.mark.parametrize("days", ["0", "-1", "-400"])
+def test_the_cli_refuses_a_window_of_nothing_as_a_usage_error(monkeypatch, days):
+    """A usage error (exit 2, as for any invalid Typer option) before any
+    request: no collector is asked anything."""
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("a collector ran for an invalid --days")
+
+    for name in ("fetch_cves", "msrc_fetch", "kev_fetch"):
+        monkeypatch.setattr(cli, name, must_not_run)
+    result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", days])
+    assert result.exit_code == 2, result.output
+
+
 # --------------------------------------------------------------------------
 # using it
 # --------------------------------------------------------------------------
@@ -142,6 +171,53 @@ async def test_a_short_window_still_makes_one_request(monkeypatch):
     await nvd.fetch_cves("openssl", days_back=7)
 
     assert len(calls) == 1
+
+
+def _sent_windows(calls: list[dict]) -> list[tuple[datetime, datetime]]:
+    return sorted((datetime.fromisoformat(params["pubStartDate"]),
+                   datetime.fromisoformat(params["pubEndDate"])) for params in calls)
+
+
+@pytest.mark.asyncio
+async def test_the_windows_sent_to_nvd_do_not_overlap(monkeypatch):
+    """Adjacent windows must not ask for the same day twice. The request covers
+    whole days, so a window ending at 'D 23:59:59.999' followed by one starting
+    at 'D 00:00:00.000' returned the CVEs published on D twice — and the API
+    counted them twice."""
+    calls: list[dict] = []
+
+    async def fake_get(self, url, params=None, **kwargs):
+        calls.append(params)
+        return _Response({"totalResults": 0, "vulnerabilities": []})
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    await nvd.fetch_cves("nginx", days_back=200)
+
+    sent = _sent_windows(calls)
+    assert len(sent) >= 2
+    for (_, end_prev), (start_next, _) in pairwise(sent):
+        assert end_prev < start_next, f"windows overlap: {end_prev} >= {start_next}"
+
+
+@pytest.mark.asyncio
+async def test_the_windows_sent_to_nvd_leave_no_gap(monkeypatch):
+    """Removing the overlap must not open a hole: window N+1 starts on the
+    millisecond after window N ends."""
+    calls: list[dict] = []
+
+    async def fake_get(self, url, params=None, **kwargs):
+        calls.append(params)
+        return _Response({"totalResults": 0, "vulnerabilities": []})
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    await nvd.fetch_cves("nginx", days_back=365)
+
+    sent = _sent_windows(calls)
+    assert len(sent) >= 4
+    for (_, end_prev), (start_next, _) in pairwise(sent):
+        assert start_next - end_prev == timedelta(milliseconds=1)
+    for start, end in sent:
+        assert (end - start) < timedelta(days=120)
 
 
 class _Response:

@@ -154,3 +154,111 @@ async def test_a_scan_that_could_not_reach_first_does_not_erase_the_last_reading
     [stored] = [r for r in await database.get_cves() if r["id"] == "CVE-2026-40004"]
     assert stored["epss_score"] == pytest.approx(0.33)
     assert stored["epss_percentile"] == pytest.approx(0.95)
+
+
+# ─── the links between CVEs and products ─────────────────────────────────────
+# Until 2026.44 `cves.id` was the only key, and the row's `software` column was
+# the only record of which product a CVE concerned: a CVE shared by openssl and
+# nginx belonged to whichever was scanned first. The links now live in
+# `cve_software`, and `init_db` fills it from the rows that are already there.
+
+# The tables as they shipped in 2026.44, written out by hand like OLD_SCHEMA
+# above: a migration tested on a database built by today's code proves nothing.
+PRE_LINK_SCHEMA = [
+    """CREATE TABLE watchlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE cves (
+        id TEXT PRIMARY KEY,
+        software TEXT NOT NULL,
+        description TEXT,
+        cvss_score REAL,
+        cvss_version TEXT,
+        severity TEXT,
+        published_at TIMESTAMP,
+        source TEXT,
+        url TEXT,
+        epss_score REAL,
+        epss_percentile REAL,
+        seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+]
+
+
+def linked_row(cve_id: str, software: str) -> dict:
+    return {
+        "id": cve_id, "software": software, "description": "d", "cvss_score": 7.5,
+        "cvss_version": "3.1", "severity": "HIGH", "published_at": "2026-09-01T00:00:00",
+        "source": "NVD", "url": "https://example.invalid",
+    }
+
+
+@pytest.fixture
+def pre_link_database(tmp_path, monkeypatch):
+    """A 2026.44 database with two products and one CVE already stored."""
+    path = tmp_path / "old.db"
+
+    async def _build():
+        async with aiosqlite.connect(path) as db:
+            for statement in PRE_LINK_SCHEMA:
+                await db.execute(statement)
+            await db.execute("INSERT INTO watchlist (name) VALUES ('openssl'), ('nginx')")
+            await db.execute(
+                "INSERT INTO cves (id, software, description, cvss_score, severity, published_at,"
+                " source, url, epss_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("CVE-2026-7777", "openssl", "stored by 2026.44", 9.8, "CRITICAL",
+                 "2026-08-01T00:00:00Z", "NVD", "https://nvd.nist.gov/x", 0.5),
+            )
+            await db.commit()
+
+    asyncio.run(_build())
+    monkeypatch.setattr(database, "DB_PATH", path)
+    return path
+
+
+@pytest.mark.asyncio
+async def test_the_migration_keeps_existing_rows_and_their_product(pre_link_database):
+    await database.init_db()
+    [row] = await database.get_cves(software="openssl")
+    assert row["id"] == "CVE-2026-7777"
+    assert row["description"] == "stored by 2026.44"
+    assert row["epss_score"] == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_after_the_migration_a_cve_can_belong_to_a_second_product(pre_link_database):
+    await database.init_db()
+    await database.save_cve(linked_row("CVE-2026-7777", "nginx"))
+    assert [c["id"] for c in await database.get_cves(software="nginx")] == ["CVE-2026-7777"]
+    assert [c["id"] for c in await database.get_cves(software="openssl")] == ["CVE-2026-7777"]
+    # Still one row per CVE in the unfiltered listing, as before.
+    assert [c["id"] for c in await database.get_cves()] == ["CVE-2026-7777"]
+
+
+@pytest.mark.asyncio
+async def test_after_the_migration_removal_keeps_a_cve_another_product_still_needs(pre_link_database):
+    await database.init_db()
+    await database.save_cve(linked_row("CVE-2026-7777", "nginx"))
+    assert await database.remove_from_watchlist("openssl")
+    assert [c["id"] for c in await database.get_cves(software="nginx")] == ["CVE-2026-7777"]
+    assert await database.get_cves(software="openssl") == []
+    # A restart (init_db runs on every CLI and API start) must not bring back
+    # the link that was just removed.
+    await database.init_db()
+    assert await database.get_cves(software="openssl") == []
+
+
+# ─── a row that cannot be stored ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_a_cve_that_cannot_be_stored_is_logged_not_swallowed(caplog):
+    """`save_cve` returns False and no caller reads it: without a log line the
+    lost record (a locked database, a malformed record) leaves no trace — the
+    silence this file's docstring describes."""
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="patchradar.db.database"):
+        assert await database.save_cve({"id": "CVE-2026-0001", "software": "x"}) is False
+    assert "CVE-2026-0001" in caplog.text

@@ -1,11 +1,13 @@
 import asyncio
 import hmac
 import logging
+import math
 import os
 import re
 from contextlib import asynccontextmanager
 from importlib.metadata import version as pkg_version
 from pathlib import Path as FilePath
+from urllib.parse import urlsplit
 
 import aiosqlite
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
@@ -20,6 +22,8 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
 from patchradar.epss import enrich as epss_enrich
+from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, SOFTWARE_NAME_PATTERN, normalise_software_name
+from patchradar.priority import merge_by_cve
 
 logger = logging.getLogger("patchradar")
 
@@ -27,7 +31,30 @@ API_KEY_ENV = "PATCHRADAR_API_KEY"
 API_KEY_HEADER = "X-API-Key"
 SCAN_TIMEOUT_ENV = "PATCHRADAR_SCAN_TIMEOUT"
 DEFAULT_SCAN_TIMEOUT = 600.0
-SCAN_TIMEOUT_SECONDS = float(os.environ.get(SCAN_TIMEOUT_ENV) or DEFAULT_SCAN_TIMEOUT)
+
+
+def scan_timeout_from_env() -> float:
+    """The scan deadline in seconds, or the default when the setting is not one.
+
+    A value that was not a number ended the import of this module — the server
+    did not start, with a ValueError about float() — and "0" or a negative one
+    timed every scan out before its first request. Both now fall back, saying so.
+    """
+    raw = os.environ.get(SCAN_TIMEOUT_ENV)
+    if not raw:
+        return DEFAULT_SCAN_TIMEOUT
+    try:
+        seconds = float(raw)
+    except ValueError:
+        seconds = math.nan
+    if not math.isfinite(seconds) or seconds <= 0:
+        logger.warning("%s=%r is not a positive number of seconds; using %ss",
+                       SCAN_TIMEOUT_ENV, raw, DEFAULT_SCAN_TIMEOUT)
+        return DEFAULT_SCAN_TIMEOUT
+    return seconds
+
+
+SCAN_TIMEOUT_SECONDS = scan_timeout_from_env()
 
 _api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
@@ -51,12 +78,46 @@ async def require_api_key(provided: str | None = Depends(_api_key_header)) -> No
     expected = configured_api_key()
     if expected is None:
         return
-    if provided is None or not hmac.compare_digest(provided, expected):
+    # Compared as bytes: on two str, compare_digest raises TypeError when either
+    # holds a non-ASCII character, and one byte like \xe9 in the header was an
+    # HTTP 500 instead of a 401.
+    if provided is None or not hmac.compare_digest(provided.encode(), expected.encode()):
         raise HTTPException(
             status_code=401,
             detail=f"Missing or invalid {API_KEY_HEADER} header",
             headers={"WWW-Authenticate": API_KEY_HEADER},
         )
+
+
+# What a browser's Sec-Fetch-Site may say about a write it is allowed to send:
+# the page came from this server, or the user started the request directly.
+_OWN_FETCH_SITES = {"same-origin", "none"}
+
+
+async def require_same_origin(request: Request) -> None:
+    """Refuse a write a browser sends on behalf of another site.
+
+    Without a key the write endpoints are open, and any page the user visits
+    could POST to http://localhost:8000/api/watchlist/x or /api/scan: a request
+    with no body is a "simple" one, so the browser sends it without a CORS
+    preflight and only hides the answer — the write has already happened.
+
+    Browsers say where a request comes from, in Sec-Fetch-Site and, on every
+    cross-origin POST or DELETE, in Origin. Sec-Fetch-Site is preferred because
+    it survives a reverse proxy that rewrites Host; Origin against Host covers
+    the browsers that predate it. A client that sends neither header is not a
+    browser — curl, a script — and cannot be used for CSRF, so it is let through
+    to the key check like before.
+    """
+    site = request.headers.get("sec-fetch-site")
+    if site is not None:
+        if site in _OWN_FETCH_SITES:
+            return
+    else:
+        origin = request.headers.get("origin")
+        if origin is None or urlsplit(origin).netloc == request.headers.get("host"):
+            return
+    raise HTTPException(status_code=403, detail="Cross-site request refused")
 
 
 @asynccontextmanager
@@ -97,35 +158,6 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
-
-
-# Single source of truth for what a watchlist name may be. The import endpoint
-# used to enforce none of this, so anything the path endpoint rejected could be
-# smuggled in through it and then rendered by the CLI.
-# A literal space rather than \s: \s also matches newlines and tabs, so the
-# original pattern admitted multi-line names, which break the CLI table layout
-# and open the door to log injection. Only a space is ever meant ("windows 10").
-SOFTWARE_NAME_PATTERN = r"^[\w \-\.]+$"
-SOFTWARE_NAME_MAX_LENGTH = 100
-_SOFTWARE_NAME_RE = re.compile(SOFTWARE_NAME_PATTERN)
-
-
-def normalise_software_name(value) -> str | None:
-    """Canonical watchlist name, or None when the value is not acceptable.
-
-    Accepts only strings: an import payload is arbitrary JSON, and calling
-    .strip() on an int used to surface as HTTP 500. Over-long names are
-    rejected rather than truncated — silently watching a different name than
-    the caller asked for is worse than refusing.
-    """
-    if not isinstance(value, str):
-        return None
-    name = value.strip().lower()
-    if not name or len(name) > SOFTWARE_NAME_MAX_LENGTH:
-        return None
-    if not _SOFTWARE_NAME_RE.match(name):
-        return None
-    return name
 
 
 # C0 controls except tab and newline, DEL, and the C1 block (which includes
@@ -172,10 +204,11 @@ async def api_watchlist():
 
 @app.post(
     "/api/watchlist/import",
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
     responses={
         400: {"description": "Invalid payload — expected a list of software names"},
         401: {"description": "Missing or invalid API key"},
+        403: {"description": "Cross-site request refused"},
     },
 )
 async def api_watchlist_import(payload: dict):
@@ -201,8 +234,9 @@ async def api_watchlist_import(payload: dict):
 
 @app.post(
     "/api/watchlist/{software}",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_add(
     software: str = Path(
@@ -219,12 +253,16 @@ async def api_add(
 
 @app.delete(
     "/api/watchlist/{software}",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_remove(software: str = Path(..., min_length=1, max_length=200)):
-    removed = await remove_from_watchlist(software)
-    return {"removed": removed, "software": software}
+    # The canonical form the add routes store: " nginx " added "nginx", and
+    # removing " nginx " looked for a name that was never there.
+    name = software.strip().lower()
+    removed = await remove_from_watchlist(name)
+    return {"removed": removed, "software": name}
 
 @app.get("/api/cves")
 async def api_cves(software: str = Query(None, min_length=1, max_length=100), limit: int = Query(50, ge=1, le=200)):
@@ -239,7 +277,6 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
     as zero, and whatever it managed to return before failing is still saved.
     """
     from patchradar.db.database import save_cve
-    count = 0
     # Debian and KEV are each served from a process-wide snapshot, so they cost
     # one download per scan rather than one per package.
     #
@@ -262,11 +299,15 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
                            "reason": exc.reason, "status": exc.status})
             cves = exc.partial
         collected += cves
-        count += len(cves)
+    # One row per CVE before anything counts or stores it, as `_scan_target` in
+    # the CLI does: a CVE that NVD scores and CISA lists arrived once from each,
+    # and was counted twice — so the two scans gave different totals for the
+    # same machine, which is what keeping them in step was meant to prevent.
+    collected = merge_by_cve(collected)
     # FIRST is asked once per package about everything the sources returned,
     # before any of it is stored, so the EPSS fields land in the same row as the
-    # CVE rather than in a second pass over the database. It cannot change
-    # `count`: EPSS scores CVEs, it does not find them.
+    # CVE rather than in a second pass over the database. It cannot change the
+    # count: EPSS scores CVEs, it does not find them.
     try:
         await epss_enrich(collected)
     except CollectorError as exc:
@@ -275,13 +316,14 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
                        "reason": exc.reason, "status": exc.status})
     for cve in collected:
         await save_cve(cve)
-    return count
+    return len(collected)
 
 
 @app.post(
     "/api/scan",
-    dependencies=[Depends(require_api_key)],
-    responses={401: {"description": "Missing or invalid API key"}},
+    dependencies=[Depends(require_same_origin), Depends(require_api_key)],
+    responses={401: {"description": "Missing or invalid API key"},
+               403: {"description": "Cross-site request refused"}},
 )
 async def api_scan(days: int = Query(7, ge=1, le=90)):
     watchlist = await get_watchlist()
@@ -328,9 +370,15 @@ async def api_stats():
             "SELECT severity, COUNT(*) FROM cves GROUP BY severity"
         ) as cur:
             by_severity = dict(await cur.fetchall())
-        async with db.execute(
-            "SELECT software, COUNT(*) FROM cves GROUP BY software ORDER BY COUNT(*) DESC"
-        ) as cur:
+        # Per product through the links: a CVE that concerns two products is
+        # one CVE in `total` and one in each of their counts.
+        async with db.execute("""
+            SELECT software, COUNT(*) FROM (
+                SELECT id AS cve_id, software FROM cves
+                UNION SELECT cve_id, software FROM cve_software
+                WHERE cve_id IN (SELECT id FROM cves)
+            ) GROUP BY software ORDER BY COUNT(*) DESC
+        """) as cur:
             by_software = dict(await cur.fetchall())
     watchlist = await get_watchlist()
     return {

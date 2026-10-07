@@ -343,3 +343,22 @@ def test_the_urgency_and_the_installed_version_travel_with_it():
 
     assert found.urgency == "high"
     assert found.in_release == "1:1.3.dfsg-1"
+
+
+# ── how the CVE is written ──────────────────────────────────────────────────
+
+def test_a_lower_case_cve_id_is_found():
+    """`patchradar debian cve-2026-5555` must find the CVE as the upper-case id
+    does — KEV and EPSS already normalise it; it answered 'untracked'."""
+    data = tracker(attr={"CVE-2026-5555": entry({"trixie": release("open", urgency="low")})})
+    [standing] = standings(data, "cve-2026-5555", release=TRIXIE)
+    assert standing.position is not Position.UNTRACKED
+
+
+def test_the_standing_reports_the_canonical_id():
+    """Spaces around a pasted id must not mean 'untracked' either, and the
+    result names the id the way the tracker writes it."""
+    data = tracker(attr={"CVE-2026-5555": entry({"trixie": release("open", urgency="low")})})
+    [standing] = standings(data, "  cve-2026-5555\n", release=TRIXIE)
+    assert standing.cve == "CVE-2026-5555"
+    assert standing.position is not Position.UNTRACKED

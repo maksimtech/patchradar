@@ -38,28 +38,41 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from patchradar.collectors.nvd import CVSS_METRIC_KEYS
+from patchradar.collectors.nvd import CVSS_METRIC_KEYS, scoring_entry
 from patchradar.cvss import severity_for
 
-# A dotted numeric version and nothing else. No suffixes: none of the sources
-# read here put `-rc1` in a fixed version, and accepting one would mean inventing
-# an order between rc1 and rc2 that no source confirms.
-_NUMERIC = re.compile(r"^\d+(\.\d+)*$")
+# A dotted numeric version, optionally ending in lower-case letters the way
+# OpenSSL numbered its releases before 3.0: 1.1.1t, then 1.1.1u, and after
+# 1.0.2z came 1.0.2za. NVD records those fixes as they are written
+# (`versionEndExcluding: 1.1.1u`), and refusing them answered "not affected" for
+# every lettered 1.0.2 and 1.1.1 release. The letters are ordered as text, which is
+# the order OpenSSL released them in. No other suffix: none of the sources read
+# here put `-rc1` in a fixed version, and accepting one would mean inventing an
+# order between rc1 and rc2 that no source confirms.
+_NUMERIC = re.compile(r"^(\d+(?:\.\d+)*)([a-z]*)$")
 
 # The CPE wildcards. `*` is ANY and `-` is NA; neither is a low version number,
 # and treating them as one is how a range comes to match everything.
 _NOT_A_VERSION = {"*", "-", ""}
 
-# Two versions whose component counts differ by more than this are treated as
-# belonging to different schemes and are not ordered. `2.07` (a ThinkPad BIOS)
-# against `16.0.14334.20918` (an Office build) is not a comparison with a wrong
-# answer, it is a comparison with no meaning; `8.9.6` against `8.9.6.4` happens
-# inside one scheme and must work.
+# Two versions whose component counts differ by more than this, and whose first
+# components differ too, are treated as belonging to different schemes and are
+# not ordered. `2.07` (a ThinkPad BIOS) against `16.0.14334.20918` (an Office
+# build) is not a comparison with a wrong answer, it is a comparison with no
+# meaning; `8.9.6` against `8.9.6.4` happens inside one scheme and must work.
+# So must `8.9` against `8.9.6.4`: a shared major version is one scheme however
+# many components either side writes, and refusing it answered "not affected"
+# for a version older than the fix.
 _SCHEME_TOLERANCE = 1
 
 
-def _parts(text: object) -> tuple[int, ...] | None:
-    """The version as numbers, or None when the text is not a version.
+# One (number, letters) pair per component. Only the last can carry letters,
+# and "" sorts before "a", so 1.1.1 < 1.1.1a < 1.1.1z < 1.1.1za < 1.1.2.
+_Version = tuple[tuple[int, str], ...]
+
+
+def _parts(text: object) -> _Version | None:
+    """The version as (number, letters) pairs, or None when the text is not a version.
 
     Private on purpose. The tolerant reader for what Windows writes into the
     registry — '5, 1, 2, 3000', '2010' with a service pack, '1.7.0' with its
@@ -70,16 +83,20 @@ def _parts(text: object) -> tuple[int, ...] | None:
     if not isinstance(text, str):
         return None
     cleaned = text.strip()
-    if cleaned in _NOT_A_VERSION or not _NUMERIC.match(cleaned):
+    found = _NUMERIC.match(cleaned)
+    if cleaned in _NOT_A_VERSION or not found:
         return None
-    return tuple(int(chunk) for chunk in cleaned.split("."))
+    numbers = [int(chunk) for chunk in found.group(1).split(".")]
+    letters = [""] * (len(numbers) - 1) + [found.group(2)]
+    return tuple(zip(numbers, letters, strict=True))
 
 
-def _comparable(left: tuple[int, ...], right: tuple[int, ...]) -> tuple[tuple, tuple] | None:
-    if abs(len(left) - len(right)) > _SCHEME_TOLERANCE:
+def _comparable(left: _Version, right: _Version) -> tuple[_Version, _Version] | None:
+    if abs(len(left) - len(right)) > _SCHEME_TOLERANCE and left[0][0] != right[0][0]:
         return None
     width = max(len(left), len(right))
-    return left + (0,) * (width - len(left)), right + (0,) * (width - len(right))
+    zero = ((0, ""),)
+    return left + zero * (width - len(left)), right + zero * (width - len(right))
 
 
 @dataclass(frozen=True)
@@ -199,10 +216,9 @@ def _score_of(cve: dict) -> tuple[float | None, str | None, str]:
     if not isinstance(metrics, dict):
         return None, None, "UNKNOWN"
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
-        entry = entries[0]
         # Bound before the check, so the narrowing applies to what is read below.
         raw = entry.get("cvssData")
         data = raw if isinstance(raw, dict) else {}

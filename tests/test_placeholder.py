@@ -218,12 +218,13 @@ def test_cli_status():
     assert result.exit_code == 0
 
 def test_cli_add_invalid():
-    """CLI add with very long name — goes to API which validates"""
+    """CLI add with very long name — refused like the API refuses it"""
     long_name = "a" * 101
     result = runner.invoke(cli_app, ["add", long_name])
-    # CLI itself doesn't validate length — API does via Path validator
-    # Just verify CLI doesn't crash
-    assert result.exit_code in [0, 1]
+    # The CLI validates with the API's own rule (patchradar.names): a refusal,
+    # not a crash, and nothing stored
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
 
 # ─── NVD Collector Tests ─────────────────────────────────────────────────────
 

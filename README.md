@@ -9,7 +9,9 @@
 
 > Know when your software is vulnerable — before attackers do.
 
-PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerability affects your software stack. No more manually checking NVD, MSRC, or Snyk — just add your software and let PatchRadar watch for you.
+PatchRadar checks the CVE feeds for the software on your watchlist and tells you which vulnerabilities affect it, most urgent first. No more manually checking NVD, MSRC, or Snyk — just add your software and run a scan.
+
+Scans run when you start one — `patchradar scan`, or **Scan** in the web UI. There is no scheduler and no notification inside PatchRadar: to scan on a schedule, run `patchradar scan` from cron or the Windows Task Scheduler.
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)
 ![CalVer](https://img.shields.io/badge/calver-2026.8.2-green?style=flat-square)
@@ -21,7 +23,7 @@ PatchRadar monitors CVE feeds in realtime and alerts you when a new vulnerabilit
 
 ## ✨ Features
 
-- 🔍 **Realtime CVE monitoring** — scans NVD, MSRC and Debian Security Tracker for new vulnerabilities
+- 🔍 **On-demand CVE scans** — `patchradar scan` queries NVD, MSRC and CISA KEV; a scan from the web UI (`POST /api/scan`) also queries the Debian Security Tracker
 - 🎯 **Ranked by what is actually a threat** — CISA KEV for observed exploitation, FIRST EPSS for the 30-day forecast, CVSS only to break the tie
 - 📋 **Personal watchlist** — add any software you want to monitor
 - 🎨 **Beautiful web UI** — dark theme dashboard with charts and filters
@@ -119,6 +121,14 @@ examined — without it none of this could be tested in CI at all.
 patchradar serve
 # Open http://localhost:8000
 ```
+
+Without `PATCHRADAR_API_KEY` the scan and watchlist endpoints need no key, which is
+meant for use on the same machine: `patchradar serve` listens on 127.0.0.1 and the
+`docker-compose.yml` publishes the port on 127.0.0.1 only. Set the key (see
+`.env.example`) before exposing it any further. Either way, a write that a browser
+sends on behalf of another web site (`Sec-Fetch-Site: cross-site`, or an `Origin`
+that is not this server) is refused with 403, so a page you visit cannot add to your
+watchlist or start scans through your browser.
 
 ### NVD API key (optional)
 

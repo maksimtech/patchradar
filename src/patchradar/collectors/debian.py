@@ -1,7 +1,7 @@
 import asyncio
 import logging
+import re
 import time
-from datetime import UTC, datetime
 
 import httpx
 
@@ -106,13 +106,26 @@ def _urgency_to_severity(urgency: str | None) -> str:
     return URGENCY_TO_SEVERITY.get(str(urgency).strip().lower(), "UNKNOWN")
 
 
+def _package_pattern(keyword: str) -> re.Pattern[str]:
+    """`keyword` as a word of a source package name.
+
+    A substring match gave "git" the CVEs of python-digitalocean and "ssh" those
+    of libssh, a different project from openssh. The keyword now has to start
+    the name or follow a separator, and may be followed by anything but a
+    letter — so "python" still finds python3.13, where the digits are the
+    version and not another word.
+    """
+    return re.compile(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z])")
+
+
 def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> list[dict]:
     """Select the open CVEs matching `keyword` from a tracker snapshot."""
     results = []
     keyword_lower = keyword.lower()
+    matches = _package_pattern(keyword_lower).search
 
     for package_name, cves in data.items():
-        if keyword_lower not in package_name.lower():
+        if not matches(package_name.lower()):
             continue
 
         for cve_id, cve_data in cves.items():
@@ -151,7 +164,11 @@ def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> l
                 "cvss_score": None,
                 "cvss_version": None,
                 "severity": severity,
-                "published_at": datetime.now(UTC).isoformat(),
+                # None, not the clock: the tracker states no publication date,
+                # and `now()` made a CVE from 2014 "published today" — first in
+                # every newest-first list, above the ones that really are new.
+                # The KEV collector says why a clock reading is not a date.
+                "published_at": None,
                 "source": "Debian",
                 "url": f"https://security-tracker.debian.org/tracker/{cve_id}",
             })

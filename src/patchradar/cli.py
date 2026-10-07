@@ -19,11 +19,13 @@ from patchradar.collectors.debian import get_tracker_snapshot
 from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import SOURCE as kev_source
 from patchradar.collectors.kev import fetch_cves as kev_fetch
+from patchradar.collectors.msrc import MAX_DAYS_BACK as msrc_max_days
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
 from patchradar.epss import enrich as epss_enrich
+from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, normalise_software_name
 from patchradar.priority import (
     RANK_EPSS,
     RANK_KEV,
@@ -68,7 +70,7 @@ enable_utf8_output()
 
 app = typer.Typer(
     name="patchradar",
-    help="Realtime CVE intelligence for your software stack 🛡️",
+    help="CVE intelligence for your software stack 🛡️",
     add_completion=False,
 )
 console = Console()
@@ -272,8 +274,18 @@ def _print_law_check(law, out=None) -> None:
 @app.command()
 def add(software: str = typer.Argument(..., help="Software to monitor")):
     """Add software to your watchlist."""
-    added = run(add_to_watchlist(software))
-    safe = escape(software)
+    # The same rule and the same canonical form as the API: "  Proxmox  " was
+    # stored as is, beside the "proxmox" the API stores, and a multi-line name
+    # reached the watchlist that every other way in refuses.
+    name = normalise_software_name(software)
+    if name is None:
+        console.print(
+            f"❌ [red]{escape(software)}[/red] is not a valid software name — letters, digits, "
+            f"spaces, '-', '_' and '.', up to {SOFTWARE_NAME_MAX_LENGTH} characters"
+        )
+        raise typer.Exit(1)
+    added = run(add_to_watchlist(name))
+    safe = escape(name)
     if added:
         console.print(f"✅ [green]Added[/green] [bold]{safe}[/bold] to watchlist")
     else:
@@ -432,7 +444,9 @@ def _report_silent_sources(failures: list[CollectorError], targets: list[str]) -
 @app.command()
 def scan(
     software: str = typer.Argument(None, help="Software to scan (or all watchlist)"),
-    days: int = typer.Option(7, "--days", "-d", help="Days back to search"),
+    # min=1: a window of no days is a usage error, refused here; it used to
+    # reach the NVD collector and end the command in a ValueError traceback.
+    days: int = typer.Option(7, "--days", "-d", min=1, help="Days back to search"),
 ):
     """Scan for CVEs affecting your software."""
     async def _scan():
@@ -446,6 +460,10 @@ def scan(
         console.print(f"\n Total: [bold]{total}[/bold] CVEs found\n")
         # After the total, because it is the total it qualifies.
         _report_silent_sources(failures, list(targets))
+        if days > msrc_max_days:
+            # The collector caps its window without a word, so `--days 365`
+            # looked like a year of Patch Tuesdays and was three months of them.
+            console.print(f"ℹ️  MSRC covers the last {msrc_max_days} days only, not {days}.")
         _print_law_check(_law_check(cves))
     run(_scan())
 

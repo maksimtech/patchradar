@@ -4,7 +4,14 @@ services:
     container_name: patchradar
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # loopback only: without PATCHRADAR_API_KEY the scan and watchlist write
+      # endpoints are open, and "8000:8000" published them to the whole network.
+      # Set the key in .env before publishing the port beyond this host.
+      - "127.0.0.1:8000:8000"
+    environment:
+      # read from .env (see .env.example); unset or empty means "no key"
+      PATCHRADAR_API_KEY: ${PATCHRADAR_API_KEY:-}
+      NVD_API_KEY: ${NVD_API_KEY:-}
     volumes:
       # must match the Dockerfile VOLUME: the image runs as the unprivileged
       # `patchradar` user, so the app writes to /home/patchradar/.patchradar

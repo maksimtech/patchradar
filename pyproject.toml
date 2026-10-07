@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "patchradar"
 version = "2026.44"
-description = "Realtime CVE intelligence for your software stack"
+description = "CVE intelligence for your software stack"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -34,7 +34,6 @@ dependencies = [
     "typer>=0.27.0",
     "rich>=15.0.0",
     "pydantic>=2.13.0",
-    "apscheduler>=3.11.0",
     "aiosqlite>=0.22.0",
 ]
 
@@ -100,9 +99,10 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.mypy]
 python_version = "3.11"
-# Not strict mode: apscheduler ships no py.typed, so strict would spend its
-# errors on the untyped edge rather than on this code — and an error that cannot
-# be acted on teaches the reader to ignore the tool.
+# Not strict mode: decided while apscheduler, which ships no py.typed, was still a
+# dependency (it was never imported, and was dropped in 2026-10), so strict would
+# have spent its errors on the untyped edge rather than on this code — and an
+# error that cannot be acted on teaches the reader to ignore the tool.
 ignore_missing_imports = true
 no_implicit_optional = true
 warn_redundant_casts = true

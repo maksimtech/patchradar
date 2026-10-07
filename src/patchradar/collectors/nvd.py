@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -32,6 +33,22 @@ def _extract_description(cve: dict) -> str:
     return ""
 
 
+def scoring_entry(entries: object) -> dict | None:
+    """The metric a score is read from: NVD's own when there is one.
+
+    A CVE can carry the same CVSS version twice, NVD's assessment ("type":
+    "Primary") and the CNA's ("Secondary"), and the API does not promise their
+    order — taking the first made the score depend on it. NVD's is preferred
+    because it is the one assessed for every CVE by the same body; the CNA's is
+    used when NVD has not scored it, which is the common case for new CVEs.
+    """
+    if not isinstance(entries, list):
+        return None
+    usable = [entry for entry in entries if isinstance(entry, dict)]
+    return next((entry for entry in usable if entry.get("type") == "Primary"),
+                usable[0] if usable else None)
+
+
 def _extract_metrics(cve: dict) -> tuple[float | None, str | None, str]:
     """(score, cvss_version, severity), degrading to UNKNOWN on any oddity."""
     metrics = cve.get("metrics")
@@ -39,11 +56,8 @@ def _extract_metrics(cve: dict) -> tuple[float | None, str | None, str]:
         return None, None, "UNKNOWN"
 
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries:
-            continue
-        entry = entries[0]
-        if not isinstance(entry, dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
         cvss_data = entry.get("cvssData")
         if not isinstance(cvss_data, dict):
@@ -81,10 +95,10 @@ def _extract_confidentiality(cve: dict) -> str | None:
     if not isinstance(metrics, dict):
         return None
     for key in CVSS_METRIC_KEYS:
-        entries = metrics.get(key)
-        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+        entry = scoring_entry(metrics.get(key))
+        if entry is None:
             continue
-        cvss_data = entries[0].get("cvssData")
+        cvss_data = entry.get("cvssData")
         if not isinstance(cvss_data, dict):
             return None
         value = cvss_data.get("confidentialityImpact") or cvss_data.get("vulnConfidentialityImpact")
@@ -155,6 +169,25 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
     }
 
 
+def _parse_page(vulnerabilities: list, keyword: str) -> list[dict]:
+    """The usable records of one page's `vulnerabilities[]`, in NVD's order.
+
+    A malformed record may drop itself, never its neighbours. Its own function,
+    apart from the request loop, so that a page NVD actually sent can be run
+    through it without standing up a server.
+    """
+    records: list[dict] = []
+    for item in vulnerabilities:
+        try:
+            parsed = _parse_item(item, keyword)
+        except Exception:
+            logger.debug("skipping unparseable NVD record", exc_info=True)
+            continue
+        if parsed:
+            records.append(parsed)
+    return records
+
+
 # NVD answers HTTP 404 — not 400 — when pubStartDate and pubEndDate are more
 # than 120 days apart, which reads as "no such endpoint" rather than "your
 # range is too wide". Measured against the live API on 2026-09-23: 119 days
@@ -162,8 +195,11 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
 # back from its own end, leaving the inclusive window at 120.
 NVD_MAX_WINDOW_DAYS = 119
 
-# NVD's own maximum for a single page.
-RESULTS_PER_PAGE = 50
+# NVD's own maximum for a single page. It was 50 until 2026-10, with no request
+# for the next page, so a keyword with more CVEs than that in a window — "linux",
+# "chrome", "windows" — came back cut at 50 and looked complete. The pages are
+# followed now; the size only decides how many requests that costs.
+RESULTS_PER_PAGE = 2000
 
 # The name NVD's own documentation uses for it.
 API_KEY_ENV = "NVD_API_KEY"
@@ -221,8 +257,19 @@ def date_windows(
 
 
 async def _fetch_window(
-    client: httpx.AsyncClient, keyword: str, start: datetime, end: datetime
-) -> list[dict]:
+    client: httpx.AsyncClient, keyword: str, start: datetime, end: datetime,
+    pace: Callable[[], Awaitable[None]], results: list[dict],
+) -> None:
+    """Every page of one window, appended to `results` as it arrives.
+
+    NVD answers at most `resultsPerPage` records and states the size of the
+    whole answer in `totalResults`; the rest is asked for with `startIndex`.
+    `pace` is awaited before each request, so pages count against the rate
+    limit exactly as windows do.
+
+    `results` is the caller's list rather than a return value so that a page
+    that fails can hand back, as `partial`, every record the earlier ones found.
+    """
     params = {
         "keywordSearch": keyword,
         "pubStartDate": start.strftime("%Y-%m-%dT00:00:00.000"),
@@ -232,49 +279,53 @@ async def _fetch_window(
         "resultsPerPage": str(RESULTS_PER_PAGE),
     }
 
-    # Failures raise instead of returning []: an empty list must only ever
-    # mean "NVD answered and had nothing", never "NVD could not be reached".
-    try:
-        response = await client.get(NVD_API, params=params)
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise from_http_error(SOURCE, exc) from exc
-    try:
-        data = response.json()
-    except ValueError as exc:
-        raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code) from exc
-
-    if not isinstance(data, dict):
-        logger.warning("NVD returned %s, expected an object", type(data).__name__)
-        return []
-    vulnerabilities = data.get("vulnerabilities")
-    if not isinstance(vulnerabilities, list):
-        return []
-
-    results = []
-    for item in vulnerabilities:
-        # A malformed record may drop itself, never its neighbours.
+    start_index = 0
+    while True:
+        await pace()
+        # Failures raise instead of returning []: an empty list must only ever
+        # mean "NVD answered and had nothing", never "NVD could not be reached".
         try:
-            parsed = _parse_item(item, keyword)
-        except Exception:
-            logger.debug("skipping unparseable NVD record", exc_info=True)
-            continue
-        if parsed:
-            results.append(parsed)
+            response = await client.get(NVD_API, params={**params, "startIndex": str(start_index)})
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise from_http_error(SOURCE, exc, partial=results) from exc
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code, partial=results) from exc
 
-    return results
+        if not isinstance(data, dict):
+            logger.warning("NVD returned %s, expected an object", type(data).__name__)
+            return
+        vulnerabilities = data.get("vulnerabilities")
+        if not isinstance(vulnerabilities, list):
+            return
+
+        results.extend(_parse_page(vulnerabilities, keyword))
+
+        total = data.get("totalResults")
+        start_index += len(vulnerabilities)
+        if not isinstance(total, int) or start_index >= total:
+            return
+        if not vulnerabilities:
+            # NVD promised more and sent nothing: stopping here quietly would
+            # present the records so far as the whole answer.
+            raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code, partial=results,
+                                 detail=f"empty page at {start_index} of {total}")
 
 
 async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
     """Fetch CVEs from NVD for a given keyword.
 
-    A window wider than NVD accepts is split into several requests; a short one
-    still costs exactly one, which is every ordinary use of this function.
+    A window wider than NVD accepts is split into several requests, and an
+    answer larger than one page is followed page by page; a short window with
+    a modest answer still costs exactly one request, which is every ordinary
+    use of this function.
 
     Those requests are paced. Splitting a two-year window makes seven of them
     per keyword, and a keyless client is allowed five per thirty seconds — so
     the fix for the window created a way to trip the rate limit. The wait is
-    between requests only: a single-window fetch waits for nothing.
+    between requests only: a single-request fetch waits for nothing.
 
     The key, when set, travels in a header. In the query string it would be
     written to every log and proxy record that sees the URL.
@@ -282,11 +333,21 @@ async def fetch_cves(keyword: str, days_back: int = 7) -> list[dict]:
     key = api_key()
     headers = {"apiKey": key} if key else {}
     delay = KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS
+    sent = 0
+
+    async def pace() -> None:
+        nonlocal sent
+        if sent:
+            await _pace(delay)
+        sent += 1
 
     results: list[dict] = []
     async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
         for index, (start, end) in enumerate(date_windows(days_back)):
             if index:
-                await _pace(delay)
-            results.extend(await _fetch_window(client, keyword, start, end))
+                # The windows touch, and a request covers whole days: the one
+                # before ran to 23:59:59.999 of the day this one starts on.
+                # Asking for that day again returned its CVEs twice.
+                start += timedelta(days=1)
+            await _fetch_window(client, keyword, start, end, pace, results)
     return results

@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import pytest
 
-from patchradar.affected import Range, affects, ranges_in, summarise, target_version
+from patchradar.affected import Hit, Range, affects, ranges_in, summarise, target_version
+from patchradar.collectors import nvd
 
 VENDOR = "notepad-plus-plus"
 # The product field as NVD really writes it. CPE 2.3 requires the special
@@ -171,6 +172,29 @@ def test_a_version_that_is_not_a_version_is_not_a_match():
         assert affects(data, version=nonsense, vendor=VENDOR, cpe_product=PRODUCT) == []
 
 
+# ── one scheme, however many components ─────────────────────────────────────
+
+def test_a_range_contains_a_version_with_two_fewer_components():
+    """8.9 < 8.9.6.4, so with versionEndExcluding 8.9.6.4 the 8.9 is vulnerable.
+    A tolerance of one component declared the two "not comparable", and the
+    answer became "not affected" — a silent false negative."""
+    assert Range(end="8.9.6.4").contains("8.9") is True
+
+
+@pytest.mark.parametrize("span, version, expected", [
+    (Range(end="2.0.1"), "2", True),            # 2 < 2.0.1
+    (Range(end="8.9.6.4"), "8.10", False),      # 8.10 > 8.9.6.4
+    (Range(start="8.9.6.4"), "8.10", True),
+    (Range(end="8.9.6.4", end_inclusive=True), "8.9.6.4.0.0", True),
+    # Different schemes stay incomparable: a year against an Office build, a
+    # 2.07 BIOS against 16.0.14334.20918.
+    (Range(end="16.0.14334.20906"), "2010", False),
+    (Range(start="2.07"), "16.0.14334.20918", False),
+])
+def test_versions_of_one_scheme_compare_whatever_their_length(span, version, expected):
+    assert span.contains(version) is expected
+
+
 # ── the score ───────────────────────────────────────────────────────────────
 
 def test_the_severity_is_derived_when_the_payload_omits_it():
@@ -206,6 +230,32 @@ def test_the_worst_comes_first_and_the_unscored_last():
                    cve("CVE-HIGH", match(version="*"), score=9.1))
     order = [h.cve for h in affects(data, version="1.0", vendor=VENDOR, cpe_product=PRODUCT)]
     assert order == ["CVE-HIGH", "CVE-LOW", "CVE-NONE"]
+
+
+def _metric(score: float, kind: str, source: str) -> dict:
+    return {"source": source, "type": kind,
+            "cvssData": {"version": "3.1", "baseScore": score, "baseSeverity": "X",
+                         "confidentialityImpact": "HIGH" if score > 8 else "LOW"},
+            "baseSeverity": "CRITICAL" if score > 8 else "HIGH"}
+
+
+def test_nvd_s_own_primary_score_is_preferred_whatever_the_order():
+    """NVD does not promise the order of `cvssMetricV31`: with the CNA's entry
+    (Secondary) before NVD's (Primary) the score depended on that order — and
+    the collector and this module must read the same one."""
+    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example"),
+                                 _metric(7.5, "Primary", "nvd@nist.gov")]}
+    assert nvd._extract_metrics({"metrics": metrics}) == (7.5, "3.1", "HIGH")
+    assert nvd._extract_confidentiality({"metrics": metrics}) == "LOW"
+    item = cve("CVE-2026-0002", match(versionEndExcluding="2.0"))
+    item["cve"]["metrics"] = metrics
+    [hit] = affects(payload(item), version="1.0", vendor=VENDOR, cpe_product=PRODUCT)
+    assert hit.score == 7.5
+
+
+def test_the_cna_score_is_used_when_nvd_has_none():
+    metrics = {"cvssMetricV31": [_metric(9.8, "Secondary", "cna@example")]}
+    assert nvd._extract_metrics({"metrics": metrics})[0] == 9.8
 
 
 # ── where to go ─────────────────────────────────────────────────────────────
@@ -282,3 +332,45 @@ def test_the_range_describes_itself_in_the_terms_nvd_used():
 def test_at_or_above_the_fix_is_not_affected(version):
     data = payload(cve("CVE-H", match(versionEndExcluding="8.9.6")))
     assert affects(data, version=version, vendor=VENDOR, cpe_product=PRODUCT) == []
+
+
+# ── OpenSSL's lettered releases ─────────────────────────────────────────────
+# Before 3.0 OpenSSL numbered its releases 1.1.1t, 1.1.1u, and after 1.0.2z came
+# 1.0.2za. NVD records the fixes as written, and a suffix used to make any
+# version "not a version": every lettered 1.0.2 and 1.1.1 was "not affected".
+
+def test_letter_suffixed_versions_like_openssl_are_matched():
+    """1.1.1t against versionEndExcluding 1.1.1u is vulnerable, not "no CVE"."""
+    data = payload(cve("CVE-2023-0464", match(vendor="openssl", product="openssl",
+                                              versionStartIncluding="1.1.1",
+                                              versionEndExcluding="1.1.1u")))
+    hits = affects(data, version="1.1.1t", vendor="openssl")
+    assert [h.cve for h in hits] == ["CVE-2023-0464"]
+
+
+@pytest.mark.parametrize("span, version, expected", [
+    (Range(end="1.1.1u"), "1.1.1t", True),
+    (Range(end="1.1.1u"), "1.1.1u", False),
+    (Range(end="1.1.1u"), "1.1.1v", False),
+    (Range(start="1.1.1", end="1.1.1u"), "1.1.1", True),
+    (Range(start="1.1.1a"), "1.1.1", False),       # 1.1.1 < 1.1.1a
+    (Range(end="1.0.2zh"), "1.0.2z", True),        # z < za < … < zh
+    (Range(end="1.1.2"), "1.1.1zz", True),
+    (Range(exact="1.1.1t"), "1.1.1t", True),
+])
+def test_openssl_letter_releases_are_ordered(span, version, expected):
+    assert span.contains(version) is expected
+
+
+@pytest.mark.parametrize("version", ["1.0-rc1", "2.0.0-beta", "8.9b1", "1.1.1T", "1.1.1 t"])
+def test_suffixes_with_no_stated_order_are_still_not_versions(version):
+    """The module's stated limit stands: rc1/rc2, beta and 'b1' have no order a
+    source confirms, and are not compared."""
+    assert Range(end="9.9.9").contains(version) is False
+
+
+def test_the_target_is_the_highest_lettered_fix():
+    hits = [Hit(cve=c, score=None, cvss_version=None, severity="UNKNOWN", published="",
+                fixed_version=f, affected_range="", note="")
+            for c, f in (("A", "1.1.1u"), ("B", "1.1.1w"), ("C", "1.1.1"))]
+    assert target_version(hits) == "1.1.1w"

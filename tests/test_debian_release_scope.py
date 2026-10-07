@@ -24,7 +24,7 @@ import httpx
 import pytest
 import respx
 
-from patchradar.collectors.debian import DEBIAN_RELEASE, fetch_cves
+from patchradar.collectors.debian import DEBIAN_RELEASE, fetch_cves, filter_tracker
 
 DEBIAN_URL = "https://security-tracker.debian.org/tracker/data/json"
 
@@ -148,3 +148,32 @@ async def test_severity_still_derives_from_urgency_after_scoping():
     """L5 must keep working through the new release filter."""
     cves = await fetch({DEBIAN_RELEASE: {"status": "open", "urgency": "high"}})
     assert cves[0]["severity"] == "HIGH"
+
+
+# ─── which packages a keyword selects ────────────────────────────────────────
+# The keyword was matched as a substring of the package name: "git" collected
+# the CVEs of python-digitalocean, "ssh" those of libssh, a different project
+# from openssh. It now has to be a word of the name.
+
+def tracker(*packages: str) -> dict:
+    return {name: {f"CVE-2026-{i:04d}": {
+        "description": name,
+        "releases": {"trixie": {"status": "open", "urgency": "low"}},
+    }} for i, name in enumerate(packages)}
+
+
+def test_a_keyword_does_not_match_an_unrelated_package_by_substring():
+    assert filter_tracker(tracker("python-digitalocean"), "git", "trixie") == []
+
+
+@pytest.mark.parametrize("keyword, expected", [
+    ("ssh", []),                                   # libssh and openssh are other projects
+    ("openssh", ["openssh"]),
+    ("python", ["python3.13", "python-urllib3"]),  # a version in the name: the same project
+    ("nginx", ["nginx"]),
+    ("NGINX", ["nginx"]),
+])
+def test_a_keyword_matches_whole_words_of_the_package_name(keyword, expected):
+    data = tracker("libssh", "openssh", "python3.13", "python-urllib3", "nginx", "libnginx-mod-http")
+    found = [r["description"] for r in filter_tracker(data, keyword, "trixie")]
+    assert found == expected

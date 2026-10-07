@@ -3,7 +3,7 @@ FROM python:3.14-slim-trixie
 # OCI metadata
 LABEL maintainer="maksimtech <github@maksimtech.com>"
 LABEL org.opencontainers.image.title="PatchRadar"
-LABEL org.opencontainers.image.description="Realtime CVE intelligence for your software stack"
+LABEL org.opencontainers.image.description="CVE intelligence for your software stack"
 LABEL org.opencontainers.image.source="https://github.com/maksimtech/patchradar"
 LABEL org.opencontainers.image.license="MIT"
 

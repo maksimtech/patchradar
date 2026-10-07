@@ -126,6 +126,24 @@ async def test_ransomware_known_is_true():
     assert entry["kev_ransomware"] is True
 
 
+def test_an_entry_without_a_cve_id_is_dropped():
+    """An entry with no `cveID` became a record with id '' — the database's
+    primary key, colliding with every other id-less record. NVD and MSRC drop
+    theirs; KEV has to do the same."""
+    data = {"vulnerabilities": [{"vendorProject": "Acme", "product": "Widget"}]}
+    assert kev.filter_catalogue(data, "acme") == []
+
+
+def test_an_entry_with_an_unusable_id_drops_itself_not_its_neighbours():
+    data = {"vulnerabilities": [
+        {"vendorProject": "Acme", "product": "Widget", "cveID": "   "},
+        {"vendorProject": "Acme", "product": "Widget", "cveID": None},
+        {"vendorProject": "Acme", "product": "Widget", "cveID": 2026},
+        {"vendorProject": "Acme", "product": "Widget", "cveID": "CVE-2026-9999"},
+    ]}
+    assert [r["id"] for r in kev.filter_catalogue(data, "acme")] == ["CVE-2026-9999"]
+
+
 # ── the shape of a record, shared with the other collectors ──────────────────
 
 @pytest.mark.asyncio
