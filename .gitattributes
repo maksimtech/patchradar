@@ -1,0 +1,5 @@
+# Shell scripts run under bash/sh, which read a CR as part of the command: with
+# core.autocrlf on Windows they were checked out with CRLF line endings, and
+# both failed there (wait_for_pypi.sh by the test suite, inspect.sh when piped
+# into the image's sh). LF in every working tree, whatever the platform.
+*.sh text eol=lf

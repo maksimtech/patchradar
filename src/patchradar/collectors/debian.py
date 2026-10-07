@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 
 import httpx
@@ -105,13 +106,26 @@ def _urgency_to_severity(urgency: str | None) -> str:
     return URGENCY_TO_SEVERITY.get(str(urgency).strip().lower(), "UNKNOWN")
 
 
+def _package_pattern(keyword: str) -> re.Pattern[str]:
+    """`keyword` as a word of a source package name.
+
+    A substring match gave "git" the CVEs of python-digitalocean and "ssh" those
+    of libssh, a different project from openssh. The keyword now has to start
+    the name or follow a separator, and may be followed by anything but a
+    letter — so "python" still finds python3.13, where the digits are the
+    version and not another word.
+    """
+    return re.compile(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z])")
+
+
 def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> list[dict]:
     """Select the open CVEs matching `keyword` from a tracker snapshot."""
     results = []
     keyword_lower = keyword.lower()
+    matches = _package_pattern(keyword_lower).search
 
     for package_name, cves in data.items():
-        if keyword_lower not in package_name.lower():
+        if not matches(package_name.lower()):
             continue
 
         for cve_id, cve_data in cves.items():

@@ -21,6 +21,8 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
 from patchradar.epss import enrich as epss_enrich
+from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, SOFTWARE_NAME_PATTERN, normalise_software_name
+from patchradar.priority import merge_by_cve
 
 logger = logging.getLogger("patchradar")
 
@@ -52,7 +54,10 @@ async def require_api_key(provided: str | None = Depends(_api_key_header)) -> No
     expected = configured_api_key()
     if expected is None:
         return
-    if provided is None or not hmac.compare_digest(provided, expected):
+    # Compared as bytes: on two str, compare_digest raises TypeError when either
+    # holds a non-ASCII character, and one byte like \xe9 in the header was an
+    # HTTP 500 instead of a 401.
+    if provided is None or not hmac.compare_digest(provided.encode(), expected.encode()):
         raise HTTPException(
             status_code=401,
             detail=f"Missing or invalid {API_KEY_HEADER} header",
@@ -129,35 +134,6 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
-
-
-# Single source of truth for what a watchlist name may be. The import endpoint
-# used to enforce none of this, so anything the path endpoint rejected could be
-# smuggled in through it and then rendered by the CLI.
-# A literal space rather than \s: \s also matches newlines and tabs, so the
-# original pattern admitted multi-line names, which break the CLI table layout
-# and open the door to log injection. Only a space is ever meant ("windows 10").
-SOFTWARE_NAME_PATTERN = r"^[\w \-\.]+$"
-SOFTWARE_NAME_MAX_LENGTH = 100
-_SOFTWARE_NAME_RE = re.compile(SOFTWARE_NAME_PATTERN)
-
-
-def normalise_software_name(value) -> str | None:
-    """Canonical watchlist name, or None when the value is not acceptable.
-
-    Accepts only strings: an import payload is arbitrary JSON, and calling
-    .strip() on an int used to surface as HTTP 500. Over-long names are
-    rejected rather than truncated — silently watching a different name than
-    the caller asked for is worse than refusing.
-    """
-    if not isinstance(value, str):
-        return None
-    name = value.strip().lower()
-    if not name or len(name) > SOFTWARE_NAME_MAX_LENGTH:
-        return None
-    if not _SOFTWARE_NAME_RE.match(name):
-        return None
-    return name
 
 
 # C0 controls except tab and newline, DEL, and the C1 block (which includes
@@ -274,7 +250,6 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
     as zero, and whatever it managed to return before failing is still saved.
     """
     from patchradar.db.database import save_cve
-    count = 0
     # Debian and KEV are each served from a process-wide snapshot, so they cost
     # one download per scan rather than one per package.
     #
@@ -297,11 +272,15 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
                            "reason": exc.reason, "status": exc.status})
             cves = exc.partial
         collected += cves
-        count += len(cves)
+    # One row per CVE before anything counts or stores it, as `_scan_target` in
+    # the CLI does: a CVE that NVD scores and CISA lists arrived once from each,
+    # and was counted twice — so the two scans gave different totals for the
+    # same machine, which is what keeping them in step was meant to prevent.
+    collected = merge_by_cve(collected)
     # FIRST is asked once per package about everything the sources returned,
     # before any of it is stored, so the EPSS fields land in the same row as the
-    # CVE rather than in a second pass over the database. It cannot change
-    # `count`: EPSS scores CVEs, it does not find them.
+    # CVE rather than in a second pass over the database. It cannot change the
+    # count: EPSS scores CVEs, it does not find them.
     try:
         await epss_enrich(collected)
     except CollectorError as exc:
@@ -310,7 +289,7 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
                        "reason": exc.reason, "status": exc.status})
     for cve in collected:
         await save_cve(cve)
-    return count
+    return len(collected)
 
 
 @app.post(

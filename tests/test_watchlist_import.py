@@ -16,12 +16,15 @@ Over-long names were silently truncated to 100 characters, quietly watching
 something other than what was asked for; they are now rejected, matching the
 path endpoint's 422.
 """
+import asyncio
 import re
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from typer.testing import CliRunner
 
 import patchradar.api.main as api
+import patchradar.cli as cli
 from patchradar.api.main import (
     SOFTWARE_NAME_MAX_LENGTH,
     SOFTWARE_NAME_PATTERN,
@@ -215,3 +218,22 @@ async def test_newline_is_not_a_valid_name_on_either_route(client):
     r = await client.post("/api/watchlist/import", json={"software": ["a\nb"]})
     assert r.json()["added"] == []
     assert await get_watchlist() == []
+
+
+# ─── the CLI applies the same rule ───────────────────────────────────────────
+
+def test_cli_add_normalises_the_name_like_the_api():
+    """The API stores 'proxmox' for '  Proxmox  ' (strip + lower); the CLI
+    stored '  proxmox  ', a duplicate the API does not recognise and a keyword
+    with spaces sent to NVD and MSRC."""
+    result = CliRunner().invoke(cli.app, ["add", "  Proxmox  "])
+    assert result.exit_code == 0
+    assert asyncio.run(get_watchlist()) == ["proxmox"]
+
+
+def test_cli_add_rejects_the_names_the_api_rejects():
+    """`normalise_software_name` is the single source of truth and refuses
+    multi-line names; `patchradar add` went around it and stored them."""
+    result = CliRunner().invoke(cli.app, ["add", "foo\nbar"])
+    assert "foo\nbar" not in asyncio.run(get_watchlist())
+    assert result.exit_code != 0

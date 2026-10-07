@@ -111,14 +111,32 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   — an existing database keeps every row and gains the table, nothing is rebuilt — and
   removing a product deletes a CVE only when no other product is linked to it.
   `/api/stats` counts a shared CVE once in the total and once per product.
+- **`/api/scan` counts each CVE once.** It added up what every source returned, so a CVE
+  from NVD and CISA KEV was two, and the HTTP scan and `patchradar scan` gave different
+  totals for one machine. It now merges by CVE first, as the CLI does.
 - **Adjacent NVD windows no longer ask for the same day twice.** A request covers whole
   days, and the window after another started on the day the previous one ended.
 - **Debian CVEs are no longer "published" at scan time.** The tracker states no date and
   the collector used `now()`, which put a 2014 CVE at the top of every newest-first list.
   The date is now left empty, as it is for any source that does not state one.
-- **Versions compare across component counts within a scheme.** `8.9` against a fix in
-  `8.9.6.4` answered "not affected". Versions sharing a major number are now padded
-  and compared.
+- **The Debian match is on words of the package name, not substrings.** "git" no longer
+  collects python-digitalocean's CVEs, nor "ssh" those of libssh; "python" still finds
+  python3.13.
+- **Versions compare across component counts within a scheme, and OpenSSL's lettered
+  releases compare at all.** `8.9` against a fix in `8.9.6.4`, and `1.1.1t` against a fix
+  in `1.1.1u`, both answered "not affected". Versions sharing a major number are now
+  padded and compared, and a trailing lower-case letter orders as OpenSSL released them;
+  other suffixes (`-rc1`, `b1`) are still not compared, as before.
+- **`patchradar add` validates and normalises like the API.** `add "  Proxmox  "` stored
+  the spaces, beside the `proxmox` the API stores, and a multi-line name was accepted. The
+  rule moved to `patchradar.names` so the CLI can share it without importing the web app.
+- **Smaller ones.** CISA KEV entries without a `cveID` are dropped like NVD's and MSRC's;
+  `patchradar debian cve-2026-1234` finds the CVE in lower case; `scan --days 0` is a
+  usage error instead of a `ValueError` traceback.
+- **Shell scripts are checked out with LF everywhere.** With `core.autocrlf` on Windows
+  `wait_for_pypi.sh` came out with CRLF and the suite's seven cases for it failed there,
+  together with `bash` resolving to WSL's launcher; `.gitattributes` and the test's own
+  choice of bash fix both.
 - **The PyPI wait allows a margin once the index answers.** apkradar's Docker build
   failed on 2026-10-03 with `No matching distribution found` **fifteen seconds after**
   the wait had reported the version available — 16:31:21 against 16:31:36. The poll is
@@ -164,6 +182,8 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   unauthenticated API to the whole network. The compose file also passes
   `PATCHRADAR_API_KEY` and `NVD_API_KEY` through from `.env`, and `.env.example`, which was
   empty, documents both.
+- **A non-ASCII `X-API-Key` is a 401, not a 500.** `hmac.compare_digest` raises on two
+  `str` when either holds a non-ASCII character; the key is now compared as bytes.
 
 
 ## [2026.44] — 2026-10-04

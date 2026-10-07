@@ -143,6 +143,12 @@ def filter_catalogue(data: dict, keyword: str) -> list[dict]:
     for entry in data.get("vulnerabilities", []):
         if not isinstance(entry, dict):
             continue
+        # The id is the database primary key — a blank one would collide with
+        # any other id-less record, so such an entry is dropped, as NVD and
+        # MSRC drop theirs.
+        cve_id = entry.get("cveID")
+        if not isinstance(cve_id, str) or not cve_id.strip():
+            continue
         haystack = f"{entry.get('vendorProject', '')} {entry.get('product', '')}".lower()
         if needle in haystack:
             results.append(_to_record(entry, keyword))

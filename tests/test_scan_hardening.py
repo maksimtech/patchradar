@@ -285,6 +285,29 @@ async def test_key_comparison_is_constant_time(monkeypatch):
     assert "compare_digest" in src
 
 
+@pytest.mark.asyncio
+async def test_a_non_ascii_key_header_is_a_401_not_a_500(monkeypatch):
+    """`hmac.compare_digest` on two `str` raises TypeError when either holds a
+    non-ASCII character: one latin-1 byte in X-API-Key (an 'é') was an HTTP 500
+    instead of a 401."""
+    monkeypatch.setenv(api.API_KEY_ENV, "secret")
+    transport = ASGITransport(app=api.app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/watchlist/x", headers={"X-API-Key": "s\xe9cret".encode("latin-1")})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_non_ascii_configured_key_does_not_turn_a_wrong_header_into_a_500(monkeypatch):
+    """The configured side can hold non-ASCII characters too: a wrong header
+    stays a 401."""
+    monkeypatch.setenv(api.API_KEY_ENV, "chiavé")
+    transport = ASGITransport(app=api.app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/watchlist/x", headers={"X-API-Key": "chiave"})
+    assert r.status_code == 401
+
+
 # ─── Cross-site writes ───────────────────────────────────────────────────────
 # With no key configured — the default — any page the user visits could send a
 # "simple" POST (no body, so no CORS preflight) to localhost:8000 and the write
@@ -362,3 +385,36 @@ def test_every_write_route_carries_the_origin_guard():
         if isinstance(route, APIRoute) and route.methods - {"GET", "HEAD", "OPTIONS"}:
             calls = {dep.call for dep in route.dependant.dependencies}
             assert api.require_same_origin in calls, route.path
+
+
+# ─── Counting ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_the_scan_counts_each_cve_once_across_sources(empty_database, monkeypatch):
+    """A CVE that NVD and CISA KEV both report is one CVE, as `patchradar scan`
+    counts it with merge_by_cve; `_scan_one` added up every source and said 2."""
+    def record(cve_id, software, source):
+        return {"id": cve_id, "software": software, "description": "d", "cvss_score": 7.5,
+                "cvss_version": "3.1", "severity": "HIGH", "published_at": "2026-09-01T00:00:00",
+                "source": source, "url": "https://example.invalid"}
+
+    async def nvd_fake(sw, days_back=7):
+        return [record("CVE-2026-3333", sw, "NVD")]
+
+    async def kev_fake(sw, days_back=30):
+        return [record("CVE-2026-3333", sw, "CISA KEV")]
+
+    async def nothing(sw, *args, **kwargs):
+        return []
+
+    monkeypatch.setattr(api, "nvd_fetch", nvd_fake)
+    monkeypatch.setattr(api, "kev_fetch", kev_fake)
+    monkeypatch.setattr(api, "msrc_fetch", nothing)
+    monkeypatch.setattr(api, "debian_fetch", nothing)
+    await database.add_to_watchlist("foo")
+
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
+        r = await ac.post("/api/scan?days=7")
+    assert r.status_code == 200
+    assert r.json()["by_software"]["foo"] == 1
+    assert r.json()["total"] == 1

@@ -22,7 +22,9 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 
 import pytest
+from typer.testing import CliRunner
 
+import patchradar.cli as cli
 from patchradar.collectors import nvd
 
 
@@ -85,6 +87,33 @@ def test_the_boundary_that_was_measured():
 def test_a_window_of_nothing_is_refused_rather_than_guessed_at(days):
     with pytest.raises(ValueError):
         windows(days)
+
+
+def test_the_cli_refuses_a_window_of_nothing_without_a_traceback(monkeypatch):
+    """`patchradar scan x --days 0` must end in a usage error, not a traceback:
+    the ValueError above is not a CollectorError, and it went through the
+    whole CLI."""
+    async def nothing(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(cli, "msrc_fetch", nothing)
+    monkeypatch.setattr(cli, "kev_fetch", nothing)
+    result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", "0"])
+    assert not isinstance(result.exception, ValueError), repr(result.exception)
+    assert result.exit_code != 0
+
+
+@pytest.mark.parametrize("days", ["0", "-1", "-400"])
+def test_the_cli_refuses_a_window_of_nothing_as_a_usage_error(monkeypatch, days):
+    """A usage error (exit 2, as for any invalid Typer option) before any
+    request: no collector is asked anything."""
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("a collector ran for an invalid --days")
+
+    for name in ("fetch_cves", "msrc_fetch", "kev_fetch"):
+        monkeypatch.setattr(cli, name, must_not_run)
+    result = CliRunner().invoke(cli.app, ["scan", "nginx", "--days", days])
+    assert result.exit_code == 2, result.output
 
 
 # --------------------------------------------------------------------------
