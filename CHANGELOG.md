@@ -12,6 +12,10 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+---
+
+## [2026.45] — 2026-10-08
+
 ### Added
 
 - **The files the build is told to include are checked to be there.** apkradar lost its
@@ -205,6 +209,7 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 - **A non-ASCII `X-API-Key` is a 401, not a 500.** `hmac.compare_digest` raises on two
   `str` when either holds a non-ASCII character; the key is now compared as bytes.
 
+---
 
 ## [2026.44] — 2026-10-04
 
