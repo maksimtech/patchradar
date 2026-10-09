@@ -117,6 +117,31 @@ def _confidentiality(vuln: dict) -> str | None:
     return _CONFIDENTIALITY_LEVELS[match.group(1)] if match else None
 
 
+def _window_start(now: datetime | None, days_back: int) -> datetime:
+    """The oldest publication date the scan asked for.
+
+    Capped like the months are: MSRC keeps three months of documents, so the
+    window cannot open earlier than that, and the CLI says so after the total.
+    """
+    now = now or datetime.now()
+    return now - timedelta(days=min(max(int(days_back), 1), MAX_DAYS_BACK))
+
+
+def _published_inside(published_at: str, start: datetime) -> bool:
+    """Whether the entry's first revision falls inside the window — or cannot be
+    placed at all, which keeps it: dropping a CVE for a formatting oddity would
+    hide it, and the record still says when it thinks it was published."""
+    try:
+        published = datetime.fromisoformat(published_at)
+    except (TypeError, ValueError):
+        return True
+    if published.tzinfo is not None:
+        # The documents date in naive UTC; `start` is naive too. An offset, if
+        # one ever appears, is honoured and then dropped for the comparison.
+        published = (published - published.utcoffset()).replace(tzinfo=None)  # type: ignore[operator]
+    return published >= start
+
+
 def _matches_keyword(vuln: dict, keyword: str) -> bool:
     """Whether the keyword is a word of the title or of a note.
 
@@ -158,11 +183,21 @@ def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
     }
 
 
-async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
-    """Fetch CVEs from Microsoft MSRC for a given keyword."""
+async def fetch_cves(keyword: str, days_back: int = 30, *, now: datetime | None = None) -> list[dict]:
+    """Fetch CVEs from Microsoft MSRC for a given keyword.
+
+    The documents are monthly and the window is in days, so the months that
+    overlap it are fetched and then each entry is held to the window by the date
+    of its first revision. Until 2026-10-09 the documents were the window: a
+    30-day scan on the 9th reported the Patch Tuesday of the 8th of the month
+    before, 31 days back — sixteen SharePoint CVEs, while NVD, asked for the same
+    30 days, answered one. `now` is for the tests; a scan passes nothing.
+    """
     results = []
     failures: list[tuple[str, str, int | None]] = []   # (month, reason, status)
-    months_to_check = _months_in_range(datetime.now(), days_back)
+    now = now or datetime.now()
+    months_to_check = _months_in_range(now, days_back)
+    window_start = _window_start(now, days_back)
 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for month in months_to_check:
@@ -197,7 +232,7 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
                 except Exception:
                     logger.debug("skipping unparseable MSRC record", exc_info=True)
                     continue
-                if parsed:
+                if parsed and _published_inside(parsed["published_at"], window_start):
                     results.append(parsed)
 
     if failures:

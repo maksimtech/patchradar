@@ -15,6 +15,7 @@ all-clear.
 Collectors now raise CollectorError(source, reason, status, partial). Callers
 save whatever partial results exist and report each failed source.
 """
+from datetime import datetime
 from io import StringIO
 
 import httpx
@@ -42,10 +43,12 @@ def nvd_ok(cve_id="CVE-2026-0001"):
 
 
 def msrc_doc(cve_id):
+    # Dated today: the collector holds every entry to the window asked for, and
+    # these tests are about failing months, not about dates.
     return httpx.Response(200, json={"Vulnerability": [{
         "CVE": cve_id, "Title": {"Value": "nginx issue"},
         "Notes": [{"Type": 1, "Value": "nginx"}], "CVSSScoreSets": [{"BaseScore": 7.5}],
-        "RevisionHistory": [{"Date": "2026-09-09"}]}]})
+        "RevisionHistory": [{"Date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}]}]})
 
 
 def by_call(first, second, rest):

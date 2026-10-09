@@ -134,12 +134,16 @@ def msrc_september(monkeypatch):
     document = _recorded("msrc_2026_sep_excerpt.json")
     with respx.mock:
         respx.get(f"{msrc.MSRC_API}/cvrf/2026-Sep").mock(return_value=httpx.Response(200, json=document))
-        respx.get(f"{msrc.MSRC_API}/cvrf/2026-Oct").mock(return_value=httpx.Response(404))
+        # Every other month asked for has no document yet, which MSRC says with 404.
+        respx.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
         yield
 
 
 async def _msrc_ids(keyword: str) -> list[str]:
-    return [r["id"] for r in await msrc.fetch_cves(keyword, days_back=30)]
+    # 60 days: the recorded entries are dated 2026-09-07 to 09-09 and the clock
+    # says 10-09, so a 30-day window would hold the entries to a date and this
+    # file is about the keyword. tests/test_msrc_window.py is about the date.
+    return [r["id"] for r in await msrc.fetch_cves(keyword, days_back=60)]
 
 
 @pytest.mark.asyncio

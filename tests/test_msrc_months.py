@@ -182,7 +182,9 @@ async def test_results_from_every_month_are_collected():
             "Title": {"Value": "nginx issue"},
             "Notes": [{"Type": 1, "Value": "nginx detail"}],
             "CVSSScoreSets": [{"BaseScore": 7.5}],
-            "RevisionHistory": [{"Date": "2026-01-01T00:00:00"}],
+            # Dated today: the collector holds every entry to the window asked
+            # for, and this test is about the months, not about the dates.
+            "RevisionHistory": [{"Date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}],
         }]})
 
     with respx.mock:

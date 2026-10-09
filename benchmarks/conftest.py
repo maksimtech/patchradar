@@ -7,6 +7,7 @@ a temporary file seeded with realistic CVE data.
 
 import asyncio
 import random
+from datetime import datetime
 from pathlib import Path
 
 import aiosqlite
@@ -164,7 +165,9 @@ def msrc_payload() -> dict:
                     {"Type": 7, "Value": f"{product} advisory note"},
                 ],
                 "CVSSScoreSets": [{"BaseScore": round((index % 100) / 10, 1)}],
-                "RevisionHistory": [{"Date": "2026-08-12T00:00:00"}],
+                # Dated today, so the entries stay inside the window the
+                # benchmark asks for and the parse of all 200 is what is timed.
+                "RevisionHistory": [{"Date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}],
             }
         )
     return {"Vulnerability": vulnerabilities}

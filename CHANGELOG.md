@@ -51,6 +51,18 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
   The fixture is the dump's own three entries, verbatim, with a `_derived` key saying so.
 
+- **MSRC answers for the days asked, not for the whole months they touch.** Seen on
+  2026-10-09 with `patchradar scan --days 30`: sixteen SharePoint CVEs from MSRC, every
+  one released on Patch Tuesday, 2026-09-08 — thirty-one days earlier — while NVD, asked
+  for the same 30 days, answered one. The collector fetched the monthly documents that
+  overlap the window and kept everything in them, so the two sources disagreed about what
+  "30 days" meant in the same table, and `--days 7` on the 9th would have reported the same
+  Patch Tuesday had the next document not existed yet. Each entry is now held to the window
+  by the date of its first revision; an entry with no usable date is kept rather than
+  dropped for a formatting oddity. The hand-built MSRC payloads in the suite are dated
+  today for the same reason, since their tests are about failing months and malformed
+  fields, not about dates.
+
 ---
 
 ## [2026.45] — 2026-10-08
