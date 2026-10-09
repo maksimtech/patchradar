@@ -691,6 +691,7 @@ def import_inventory(
 
 POSITION_STYLES = {
     "resolved": "green",
+    "not-affected": "green",
     "fix-elsewhere": "yellow",
     "point-release": "cyan",
     "no-dsa": "magenta",

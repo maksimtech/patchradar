@@ -34,6 +34,23 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   The fixtures are recorded from the live catalogue (2026.10.08) and the live
   September document, with a `_derived` key saying what was kept.
 
+- **`patchradar debian` reads the tracker's `fixed_version: "0"` as "never affected", not as
+  "fixed in version 0".** Asked on 2026-10-09 about CVE-2026-90439, which a real scan had
+  found for nginx, it answered *fixed here: 0 — Debian fixed it in nginx 0 for trixie:
+  rebuild and republish*. There is no nginx 0 and nothing to rebuild: the tracker writes
+  that value, with status resolved, for a release whose package was never vulnerable — the
+  `<not-affected>` of its data files — and 5,723 trixie entries of that day's dump carry it.
+  It is now its own position, `not-affected`, with its own next step (none), and a "0" in
+  another suite is no longer listed as a fix to ask for.
+
+  The same answer named a second package, `openssh-gssapi`, as *untracked — the tracker says
+  nothing about it*. The tracker lists that CVE for it in sid and forky; what it has no entry
+  for is trixie, because the package is not there. The standing stays `untracked` — silence
+  about a release is not "not affected" — but the sentence now says which releases the
+  tracker does list, so "not in this release" reads differently from "not triaged".
+
+  The fixture is the dump's own three entries, verbatim, with a `_derived` key saying so.
+
 ---
 
 ## [2026.45] — 2026-10-08

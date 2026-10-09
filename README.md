@@ -79,7 +79,8 @@ patchradar debian CVE-2026-54371 --release bookworm --package attr
 patchradar debian CVE-2026-85091 --file tracker.json   # a snapshot saved earlier
 ```
 
-Seven positions, one next step each: fixed here (the image is stale — rebuild),
+Eight positions, one next step each: fixed here (the image is stale — rebuild),
+never affected (the tracker's `fixed_version: "0"` — nothing to do),
 fixed in another suite (a fix exists — ask for a stable update), scheduled for a
 point release (the waiting has a date), no-dsa postponed or ignored (later, or
 never), open in every suite (nothing to wait for — evidence on the Debian bug is
