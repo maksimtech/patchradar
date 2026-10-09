@@ -71,6 +71,12 @@ def test_the_keyword_is_a_word_of_the_text(keyword, text, found):
     assert bool(keyword_pattern(keyword).search(text.lower())) is found
 
 
+def test_the_pattern_is_compiled_once_per_keyword():
+    """MSRC asks for it twice per entry, 2,764 entries a month: compiled every
+    time, CodSpeed measured the fetch at 75 ms against 49 before."""
+    assert keyword_pattern("openssl") is keyword_pattern("openssl")
+
+
 def test_the_keyword_is_taken_literally():
     """"7-zip" and "c++" hold regex metacharacters; they are product names here."""
     assert keyword_pattern("c++").search("microsoft visual c++ 2015")
