@@ -121,3 +121,19 @@ def test_a_cve_the_tracker_does_not_carry_still_says_so(tracker):
     [standing] = standings(tracker, "CVE-2026-1", release="trixie")
     assert standing.position is Position.UNTRACKED
     assert "says nothing about" in standing.action()
+
+
+# ── the no-dsa advice without a bug ──────────────────────────────────────────
+
+def test_the_no_dsa_advice_without_a_bug_is_a_sentence(tracker):
+    """openssh CVE-2026-106585 in trixie on 2026-10-09: no-dsa, no Debian bug.
+    The advice ended "…or stop shipping the package. the tracker page, https://…,
+    since no Debian bug is recorded." — a noun phrase standing where a sentence
+    was expected, in lower case, after a full stop. The clause is written for a
+    preposition (`evidence on …`), and this branch gave it none."""
+    [standing] = standings(tracker, "CVE-2026-106585", release="trixie", package="openssh")
+    assert standing.position is Position.NO_DSA
+    action = standing.action()
+    assert ". the tracker page" not in action
+    assert "goes on the tracker page" in action
+    assert standing.tracker_url in action

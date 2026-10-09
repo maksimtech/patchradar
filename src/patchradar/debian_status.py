@@ -124,10 +124,11 @@ class Standing:
         return TRACKER_URL.format(cve=self.cve)
 
     def _bug_clause(self) -> str:
-        """Where evidence about this flaw goes — a noun phrase, always.
+        """Where evidence about this flaw goes — a noun phrase, always, and
+        every caller puts it after a preposition.
 
         Without a bug this returned a whole sentence, "No Debian bug is recorded;
-        the tracker page is …", and both callers put it after a preposition. What
+        the tracker page is …", and the callers put it after a preposition. What
         came out was two sentences spliced together:
 
             What moves it is evidence on No Debian bug is recorded; the tracker
@@ -136,6 +137,11 @@ class Standing:
         Read on 2026-09-30 while writing exeradar's record of CVE-2026-102010,
         which is where these sentences end up: they are quoted into
         SECURITY-EXCEPTIONS.toml as the reason a finding is accepted.
+
+        The no-dsa and point-release branches made the mirror mistake until
+        2026-10-09: they put the phrase after a full stop, so the advice for
+        openssh CVE-2026-106585 ended "…stop shipping the package. the tracker
+        page, https://…, since no Debian bug is recorded."
         """
         if self.debian_bug:
             return f"Debian bug {self.debian_bug} ({self.bug_url})"
@@ -169,7 +175,8 @@ class Standing:
                 f"{self.release} in the next point release instead{where}. This "
                 f"waiting has an end and a date: watch for the point release, then "
                 f"rebuild. Nothing to ask for, and no individual backport to "
-                f'request — Debian says "{self.nodsa}". {self._bug_clause()}.'
+                f'request — Debian says "{self.nodsa}". Evidence about it goes on '
+                f"{self._bug_clause()}."
             )
         if self.position is Position.NO_DSA:
             decided = self.nodsa or "no reason given"
@@ -202,7 +209,8 @@ class Standing:
                 )
             return (
                 f'{verdict} Debian says "{decided}".{tail} Record it with a review '
-                f"date, or stop shipping the package. {self._bug_clause()}."
+                f"date, or stop shipping the package. Evidence about it goes on "
+                f"{self._bug_clause()}."
             )
         if self.position is Position.FIX_ELSEWHERE:
             return (
