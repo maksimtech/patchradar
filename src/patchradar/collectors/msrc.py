@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 
 import httpx
@@ -26,6 +28,78 @@ MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 MAX_DAYS_BACK = 90
+
+# A monthly document is one download for every keyword of a scan: September 2026
+# measured 20,492,679 bytes, and a ten-entry watchlist fetched it ten times. The
+# Debian tracker and the KEV catalogue are each downloaded once and filtered in
+# memory; this is the same arrangement, per month. A document MSRC has not
+# published yet (404) is not cached — the answer is small, and the document may
+# appear within the hour — and a failed download is never cached.
+CACHE_TTL_SECONDS = 3600
+
+_documents: dict[str, dict] = {}
+_documents_at: dict[str, float] = {}
+_lock = asyncio.Lock()
+
+
+def clear_cache() -> None:
+    """Drop the cached documents (used by tests and manual refreshes)."""
+    _documents.clear()
+    _documents_at.clear()
+
+
+def _fresh_document(month: str) -> dict | None:
+    """The cached document for `month` while it is within the TTL, else None."""
+    cached = _documents.get(month)
+    if cached is None or (time.monotonic() - _documents_at.get(month, 0.0)) >= CACHE_TTL_SECONDS:
+        return None
+    return cached
+
+
+class _MonthFailure(Exception):
+    """One month that could not be read: the reason and the status, for the
+    caller to fold into the CollectorError it raises after the loop."""
+
+    def __init__(self, reason: str, status: int | None):
+        super().__init__(reason)
+        self.reason = reason
+        self.status = status
+
+
+async def _month_document(client: httpx.AsyncClient, month: str) -> dict | None:
+    """The CVRF document for `month`, from the cache or from MSRC.
+
+    None means MSRC has no document for that month (404), which is not a
+    failure: the current month has none until Patch Tuesday. Anything else that
+    is not a usable document raises `_MonthFailure`.
+    """
+    cached = _fresh_document(month)
+    if cached is not None:
+        return cached
+    async with _lock:
+        cached = _fresh_document(month)
+        if cached is not None:
+            return cached
+        try:
+            response = await client.get(f"{MSRC_API}/cvrf/{month}")
+        except httpx.HTTPError as exc:
+            logger.debug("MSRC request failed for %s", month, exc_info=True)
+            raise _MonthFailure(NETWORK, None) from exc
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise _MonthFailure(reason_for_status(response.status_code), response.status_code)
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise _MonthFailure(BAD_PAYLOAD, response.status_code) from exc
+        if not isinstance(data, dict):
+            # Not a document, but MSRC answered: there is nothing to retry and
+            # nothing to read, and the shape is remembered like a document is.
+            data = {}
+        _documents[month] = data
+        _documents_at[month] = time.monotonic()
+        return data
 
 
 def _months_in_range(now: datetime, days_back: int) -> list[str]:
@@ -202,24 +276,13 @@ async def fetch_cves(keyword: str, days_back: int = 30, *, now: datetime | None 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for month in months_to_check:
             try:
-                response = await client.get(f"{MSRC_API}/cvrf/{month}")
-            except httpx.HTTPError:
-                logger.debug("MSRC request failed for %s", month, exc_info=True)
-                failures.append((month, NETWORK, None))
+                data = await _month_document(client, month)
+            except _MonthFailure as failure:
+                failures.append((month, failure.reason, failure.status))
                 continue
-            if response.status_code == 404:
+            if data is None:
                 continue   # no CVRF document for that month yet — not a failure
-            if response.status_code != 200:
-                failures.append((month, reason_for_status(response.status_code), response.status_code))
-                continue
-            try:
-                data = response.json()
-            except ValueError:
-                failures.append((month, BAD_PAYLOAD, response.status_code))
-                continue
 
-            if not isinstance(data, dict):
-                continue
             vulnerabilities = data.get("Vulnerability")
             if not isinstance(vulnerabilities, list):
                 continue

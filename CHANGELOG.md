@@ -63,6 +63,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   today for the same reason, since their tests are about failing months and malformed
   fields, not about dates.
 
+- **One download per MSRC month per scan, not one per watched product.** Measured on
+  2026-10-09: the September 2026 CVRF document is 20,492,679 bytes, and a 30-day scan over a
+  ten-entry watchlist fetched it ten times, plus October's ten times — some 210 MB for two
+  documents that do not change between one keyword and the next. The Debian tracker and the
+  KEV catalogue were already downloaded once and filtered in memory; MSRC was the one source
+  still paying per keyword. A document is now cached for an hour like the other two. A month
+  MSRC has no document for yet (404) is not cached, and a failed download never is, so one
+  outage does not poison the scan for every keyword after it.
+
 ---
 
 ## [2026.45] — 2026-10-08

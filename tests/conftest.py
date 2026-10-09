@@ -8,7 +8,7 @@ import aiosqlite
 import pytest
 
 from patchradar import epss
-from patchradar.collectors import debian, kev
+from patchradar.collectors import debian, kev, msrc
 from patchradar.db import database
 
 
@@ -96,6 +96,18 @@ def epss_offline_by_default(monkeypatch):
     monkeypatch.setattr(epss, "_lookup", _scores_nothing)
     yield
     epss.clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def reset_msrc_documents():
+    """Isolate the process-wide MSRC document cache between tests.
+
+    One download per month per scan is what a watchlist of ten wants; a test
+    that mocks a month's answer wants its own answer, not the previous test's.
+    """
+    msrc.clear_cache()
+    yield
+    msrc.clear_cache()
 
 
 @pytest.fixture(autouse=True)
