@@ -91,6 +91,18 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   the row came from; NVD has a page for every CVE, so that link stays under its own name;
   MSRC's appears only when MSRC was among the sources.
 
+- **`scripts/import-winget.ps1` works against a server that has a key, and posts UTF-8.**
+  Run on 2026-10-09 against the published image started with `PATCHRADAR_API_KEY` set, it
+  ended in *There was an error parsing the body*: Windows PowerShell 5.1 posted the string
+  body in the console's code page, and one of the 109 names, "hwinfo® 64", is not valid
+  UTF-8 in cp1252, so the server refused the whole body before reading a name — and before
+  the 401 the script would have met next, since it sent no `X-API-Key` at all. It now posts
+  UTF-8 bytes, takes `-ApiKey` (from `PATCHRADAR_API_KEY` by default), keeps a single name a
+  list, says how many names the server rejected, and takes `-InputFile` for a list taken on
+  another machine. Tested by running the real script against a real HTTP server in the
+  suite, where PowerShell is installed: on the same list it added 49, found 23 already
+  there and had 37 rejected by the name rule.
+
 ---
 
 ## [2026.45] — 2026-10-08

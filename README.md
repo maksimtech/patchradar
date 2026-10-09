@@ -131,6 +131,17 @@ sends on behalf of another web site (`Sec-Fetch-Site: cross-site`, or an `Origin
 that is not this server) is refused with 403, so a page you visit cannot add to your
 watchlist or start scans through your browser.
 
+On Windows, `scripts/import-winget.ps1` fills the watchlist from `winget list`:
+
+```powershell
+.\scripts\import-winget.ps1 -Url http://localhost:8000 -ApiKey <PATCHRADAR_API_KEY>
+.\scripts\import-winget.ps1 -InputFile names.txt      # one name per line, from any machine
+```
+
+The key is read from `PATCHRADAR_API_KEY` when `-ApiKey` is not given. Names winget
+spells with characters the watchlist refuses — `®`, parentheses, `+` — are reported
+as rejected rather than silently dropped.
+
 ### NVD API key (optional)
 
 NVD limits clients without an API key to 5 requests per 30 seconds; a key raises
