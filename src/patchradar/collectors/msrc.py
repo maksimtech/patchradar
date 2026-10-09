@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 
 import httpx
@@ -11,6 +13,7 @@ from patchradar.collectors.errors import (
     reason_for_status,
 )
 from patchradar.cvss import severity_for
+from patchradar.names import keyword_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,78 @@ MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 MAX_DAYS_BACK = 90
+
+# A monthly document is one download for every keyword of a scan: September 2026
+# measured 20,492,679 bytes, and a ten-entry watchlist fetched it ten times. The
+# Debian tracker and the KEV catalogue are each downloaded once and filtered in
+# memory; this is the same arrangement, per month. A document MSRC has not
+# published yet (404) is not cached — the answer is small, and the document may
+# appear within the hour — and a failed download is never cached.
+CACHE_TTL_SECONDS = 3600
+
+_documents: dict[str, dict] = {}
+_documents_at: dict[str, float] = {}
+_lock = asyncio.Lock()
+
+
+def clear_cache() -> None:
+    """Drop the cached documents (used by tests and manual refreshes)."""
+    _documents.clear()
+    _documents_at.clear()
+
+
+def _fresh_document(month: str) -> dict | None:
+    """The cached document for `month` while it is within the TTL, else None."""
+    cached = _documents.get(month)
+    if cached is None or (time.monotonic() - _documents_at.get(month, 0.0)) >= CACHE_TTL_SECONDS:
+        return None
+    return cached
+
+
+class _MonthFailure(Exception):
+    """One month that could not be read: the reason and the status, for the
+    caller to fold into the CollectorError it raises after the loop."""
+
+    def __init__(self, reason: str, status: int | None):
+        super().__init__(reason)
+        self.reason = reason
+        self.status = status
+
+
+async def _month_document(client: httpx.AsyncClient, month: str) -> dict | None:
+    """The CVRF document for `month`, from the cache or from MSRC.
+
+    None means MSRC has no document for that month (404), which is not a
+    failure: the current month has none until Patch Tuesday. Anything else that
+    is not a usable document raises `_MonthFailure`.
+    """
+    cached = _fresh_document(month)
+    if cached is not None:
+        return cached
+    async with _lock:
+        cached = _fresh_document(month)
+        if cached is not None:
+            return cached
+        try:
+            response = await client.get(f"{MSRC_API}/cvrf/{month}")
+        except httpx.HTTPError as exc:
+            logger.debug("MSRC request failed for %s", month, exc_info=True)
+            raise _MonthFailure(NETWORK, None) from exc
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise _MonthFailure(reason_for_status(response.status_code), response.status_code)
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise _MonthFailure(BAD_PAYLOAD, response.status_code) from exc
+        if not isinstance(data, dict):
+            # Not a document, but MSRC answered: there is nothing to retry and
+            # nothing to read, and the shape is remembered like a document is.
+            data = {}
+        _documents[month] = data
+        _documents_at[month] = time.monotonic()
+        return data
 
 
 def _months_in_range(now: datetime, days_back: int) -> list[str]:
@@ -116,11 +191,46 @@ def _confidentiality(vuln: dict) -> str | None:
     return _CONFIDENTIALITY_LEVELS[match.group(1)] if match else None
 
 
+def _window_start(now: datetime | None, days_back: int) -> datetime:
+    """The oldest publication date the scan asked for.
+
+    Capped like the months are: MSRC keeps three months of documents, so the
+    window cannot open earlier than that, and the CLI says so after the total.
+    """
+    now = now or datetime.now()
+    return now - timedelta(days=min(max(int(days_back), 1), MAX_DAYS_BACK))
+
+
+def _published_inside(published_at: str, start: datetime) -> bool:
+    """Whether the entry's first revision falls inside the window — or cannot be
+    placed at all, which keeps it: dropping a CVE for a formatting oddity would
+    hide it, and the record still says when it thinks it was published."""
+    try:
+        published = datetime.fromisoformat(published_at)
+    except (TypeError, ValueError):
+        return True
+    if published.tzinfo is not None:
+        # The documents date in naive UTC; `start` is naive too. An offset, if
+        # one ever appears, is honoured and then dropped for the comparison.
+        published = (published - published.utcoffset()).replace(tzinfo=None)  # type: ignore[operator]
+    return published >= start
+
+
 def _matches_keyword(vuln: dict, keyword: str) -> bool:
-    """Check if vulnerability matches keyword in title or notes."""
-    notes = " ".join([n.get("Value") or "" for n in _notes(vuln)])
-    kw = keyword.lower()
-    return kw in _title(vuln).lower() or kw in notes.lower()
+    """Whether the keyword is a word of the title or of a note.
+
+    The notes stay in: curl's and OpenSSL's advisories carry their own titles
+    ("OpenLDAP SASL authentication bypass") and name the product only in a note.
+    A whole word, though, and not a substring: "git" matched 109 entries of the
+    September 2026 document — "GitHub", "legitimate", "digital", "10-digit" —
+    and not one of them was Git's.
+    """
+    text = f"{_title(vuln)} {' '.join(n.get('Value') or '' for n in _notes(vuln))}".lower()
+    # The substring first: it is necessary for the word to be there and costs a
+    # fraction of the search, and the search runs on every entry of a 2,764-entry
+    # document for every keyword. CodSpeed measured the fetch at 67 ms against
+    # 49 with the search alone.
+    return keyword.lower() in text and keyword_pattern(keyword).search(text) is not None
 
 
 def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
@@ -150,33 +260,32 @@ def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
     }
 
 
-async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
-    """Fetch CVEs from Microsoft MSRC for a given keyword."""
+async def fetch_cves(keyword: str, days_back: int = 30, *, now: datetime | None = None) -> list[dict]:
+    """Fetch CVEs from Microsoft MSRC for a given keyword.
+
+    The documents are monthly and the window is in days, so the months that
+    overlap it are fetched and then each entry is held to the window by the date
+    of its first revision. Until 2026-10-09 the documents were the window: a
+    30-day scan on the 9th reported the Patch Tuesday of the 8th of the month
+    before, 31 days back — sixteen SharePoint CVEs, while NVD, asked for the same
+    30 days, answered one. `now` is for the tests; a scan passes nothing.
+    """
     results = []
     failures: list[tuple[str, str, int | None]] = []   # (month, reason, status)
-    months_to_check = _months_in_range(datetime.now(), days_back)
+    now = now or datetime.now()
+    months_to_check = _months_in_range(now, days_back)
+    window_start = _window_start(now, days_back)
 
     async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for month in months_to_check:
             try:
-                response = await client.get(f"{MSRC_API}/cvrf/{month}")
-            except httpx.HTTPError:
-                logger.debug("MSRC request failed for %s", month, exc_info=True)
-                failures.append((month, NETWORK, None))
+                data = await _month_document(client, month)
+            except _MonthFailure as failure:
+                failures.append((month, failure.reason, failure.status))
                 continue
-            if response.status_code == 404:
+            if data is None:
                 continue   # no CVRF document for that month yet — not a failure
-            if response.status_code != 200:
-                failures.append((month, reason_for_status(response.status_code), response.status_code))
-                continue
-            try:
-                data = response.json()
-            except ValueError:
-                failures.append((month, BAD_PAYLOAD, response.status_code))
-                continue
 
-            if not isinstance(data, dict):
-                continue
             vulnerabilities = data.get("Vulnerability")
             if not isinstance(vulnerabilities, list):
                 continue
@@ -189,7 +298,7 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
                 except Exception:
                     logger.debug("skipping unparseable MSRC record", exc_info=True)
                     continue
-                if parsed:
+                if parsed and _published_inside(parsed["published_at"], window_start):
                     results.append(parsed)
 
     if failures:

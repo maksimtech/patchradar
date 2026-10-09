@@ -1,0 +1,109 @@
+{
+ "_derived": "An excerpt, not the whole answer. The source is the Debian security tracker's dump, https://security-tracker.debian.org/tracker/data/json, downloaded on 2026-10-09 at 12:47 UTC (82,378,232 bytes, 4067 source packages). Kept: three source packages — nginx, openssh and openssh-gssapi — and within each one CVE: nginx CVE-2026-90439, which the tracker marks resolved in trixie and bookworm with fixed_version \"0\", its spelling for a version that was never affected; openssh CVE-2026-106585, open in trixie with a no-dsa note; and openssh-gssapi CVE-2026-106585, which the tracker lists for sid and forky only, since the package is not in trixie. Every kept entry is copied verbatim; nothing was added or changed, only left out.",
+ "nginx": {
+  "CVE-2026-90439": {
+   "description": "NGINX Plus and NGINX Open Source have a vulnerability in the ngx_http_v3_module module. When using HTTP/3 with OpenSSL versions <= OpenSSL 3.5.0 under certain configurations, a limited heap buffer overflow could happen while processing a TLS handshake. This can happen in a non-deterministic manner that is beyond the attacker's control. This may cause a heap buffer overflow in the NGINX worker process leading to a restart and/or limited data corruption.  Impact: This vulnerability may allow remote attackers to cause a denial-of-service (DoS) on the NGINX system or limited data corruption. There is no control plane exposure; this is a data plane issue only.     Note: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+   "scope": "local",
+   "releases": {
+    "bookworm": {
+     "status": "resolved",
+     "repositories": {
+      "bookworm": "1.22.1-9+deb12u9",
+      "bookworm-security": "1.22.1-9+deb12u10"
+     },
+     "fixed_version": "0",
+     "urgency": "unimportant"
+    },
+    "forky": {
+     "status": "resolved",
+     "repositories": {
+      "forky": "1.30.4-7"
+     },
+     "fixed_version": "1.30.4-7",
+     "urgency": "not yet assigned"
+    },
+    "sid": {
+     "status": "resolved",
+     "repositories": {
+      "sid": "1.30.4-7"
+     },
+     "fixed_version": "1.30.4-7",
+     "urgency": "not yet assigned"
+    },
+    "trixie": {
+     "status": "resolved",
+     "repositories": {
+      "trixie": "1.26.3-3+deb13u7",
+      "trixie-security": "1.26.3-3+deb13u9"
+     },
+     "fixed_version": "0",
+     "urgency": "unimportant"
+    }
+   }
+  }
+ },
+ "openssh": {
+  "CVE-2026-106585": {
+   "description": "In sshd and ssh in OpenSSH before 10.6, there is no check for whether the maximum packet length is exceeded during decompression of highly compressed data.",
+   "scope": "local",
+   "releases": {
+    "bookworm": {
+     "status": "open",
+     "repositories": {
+      "bookworm": "1:9.2p1-2+deb12u10",
+      "bookworm-security": "1:9.2p1-2+deb12u9"
+     },
+     "urgency": "not yet assigned"
+    },
+    "forky": {
+     "status": "open",
+     "repositories": {
+      "forky": "1:10.5p1-1"
+     },
+     "urgency": "not yet assigned"
+    },
+    "sid": {
+     "status": "resolved",
+     "repositories": {
+      "sid": "1:10.6p1-1"
+     },
+     "fixed_version": "1:10.6p1-1",
+     "urgency": "not yet assigned"
+    },
+    "trixie": {
+     "status": "open",
+     "repositories": {
+      "trixie": "1:10.0p1-7+deb13u4",
+      "trixie-security": "1:10.0p1-7+deb13u2"
+     },
+     "urgency": "not yet assigned",
+     "nodsa": "Minor issue",
+     "nodsa_reason": ""
+    }
+   }
+  }
+ },
+ "openssh-gssapi": {
+  "CVE-2026-106585": {
+   "description": "In sshd and ssh in OpenSSH before 10.6, there is no check for whether the maximum packet length is exceeded during decompression of highly compressed data.",
+   "scope": "local",
+   "releases": {
+    "forky": {
+     "status": "open",
+     "repositories": {
+      "forky": "1:10.5p1-1"
+     },
+     "urgency": "not yet assigned"
+    },
+    "sid": {
+     "status": "resolved",
+     "repositories": {
+      "sid": "1:10.6p1-1"
+     },
+     "fixed_version": "1:10.6p1-1",
+     "urgency": "not yet assigned"
+    }
+   }
+  }
+ }
+}

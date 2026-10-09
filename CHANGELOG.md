@@ -12,6 +12,97 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A keyword is a word of the product name in every source, not a substring.** Found
+  on 2026-10-09 by running the real stack against the live sources with `git` — the
+  command-line tool — on the watchlist. CISA KEV returned nine entries, one of them
+  Git's: the other eight were GitLab, Gitea, reviewdog and two GitHub Actions, and
+  their exploited CVEs sat above every real finding in the scan. MSRC returned 109
+  entries of the September 2026 document, not one of them Git's — 107 said "GitHub",
+  the rest "legitimate", "digital", "logitech-hidpp" and "10-digit".
+
+  The Debian collector had met the same defect ("python-digitalocean" for git) and
+  matched whole words since; KEV and MSRC still matched substrings, so one scan
+  applied two rules and the reader could not tell which rows were which. The three
+  sources now share one rule, `names.keyword_pattern`: the keyword has to start the
+  text or follow a separator, and may be followed by anything but a letter — so
+  "log4j" still finds Log4j2, "7-zip" finds 7-Zip and "python" finds python3.13.
+  Counted on the same September document, nothing legitimate is lost: curl 9 and 9
+  (its advisories name curl only in a note), openssl 18 and 18, nginx 3 and 3.
+
+  The fixtures are recorded from the live catalogue (2026.10.08) and the live
+  September document, with a `_derived` key saying what was kept.
+
+- **`patchradar debian` reads the tracker's `fixed_version: "0"` as "never affected", not as
+  "fixed in version 0".** Asked on 2026-10-09 about CVE-2026-90439, which a real scan had
+  found for nginx, it answered *fixed here: 0 — Debian fixed it in nginx 0 for trixie:
+  rebuild and republish*. There is no nginx 0 and nothing to rebuild: the tracker writes
+  that value, with status resolved, for a release whose package was never vulnerable — the
+  `<not-affected>` of its data files — and 5,723 trixie entries of that day's dump carry it.
+  It is now its own position, `not-affected`, with its own next step (none), and a "0" in
+  another suite is no longer listed as a fix to ask for.
+
+  The same answer named a second package, `openssh-gssapi`, as *untracked — the tracker says
+  nothing about it*. The tracker lists that CVE for it in sid and forky; what it has no entry
+  for is trixie, because the package is not there. The standing stays `untracked` — silence
+  about a release is not "not affected" — but the sentence now says which releases the
+  tracker does list, so "not in this release" reads differently from "not triaged".
+
+  The fixture is the dump's own three entries, verbatim, with a `_derived` key saying so.
+
+- **MSRC answers for the days asked, not for the whole months they touch.** Seen on
+  2026-10-09 with `patchradar scan --days 30`: sixteen SharePoint CVEs from MSRC, every
+  one released on Patch Tuesday, 2026-09-08 — thirty-one days earlier — while NVD, asked
+  for the same 30 days, answered one. The collector fetched the monthly documents that
+  overlap the window and kept everything in them, so the two sources disagreed about what
+  "30 days" meant in the same table, and `--days 7` on the 9th would have reported the same
+  Patch Tuesday had the next document not existed yet. Each entry is now held to the window
+  by the date of its first revision; an entry with no usable date is kept rather than
+  dropped for a formatting oddity. The hand-built MSRC payloads in the suite are dated
+  today for the same reason, since their tests are about failing months and malformed
+  fields, not about dates.
+
+- **One download per MSRC month per scan, not one per watched product.** Measured on
+  2026-10-09: the September 2026 CVRF document is 20,492,679 bytes, and a 30-day scan over a
+  ten-entry watchlist fetched it ten times, plus October's ten times — some 210 MB for two
+  documents that do not change between one keyword and the next. The Debian tracker and the
+  KEV catalogue were already downloaded once and filtered in memory; MSRC was the one source
+  still paying per keyword. A document is now cached for an hour like the other two. A month
+  MSRC has no document for yet (404) is not cached, and a failed download never is, so one
+  outage does not poison the scan for every keyword after it.
+
+- **NVD's rate limit is paced across keywords, not only inside one.** The collector paced
+  the requests of one `fetch_cves` call — a two-year window makes seven — but a watchlist
+  scan makes one call per keyword and nothing waited between two calls, so ten keywords with
+  a 30-day window sent ten requests as fast as NVD answered them, against five per rolling
+  thirty seconds. README promised the opposite. Measured on 2026-10-09 the scan got away
+  with it, at ten keywords in 100 seconds, only because each keyword also downloaded 20 MB
+  from MSRC in between; with that download cached, the sixth keyword would have met the
+  first 403. The moment of the last request is now kept in the module, and a call that
+  starts inside the interval waits for what is left of it. A single keyword with `--days 7`
+  is exactly as fast as it was.
+
+- **The CVE detail in the web UI labels its links by the source that supplied them.** Seen
+  on 2026-10-09: Heartbleed (CVE-2014-0160), found through CISA KEV alone, opened a modal
+  whose only link to its URL — the KEV catalogue — read *View on NVD*, followed by a *View
+  on MSRC* link to a page MSRC does not have. Every URL got the NVD label, wherever it
+  pointed, and every CVE got the MSRC link, whatever found it. The label is now the source
+  the row came from; NVD has a page for every CVE, so that link stays under its own name;
+  MSRC's appears only when MSRC was among the sources.
+
+- **`scripts/import-winget.ps1` works against a server that has a key, and posts UTF-8.**
+  Run on 2026-10-09 against the published image started with `PATCHRADAR_API_KEY` set, it
+  ended in *There was an error parsing the body*: Windows PowerShell 5.1 posted the string
+  body in the console's code page, and one of the 109 names, "hwinfo® 64", is not valid
+  UTF-8 in cp1252, so the server refused the whole body before reading a name — and before
+  the 401 the script would have met next, since it sent no `X-API-Key` at all. It now posts
+  UTF-8 bytes, takes `-ApiKey` (from `PATCHRADAR_API_KEY` by default), keeps a single name a
+  list, says how many names the server rejected, and takes `-InputFile` for a list taken on
+  another machine. Tested by running the real script against a real HTTP server in the
+  suite, where PowerShell is installed: on the same list it added 49, found 23 already
+  there and had 37 rejected by the name rule.
+
 ---
 
 ## [2026.45] — 2026-10-08

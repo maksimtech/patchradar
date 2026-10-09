@@ -18,6 +18,7 @@ its neighbours and never the batch.
 import json
 import logging
 import pathlib
+from datetime import datetime
 
 import httpx
 import pytest
@@ -302,7 +303,9 @@ def msrc_vuln(cve_id="CVE-2026-9999", **overrides):
         "Title": {"Value": "nginx elevation of privilege"},
         "Notes": [{"Type": 1, "Value": "nginx description"}],
         "CVSSScoreSets": [{"BaseScore": 8.1}],
-        "RevisionHistory": [{"Date": "2026-08-12T00:00:00"}],
+        # Dated today: the collector holds every entry to the window asked for,
+        # and these tests are about malformed fields, not about dates.
+        "RevisionHistory": [{"Date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}],
     }
     vuln.update(overrides)
     return vuln

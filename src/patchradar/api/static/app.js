@@ -421,28 +421,31 @@ async function openCveDetail(cveId) {
     const pub = data.published_at ? data.published_at.substring(0, 10) : '';
     document.getElementById('modal-published').textContent = pub;
     
-    // Links
+    // Links. Each one is labelled by the source that supplied it: the URL the
+    // row carries came from whichever source found the CVE first, and until
+    // 2026-10-09 it read "View on NVD" whether it pointed at NVD, at the KEV
+    // catalogue or at the Debian tracker, while every CVE got a "View on MSRC"
+    // link to a page MSRC has only for the ones it published. NVD has a page
+    // for every CVE, so that link stays, under its own name.
     const linksEl = document.getElementById('modal-links');
     linksEl.innerHTML = '';
-    if (data.url) {
+    const sources = String(data.source || '').split(',').map(s => s.trim()).filter(Boolean);
+    const nvdUrl = data.id ? `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(data.id)}` : '';
+    const msrcUrl = data.id ? `https://msrc.microsoft.com/update-guide/en-US/vulnerability/${encodeURIComponent(data.id)}` : '';
+    const links = [];
+    if (data.url) links.push([data.url, sources[0] || 'source']);
+    if (nvdUrl && data.url !== nvdUrl) links.push([nvdUrl, 'NVD']);
+    if (msrcUrl && sources.includes('MSRC') && data.url !== msrcUrl) links.push([msrcUrl, 'MSRC']);
+    links.forEach(([href, label]) => {
       const a = document.createElement('a');
       a.className = 'modal-link';
-      a.href = data.url;
+      a.href = href;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = 'View on NVD';
+      a.textContent = `View on ${label}`;
       linksEl.appendChild(a);
-    }
-    if (data.id && data.id.startsWith('CVE-')) {
-      const a2 = document.createElement('a');
-      a2.className = 'modal-link';
-      a2.href = `https://msrc.microsoft.com/update-guide/en-US/vulnerability/${data.id}`;
-      a2.target = '_blank';
-      a2.rel = 'noopener noreferrer';
-      a2.textContent = 'View on MSRC';
-      linksEl.appendChild(a2);
-    }
-    
+    });
+
     document.getElementById('cve-modal').classList.add('active');
   } catch(e) {
     console.error('Error loading CVE detail:', e);

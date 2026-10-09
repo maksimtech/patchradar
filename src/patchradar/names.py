@@ -1,4 +1,5 @@
 """What a watchlist name may be, for every way of adding one."""
+import functools
 import re
 
 # Single source of truth for what a watchlist name may be. The import endpoint
@@ -30,3 +31,26 @@ def normalise_software_name(value) -> str | None:
     if not _SOFTWARE_NAME_RE.match(name):
         return None
     return name
+
+
+@functools.lru_cache(maxsize=256)
+def keyword_pattern(keyword: str) -> re.Pattern[str]:
+    """`keyword` as a word of a lower-cased text — a product name, a title, a note.
+
+    One rule for every source. The Debian collector learned it first, when a
+    substring match gave "git" the CVEs of python-digitalocean and "ssh" those of
+    libssh; KEV and MSRC kept matching substrings, and on 2026-10-09 the same
+    keyword took from KEV the exploited CVEs of GitLab, Gitea and a GitHub Action
+    (eight of nine matches) and from MSRC 109 entries of one month, not one of
+    them Git's — "GitHub", "legitimate", "digital", "10-digit".
+
+    The keyword has to start the text or follow a separator, and may be followed
+    by anything but a letter — so "python" still finds python3.13, "log4j" finds
+    Log4j2 and "7-zip" finds 7-Zip, where the digits are a version and not
+    another word. Escaped, because "7-zip" and "c++" are names here.
+
+    Cached: MSRC asks for it once per entry, twice — 2,764 entries in one month's
+    document — and compiling it each time cost the fetch half as much again on
+    CodSpeed. A watchlist has a few dozen keywords; 256 is well past that.
+    """
+    return re.compile(rf"(?<![a-z0-9]){re.escape(keyword.lower())}(?![a-z])")

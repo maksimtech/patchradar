@@ -5,6 +5,7 @@ import time
 import httpx
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+from patchradar.names import keyword_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +138,13 @@ def filter_catalogue(data: dict, keyword: str) -> list[dict]:
     likely to name one as the other — "Oracle" against a product called
     "Java SE" — and searching only one of the two silently halves the
     catalogue.
+
+    As a whole word, the rule the Debian collector applies. By substring, "git"
+    matched GitLab, Gitea and a GitHub Action — eight of the nine entries it
+    returned on 2026-10-09 — and a scan for the git client put their exploited
+    CVEs above every real finding.
     """
-    needle = keyword.lower()
+    matches = keyword_pattern(keyword).search
     results = []
     for entry in data.get("vulnerabilities", []):
         if not isinstance(entry, dict):
@@ -150,7 +156,7 @@ def filter_catalogue(data: dict, keyword: str) -> list[dict]:
         if not isinstance(cve_id, str) or not cve_id.strip():
             continue
         haystack = f"{entry.get('vendorProject', '')} {entry.get('product', '')}".lower()
-        if needle in haystack:
+        if matches(haystack):
             results.append(_to_record(entry, keyword))
     return results
 

@@ -8,7 +8,7 @@ import aiosqlite
 import pytest
 
 from patchradar import epss
-from patchradar.collectors import debian, kev
+from patchradar.collectors import debian, kev, msrc
 from patchradar.db import database
 
 
@@ -99,6 +99,18 @@ def epss_offline_by_default(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def reset_msrc_documents():
+    """Isolate the process-wide MSRC document cache between tests.
+
+    One download per month per scan is what a watchlist of ten wants; a test
+    that mocks a month's answer wants its own answer, not the previous test's.
+    """
+    msrc.clear_cache()
+    yield
+    msrc.clear_cache()
+
+
+@pytest.fixture(autouse=True)
 def reset_debian_snapshot():
     """Isolate the process-wide Debian tracker cache between tests.
 
@@ -132,6 +144,9 @@ def _no_rate_limit_pacing(monkeypatch):
         return None
 
     monkeypatch.setattr(nvd, "_pace", no_wait)
+    # And no request on record from the previous test: the pacing now reaches
+    # across calls, so a test that counts waits must start from nothing.
+    monkeypatch.setattr(nvd, "_last_request_at", None)
 
 
 @pytest.fixture(autouse=True)

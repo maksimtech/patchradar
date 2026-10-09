@@ -79,7 +79,8 @@ patchradar debian CVE-2026-54371 --release bookworm --package attr
 patchradar debian CVE-2026-85091 --file tracker.json   # a snapshot saved earlier
 ```
 
-Seven positions, one next step each: fixed here (the image is stale — rebuild),
+Eight positions, one next step each: fixed here (the image is stale — rebuild),
+never affected (the tracker's `fixed_version: "0"` — nothing to do),
 fixed in another suite (a fix exists — ask for a stable update), scheduled for a
 point release (the waiting has a date), no-dsa postponed or ignored (later, or
 never), open in every suite (nothing to wait for — evidence on the Debian bug is
@@ -129,6 +130,17 @@ meant for use on the same machine: `patchradar serve` listens on 127.0.0.1 and t
 sends on behalf of another web site (`Sec-Fetch-Site: cross-site`, or an `Origin`
 that is not this server) is refused with 403, so a page you visit cannot add to your
 watchlist or start scans through your browser.
+
+On Windows, `scripts/import-winget.ps1` fills the watchlist from `winget list`:
+
+```powershell
+.\scripts\import-winget.ps1 -Url http://localhost:8000 -ApiKey <PATCHRADAR_API_KEY>
+.\scripts\import-winget.ps1 -InputFile names.txt      # one name per line, from any machine
+```
+
+The key is read from `PATCHRADAR_API_KEY` when `-ApiKey` is not given. Names winget
+spells with characters the watchlist refuses — `®`, parentheses, `+` — are reported
+as rejected rather than silently dropped.
 
 ### NVD API key (optional)
 

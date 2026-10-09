@@ -8,10 +8,14 @@ different situations with different next steps, and the tracker distinguishes
 them in fields `collectors/debian.py` reads past: `fixed_version`, `nodsa`,
 `nodsa_reason` and `debianbug`, plus the status in the other suites.
 
-Five positions, five next steps:
+Positions, one next step each:
 
     resolved        Debian fixed it here. A scanner still reporting it is reading
                     an image older than the update, so the work is ours.
+    not-affected    The package in this release was never vulnerable: the tracker
+                    writes `fixed_version: "0"` with status resolved for it, the
+                    `<not-affected>` of its data files. Nothing to rebuild — a
+                    scanner reporting it matched the name, not the code.
     fix-elsewhere   Fixed in sid or testing, open in trixie. A fix exists and can
                     be asked for — this is the only case where chasing Debian has
                     a defined ending.
@@ -56,6 +60,12 @@ _UPSTREAM_SUITES = ("sid", "forky", "trixie", "bookworm")
 _RESOLVED = "resolved"
 _UNDETERMINED = "undetermined"
 
+# What the tracker writes in `fixed_version` for a release whose package was never
+# vulnerable. There is no version 0 of anything: 5,723 trixie entries of the dump
+# of 2026-10-09 carry it, and read as a version it told the reader to rebuild an
+# image that was never exposed ("Debian fixed it in nginx 0 for trixie").
+_NEVER_AFFECTED = "0"
+
 # `nodsa_reason` is a controlled vocabulary of two words plus empty, and the two
 # words are opposite verdicts: `postponed` is "later", `ignored` is "never".
 _POSTPONED = "postponed"
@@ -74,6 +84,7 @@ class Position(StrEnum):
     """Debian's standing on one CVE in one package in one release."""
 
     RESOLVED = "resolved"
+    NOT_AFFECTED = "not-affected"
     FIX_ELSEWHERE = "fix-elsewhere"
     POINT_RELEASE = "point-release"
     NO_DSA = "no-dsa"
@@ -100,6 +111,9 @@ class Standing:
     debian_bug: int | None = None
     scope: str = ""
     description: str = ""
+    # The releases the tracker does list this package for, when ours is not among
+    # them. Empty when the tracker carries no entry at all.
+    tracked_in: tuple[str, ...] = ()
 
     @property
     def bug_url(self) -> str | None:
@@ -110,10 +124,11 @@ class Standing:
         return TRACKER_URL.format(cve=self.cve)
 
     def _bug_clause(self) -> str:
-        """Where evidence about this flaw goes — a noun phrase, always.
+        """Where evidence about this flaw goes — a noun phrase, always, and
+        every caller puts it after a preposition.
 
         Without a bug this returned a whole sentence, "No Debian bug is recorded;
-        the tracker page is …", and both callers put it after a preposition. What
+        the tracker page is …", and the callers put it after a preposition. What
         came out was two sentences spliced together:
 
             What moves it is evidence on No Debian bug is recorded; the tracker
@@ -122,6 +137,11 @@ class Standing:
         Read on 2026-09-30 while writing exeradar's record of CVE-2026-102010,
         which is where these sentences end up: they are quoted into
         SECURITY-EXCEPTIONS.toml as the reason a finding is accepted.
+
+        The no-dsa and point-release branches made the mirror mistake until
+        2026-10-09: they put the phrase after a full stop, so the advice for
+        openssh CVE-2026-106585 ended "…stop shipping the package. the tracker
+        page, https://…, since no Debian bug is recorded."
         """
         if self.debian_bug:
             return f"Debian bug {self.debian_bug} ({self.bug_url})"
@@ -139,6 +159,14 @@ class Standing:
                 f"{self.release}. A scanner still reporting it is reading an "
                 f"image built before that update: rebuild and republish."
             )
+        if self.position is Position.NOT_AFFECTED:
+            return (
+                f"Debian says {self.package} in {self.release} was never affected: "
+                f"the tracker marks it resolved with no version to fix, its "
+                f"spelling for not-affected. Nothing to update and nothing to "
+                f"wait for; a scanner still reporting it matched the package "
+                f"name, not the code it ships."
+            )
         if self.position is Position.POINT_RELEASE:
             fixed = self._elsewhere_clause()
             where = f" — it is already in {fixed}" if fixed else ""
@@ -147,7 +175,8 @@ class Standing:
                 f"{self.release} in the next point release instead{where}. This "
                 f"waiting has an end and a date: watch for the point release, then "
                 f"rebuild. Nothing to ask for, and no individual backport to "
-                f'request — Debian says "{self.nodsa}". {self._bug_clause()}.'
+                f'request — Debian says "{self.nodsa}". Evidence about it goes on '
+                f"{self._bug_clause()}."
             )
         if self.position is Position.NO_DSA:
             decided = self.nodsa or "no reason given"
@@ -180,7 +209,8 @@ class Standing:
                 )
             return (
                 f'{verdict} Debian says "{decided}".{tail} Record it with a review '
-                f"date, or stop shipping the package. {self._bug_clause()}."
+                f"date, or stop shipping the package. Evidence about it goes on "
+                f"{self._bug_clause()}."
             )
         if self.position is Position.FIX_ELSEWHERE:
             return (
@@ -201,6 +231,17 @@ class Standing:
                 f"No fix in any suite, so there is nothing to ask for and nothing "
                 f"to wait for. What moves it is evidence on {self._bug_clause()} — "
                 f"a reachability note, a reproducer, or the upstream patch."
+            )
+        if self.tracked_in:
+            # The tracker does carry the CVE for this package — in other
+            # releases. Saying it says nothing would send the reader to look for
+            # a triage that exists; the usual reason is that the package is not
+            # in this release at all.
+            return (
+                f"The tracker lists {self.cve} for {self.package} in "
+                f"{', '.join(self.tracked_in)} and has no entry for "
+                f"{self.release}: the package is not in {self.release}, or "
+                f"Debian has not triaged it there. Check {self.tracker_url}."
             )
         return (
             f"The tracker says nothing about {self.package or 'any package'} and "
@@ -257,7 +298,9 @@ def _fixes_elsewhere(releases: Mapping, release: str) -> dict[str, str]:
         if not isinstance(node, Mapping):
             continue
         fixed = node.get("fixed_version")
-        if node.get("status") == _RESOLVED and fixed:
+        # "0" is not a version anyone can ask for: it says that suite was never
+        # affected, which is no help to a release that is.
+        if node.get("status") == _RESOLVED and fixed and fixed != _NEVER_AFFECTED:
             found[suite] = fixed
     return found
 
@@ -266,6 +309,8 @@ def _position_of(node: Mapping, fixed_here: str | None, nodsa: str | None,
                  fixed_elsewhere: Mapping) -> Position:
     status = node.get("status", "")
     if status == _RESOLVED:
+        if node.get("fixed_version") == _NEVER_AFFECTED:
+            return Position.NOT_AFFECTED
         return Position.RESOLVED
     # `nodsa` before anything else that is still open: it is a decision, and a
     # decision outranks the observation that a fix exists somewhere. The fix is
@@ -300,14 +345,20 @@ def _standing(cve: str, package: str, entry: Mapping, release: str) -> Standing:
 
     if not isinstance(node, Mapping):
         # Silence, not absolution. Whether this release is affected is unknown
-        # here, and saying "not affected" would invent the answer.
+        # here, and saying "not affected" would invent the answer. What the
+        # tracker does say — which releases it lists — travels with it.
         return Standing(
             cve=cve, package=package, release=release,
             position=Position.UNTRACKED,
             debian_bug=debian_bug, scope=scope, description=description,
+            tracked_in=tuple(sorted(str(name) for name in releases)),
         )
 
     fixed_here = node.get("fixed_version") or None
+    if fixed_here == _NEVER_AFFECTED:
+        # A marker, not a version: "fixed here: 0" is not a line a reader can
+        # act on, and `fixed_here` is where the version to rebuild to goes.
+        fixed_here = None
     raw_nodsa = node.get("nodsa")
     nodsa = str(raw_nodsa) if raw_nodsa is not None else None
     elsewhere = _fixes_elsewhere(releases, release)
