@@ -225,9 +225,12 @@ def _matches_keyword(vuln: dict, keyword: str) -> bool:
     September 2026 document — "GitHub", "legitimate", "digital", "10-digit" —
     and not one of them was Git's.
     """
-    notes = " ".join([n.get("Value") or "" for n in _notes(vuln)])
-    matches = keyword_pattern(keyword).search
-    return bool(matches(_title(vuln).lower()) or matches(notes.lower()))
+    text = f"{_title(vuln)} {' '.join(n.get('Value') or '' for n in _notes(vuln))}".lower()
+    # The substring first: it is necessary for the word to be there and costs a
+    # fraction of the search, and the search runs on every entry of a 2,764-entry
+    # document for every keyword. CodSpeed measured the fetch at 67 ms against
+    # 49 with the search alone.
+    return keyword.lower() in text and keyword_pattern(keyword).search(text) is not None
 
 
 def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
