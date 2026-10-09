@@ -6,6 +6,7 @@ import time
 import httpx
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+from patchradar.names import keyword_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +111,11 @@ def _package_pattern(keyword: str) -> re.Pattern[str]:
     """`keyword` as a word of a source package name.
 
     A substring match gave "git" the CVEs of python-digitalocean and "ssh" those
-    of libssh, a different project from openssh. The keyword now has to start
-    the name or follow a separator, and may be followed by anything but a
-    letter — so "python" still finds python3.13, where the digits are the
-    version and not another word.
+    of libssh, a different project from openssh. The rule lives in
+    `names.keyword_pattern` now, because KEV and MSRC had the same defect and
+    the three sources must read one keyword the same way.
     """
-    return re.compile(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z])")
+    return keyword_pattern(keyword)
 
 
 def filter_tracker(data: dict, keyword: str, release: str = DEBIAN_RELEASE) -> list[dict]:

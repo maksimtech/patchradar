@@ -12,6 +12,28 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A keyword is a word of the product name in every source, not a substring.** Found
+  on 2026-10-09 by running the real stack against the live sources with `git` — the
+  command-line tool — on the watchlist. CISA KEV returned nine entries, one of them
+  Git's: the other eight were GitLab, Gitea, reviewdog and two GitHub Actions, and
+  their exploited CVEs sat above every real finding in the scan. MSRC returned 109
+  entries of the September 2026 document, not one of them Git's — 107 said "GitHub",
+  the rest "legitimate", "digital", "logitech-hidpp" and "10-digit".
+
+  The Debian collector had met the same defect ("python-digitalocean" for git) and
+  matched whole words since; KEV and MSRC still matched substrings, so one scan
+  applied two rules and the reader could not tell which rows were which. The three
+  sources now share one rule, `names.keyword_pattern`: the keyword has to start the
+  text or follow a separator, and may be followed by anything but a letter — so
+  "log4j" still finds Log4j2, "7-zip" finds 7-Zip and "python" finds python3.13.
+  Counted on the same September document, nothing legitimate is lost: curl 9 and 9
+  (its advisories name curl only in a note), openssl 18 and 18, nginx 3 and 3.
+
+  The fixtures are recorded from the live catalogue (2026.10.08) and the live
+  September document, with a `_derived` key saying what was kept.
+
 ---
 
 ## [2026.45] — 2026-10-08

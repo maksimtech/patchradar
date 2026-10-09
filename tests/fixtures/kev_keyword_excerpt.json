@@ -1,0 +1,158 @@
+{
+ "_derived": "An excerpt, not the whole answer. The source is the live CISA KEV catalogue, https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json, downloaded on 2026-10-09 (catalogVersion 2026.10.08, dateReleased 2026-10-08T20:09:18.9833Z, 1739 entries). Kept: the 9 entries whose vendorProject or product contains one of the watchlist keywords git, log4j, 7-zip, openssl, chromium — Git, GitLab (twice), Gitea, reviewdog, Apache Log4j2, 7-Zip, OpenSSL, Google Chromium V8 — in the catalogue's order. Every kept entry is copied verbatim; nothing was added or changed, only left out. The header fields are verbatim too, except `count`, which says how many entries this file holds.",
+ "title": "CISA Catalog of Known Exploited Vulnerabilities",
+ "catalogVersion": "2026.10.08",
+ "dateReleased": "2026-10-08T20:09:18.9833Z",
+ "count": 9,
+ "vulnerabilities": [
+  {
+   "cveID": "CVE-2026-60004",
+   "vendorProject": "Gitea",
+   "product": "Gitea",
+   "vulnerabilityName": "Gitea Code Injection Vulnerability",
+   "dateAdded": "2026-08-25",
+   "shortDescription": "Gitea contains a code injection vulnerability that allows an attacker with repository write access to send a malicious patch to the diffpatch API endpoint to plant an executable Git hook and run shell commands as the Gitea service account.",
+   "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+   "dueDate": "2026-08-28",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "Yes",
+   "notes": "https://github.com/go-gitea/gitea/security/advisories/GHSA-rcr6-4jqh-j84m ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https://nvd.nist.gov/vuln/detail/CVE-2026-60004",
+   "cwes": [
+    "CWE-94"
+   ]
+  },
+  {
+   "cveID": "CVE-2026-11645",
+   "vendorProject": "Google",
+   "product": "Chromium V8",
+   "vulnerabilityName": "Google Chromium V8 Out-of-Bounds Read and Write Vulnerability",
+   "dateAdded": "2026-06-09",
+   "shortDescription": "Google Chromium V8 out-of-bounds read and write vulnerability that could allow a remote attacker to execute arbitrary code inside a sandbox via a crafted HTML page. This vulnerability could affect multiple web browsers that utilize Chromium, including, but not limited to, Google Chrome, Microsoft Edge, and Opera.",
+   "requiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2026-06-23",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://chromereleases.googleblog.com/2026/06/stable-channel-update-for-desktop_0153744567.html ; https://issues.chromium.org/issues/506689381 ; https://nvd.nist.gov/vuln/detail/CVE-2026-11645",
+   "cwes": [
+    "CWE-787",
+    "CWE-125"
+   ]
+  },
+  {
+   "cveID": "CVE-2025-48384",
+   "vendorProject": "Git",
+   "product": "Git",
+   "vulnerabilityName": "Git Link Following Vulnerability",
+   "dateAdded": "2025-08-25",
+   "shortDescription": "Git contains a link following vulnerability that stems from Git’s inconsistent handling of carriage return characters in configuration files.",
+   "requiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2025-09-15",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "This vulnerability affects a common open-source component, third-party library, or a protocol used by different products. For more information, please see: https://github.com/git/git/security/advisories/GHSA-vwqx-4fm8-6qc9 ; https://access.redhat.com/errata/RHSA-2025:13933 ; https://alas.aws.amazon.com/AL2/ALAS2-2025-2941.html ; https://linux.oracle.com/errata/ELSA-2025-11534.html ; https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-48384 ; https://nvd.nist.gov/vuln/detail/CVE-2025-48384",
+   "cwes": [
+    "CWE-59",
+    "CWE-436"
+   ]
+  },
+  {
+   "cveID": "CVE-2025-30154",
+   "vendorProject": "reviewdog",
+   "product": "action-setup GitHub Action",
+   "vulnerabilityName": "reviewdog/action-setup GitHub Action Embedded Malicious Code Vulnerability",
+   "dateAdded": "2025-03-24",
+   "shortDescription": "reviewdog action-setup GitHub Action contains an embedded malicious code vulnerability that dumps exposed secrets to Github Actions Workflow Logs.",
+   "requiredAction": "Apply mitigations as set forth in the CISA instructions linked below. Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2025-04-14",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "This vulnerability affects a common open-source project, third-party library, or a protocol used by different products. For more information, please see: CISA Mitigation Instructions: https://www.cisa.gov/news-events/alerts/2025/03/18/supply-chain-compromise-third-party-tj-actionschanged-files-cve-2025-30066-and-reviewdogaction ; Additional References: https://github.com/reviewdog/reviewdog/security/advisories/GHSA-qmg3-hpqr-gqvc ; https://nvd.nist.gov/vuln/detail/CVE-2025-30154",
+   "cwes": [
+    "CWE-506"
+   ]
+  },
+  {
+   "cveID": "CVE-2025-0411",
+   "vendorProject": "7-Zip",
+   "product": "7-Zip",
+   "vulnerabilityName": "7-Zip Mark of the Web Bypass Vulnerability",
+   "dateAdded": "2025-02-06",
+   "shortDescription": "7-Zip contains a protection mechanism failure vulnerability that allows remote attackers to bypass the Mark-of-the-Web security feature to execute arbitrary code in the context of the current user.",
+   "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2025-02-27",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://www.7-zip.org/history.txt ; https://nvd.nist.gov/vuln/detail/CVE-2025-0411",
+   "cwes": [
+    "CWE-693"
+   ]
+  },
+  {
+   "cveID": "CVE-2023-7028",
+   "vendorProject": "GitLab",
+   "product": "GitLab CE/EE",
+   "vulnerabilityName": "GitLab Community and Enterprise Editions Improper Access Control Vulnerability",
+   "dateAdded": "2024-05-01",
+   "shortDescription": "GitLab Community and Enterprise Editions contain an improper access control vulnerability. This allows an attacker to trigger password reset emails to be sent to an unverified email address to ultimately facilitate an account takeover.",
+   "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2024-05-22",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://about.gitlab.com/releases/2024/01/11/critical-security-release-gitlab-16-7-2-released/ ;  https://nvd.nist.gov/vuln/detail/CVE-2023-7028",
+   "cwes": [
+    "CWE-284"
+   ]
+  },
+  {
+   "cveID": "CVE-2014-0160",
+   "vendorProject": "OpenSSL",
+   "product": "OpenSSL",
+   "vulnerabilityName": "OpenSSL Information Disclosure Vulnerability",
+   "dateAdded": "2022-05-04",
+   "shortDescription": "The TLS and DTLS implementations in OpenSSL do not properly handle Heartbeat Extension packets, which allows remote attackers to obtain sensitive information.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2022-05-25",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://nvd.nist.gov/vuln/detail/CVE-2014-0160",
+   "cwes": [
+    "CWE-125"
+   ]
+  },
+  {
+   "cveID": "CVE-2021-44228",
+   "vendorProject": "Apache",
+   "product": "Log4j2",
+   "vulnerabilityName": "Apache Log4j2 Remote Code Execution Vulnerability",
+   "dateAdded": "2021-12-10",
+   "shortDescription": "Apache Log4j2 contains a vulnerability where JNDI features do not protect against attacker-controlled JNDI-related endpoints, allowing for remote code execution.",
+   "requiredAction": "For all affected software assets for which updates exist, the only acceptable remediation actions are: 1) Apply updates; OR 2) remove affected assets from agency networks. Temporary mitigations using one of the measures provided at https://www.cisa.gov/uscert/ed-22-02-apache-log4j-recommended-mitigation-measures are only acceptable until updates are available.",
+   "dueDate": "2021-12-24",
+   "knownRansomwareCampaignUse": "Known",
+   "forensicTriage": "No",
+   "notes": "https://nvd.nist.gov/vuln/detail/CVE-2021-44228",
+   "cwes": [
+    "CWE-20",
+    "CWE-400",
+    "CWE-502"
+   ]
+  },
+  {
+   "cveID": "CVE-2021-22205",
+   "vendorProject": "GitLab",
+   "product": "Community and Enterprise Editions",
+   "vulnerabilityName": "GitLab Community and Enterprise Editions Remote Code Execution Vulnerability",
+   "dateAdded": "2021-11-03",
+   "shortDescription": "GitHub Community and Enterprise Editions that utilize the ability to upload images through GitLab Workhorse are vulnerable to remote code execution. Workhorse passes image file extensions through ExifTool, which improperly validates the image files.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2021-11-17",
+   "knownRansomwareCampaignUse": "Known",
+   "forensicTriage": "No",
+   "notes": "https://nvd.nist.gov/vuln/detail/CVE-2021-22205",
+   "cwes": [
+    "CWE-20",
+    "CWE-95"
+   ]
+  }
+ ]
+}

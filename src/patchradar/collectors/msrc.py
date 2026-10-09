@@ -11,6 +11,7 @@ from patchradar.collectors.errors import (
     reason_for_status,
 )
 from patchradar.cvss import severity_for
+from patchradar.names import keyword_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -117,10 +118,17 @@ def _confidentiality(vuln: dict) -> str | None:
 
 
 def _matches_keyword(vuln: dict, keyword: str) -> bool:
-    """Check if vulnerability matches keyword in title or notes."""
+    """Whether the keyword is a word of the title or of a note.
+
+    The notes stay in: curl's and OpenSSL's advisories carry their own titles
+    ("OpenLDAP SASL authentication bypass") and name the product only in a note.
+    A whole word, though, and not a substring: "git" matched 109 entries of the
+    September 2026 document — "GitHub", "legitimate", "digital", "10-digit" —
+    and not one of them was Git's.
+    """
     notes = " ".join([n.get("Value") or "" for n in _notes(vuln)])
-    kw = keyword.lower()
-    return kw in _title(vuln).lower() or kw in notes.lower()
+    matches = keyword_pattern(keyword).search
+    return bool(matches(_title(vuln).lower()) or matches(notes.lower()))
 
 
 def _parse_vuln(vuln: dict, keyword: str) -> dict | None:

@@ -120,9 +120,12 @@ async def test_ransomware_unknown_is_not_true():
 @respx.mock
 async def test_ransomware_known_is_true():
     _mock()
-    known = next(v["cveID"] for v in FIXTURE["vulnerabilities"]
+    known = next(v for v in FIXTURE["vulnerabilities"]
                  if v["knownRansomwareCampaignUse"] == "Known")
-    entry = next(r for r in await kev.fetch_cves("") if r["id"] == known)
+    # Asked for by its vendor, as a watchlist would: "" used to stand for "every
+    # entry" only because the match was a substring, and "" is a substring of
+    # anything. A keyword is a word now, and no product is called nothing.
+    entry = next(r for r in await kev.fetch_cves(known["vendorProject"]) if r["id"] == known["cveID"])
     assert entry["kev_ransomware"] is True
 
 
