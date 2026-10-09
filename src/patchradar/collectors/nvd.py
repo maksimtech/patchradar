@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
@@ -211,6 +212,20 @@ KEYLESS_DELAY_SECONDS = 30 / 5
 KEYED_DELAY_SECONDS = 30 / 50
 
 
+# When the last request to NVD was sent, on the monotonic clock, by any call in
+# this process. The limit is per client, not per keyword: the pacing below used to
+# start from zero with every `fetch_cves`, so a watchlist of ten sent ten
+# requests as fast as NVD answered them. Measured on 2026-10-09 it got away with
+# it only because each keyword also downloaded 20 MB from MSRC in between; with
+# that cached, the sixth keyword would have met the first 403.
+_last_request_at: float | None = None
+
+
+def _monotonic() -> float:
+    """The clock the pacing reads. Its own function so a test can stop it."""
+    return time.monotonic()
+
+
 async def _pace(seconds: float) -> None:
     """Wait between two requests to the same source.
 
@@ -341,13 +356,26 @@ async def fetch_cves(
     key = api_key()
     headers = {"apiKey": key} if key else {}
     delay = KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS
+
     sent = 0
 
     async def pace() -> None:
+        # Inside one call the previous request has only just been answered, so
+        # the whole interval is waited, as before. Before the first request the
+        # clock is read: a call that starts inside the interval left by the last
+        # request this process sent — whichever keyword sent it — waits for
+        # what is left of it, and one that starts later waits for nothing. A
+        # request that failed counts too: a 403 is the limit speaking.
+        global _last_request_at
         nonlocal sent
         if sent:
             await sleep(delay)
+        elif _last_request_at is not None:
+            remaining = delay - (_monotonic() - _last_request_at)
+            if remaining > 0:
+                await sleep(remaining)
         sent += 1
+        _last_request_at = _monotonic()
 
     results: list[dict] = []
     async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:

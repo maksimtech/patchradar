@@ -144,6 +144,9 @@ def _no_rate_limit_pacing(monkeypatch):
         return None
 
     monkeypatch.setattr(nvd, "_pace", no_wait)
+    # And no request on record from the previous test: the pacing now reaches
+    # across calls, so a test that counts waits must start from nothing.
+    monkeypatch.setattr(nvd, "_last_request_at", None)
 
 
 @pytest.fixture(autouse=True)

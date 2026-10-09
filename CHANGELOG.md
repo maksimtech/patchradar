@@ -72,6 +72,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   MSRC has no document for yet (404) is not cached, and a failed download never is, so one
   outage does not poison the scan for every keyword after it.
 
+- **NVD's rate limit is paced across keywords, not only inside one.** The collector paced
+  the requests of one `fetch_cves` call — a two-year window makes seven — but a watchlist
+  scan makes one call per keyword and nothing waited between two calls, so ten keywords with
+  a 30-day window sent ten requests as fast as NVD answered them, against five per rolling
+  thirty seconds. README promised the opposite. Measured on 2026-10-09 the scan got away
+  with it, at ten keywords in 100 seconds, only because each keyword also downloaded 20 MB
+  from MSRC in between; with that download cached, the sixth keyword would have met the
+  first 403. The moment of the last request is now kept in the module, and a call that
+  starts inside the interval waits for what is left of it. A single keyword with `--days 7`
+  is exactly as fast as it was.
+
 ---
 
 ## [2026.45] — 2026-10-08
