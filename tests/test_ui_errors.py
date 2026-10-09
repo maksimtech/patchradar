@@ -178,3 +178,53 @@ def test_clean_scan_still_reports_the_count(tmp_path):
     result = run_page(tmp_path, routes=ordered({**OK_ROUTES, "/api/scan": scan}),
                       actions=["await scanAll()"])
     assert result["toasts"][-1] == "Found 4 CVEs"
+
+
+# ─── the detail links name their source ──────────────────────────────────────
+# Seen on 2026-10-09 with the real stack: Heartbleed (CVE-2014-0160), found
+# through CISA KEV alone, opened a modal whose only link to its URL — the KEV
+# catalogue — read "View on NVD", followed by a "View on MSRC" link to a page
+# MSRC does not have. Every CVE got the MSRC link, whatever found it, and every
+# URL got the NVD label, wherever it pointed. The label is now the source that
+# supplied the URL; NVD has a page for every CVE, so that link stays, under its
+# own name; MSRC's appears only when MSRC was among the sources.
+
+def detail(source, url):
+    return {"id": "CVE-2014-0160", "software": "openssl", "cvss_score": None,
+            "severity": "UNKNOWN", "source": source, "url": url, "description": "d"}
+
+
+def modal_links(tmp_path, source, url):
+    routes = {**OK_ROUTES, "/api/cves/": {"status": 200, "json": detail(source, url)}}
+    result = run_page(tmp_path, routes=ordered(routes), actions=["await openCveDetail('CVE-2014-0160')"])
+    assert result["errors"] == []
+    return result["elements"]["modal-links"]["text"]
+
+
+def test_a_kev_url_is_not_labelled_nvd(tmp_path):
+    links = modal_links(tmp_path, "CISA KEV",
+                        "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=CVE-2014-0160")
+    assert "View on CISA KEV" in links
+    assert "MSRC" not in links
+
+
+def test_a_debian_url_is_labelled_debian(tmp_path):
+    links = modal_links(tmp_path, "Debian", "https://security-tracker.debian.org/tracker/CVE-2014-0160")
+    assert "View on Debian" in links
+    assert "MSRC" not in links
+
+
+def test_nvd_keeps_its_page_whoever_found_the_cve(tmp_path):
+    links = modal_links(tmp_path, "CISA KEV", "https://www.cisa.gov/x")
+    assert "View on NVD" in links
+
+
+def test_a_cve_two_sources_agreed_on_is_labelled_by_the_first(tmp_path):
+    links = modal_links(tmp_path, "NVD, CISA KEV", "https://nvd.nist.gov/vuln/detail/CVE-2014-0160")
+    assert links.count("View on NVD") == 1
+    assert "MSRC" not in links
+
+
+def test_msrc_link_appears_only_when_msrc_found_it(tmp_path):
+    links = modal_links(tmp_path, "NVD, MSRC", "https://nvd.nist.gov/vuln/detail/CVE-2014-0160")
+    assert "View on MSRC" in links

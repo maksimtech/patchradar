@@ -83,6 +83,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   starts inside the interval waits for what is left of it. A single keyword with `--days 7`
   is exactly as fast as it was.
 
+- **The CVE detail in the web UI labels its links by the source that supplied them.** Seen
+  on 2026-10-09: Heartbleed (CVE-2014-0160), found through CISA KEV alone, opened a modal
+  whose only link to its URL — the KEV catalogue — read *View on NVD*, followed by a *View
+  on MSRC* link to a page MSRC does not have. Every URL got the NVD label, wherever it
+  pointed, and every CVE got the MSRC link, whatever found it. The label is now the source
+  the row came from; NVD has a page for every CVE, so that link stays under its own name;
+  MSRC's appears only when MSRC was among the sources.
+
 ---
 
 ## [2026.45] — 2026-10-08
