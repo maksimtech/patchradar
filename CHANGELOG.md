@@ -12,6 +12,10 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+---
+
+## [2026.46] — 2026-10-10
+
 ### Fixed
 
 - **A keyword is a word of the product name in every source, not a substring.** Found
