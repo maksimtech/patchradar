@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "patchradar"
-version = "2026.45"
+version = "2026.46"
 description = "CVE intelligence for your software stack"
 readme = "README.md"
 license = {text = "MIT"}
