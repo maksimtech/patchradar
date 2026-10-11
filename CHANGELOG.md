@@ -12,6 +12,50 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Added
+
+- **`docs/nis2-compliance.md`: the answers to the seven questions a customer subject to NIS2
+  asks a software supplier, with only what the repository can back.** Written in Italian, for
+  customers under d.lgs. 138/2024. Where the answer is "no" it says no: there is no penetration
+  test and no second reviewer, and the web interface has no access control worth the name —
+  `PATCHRADAR_API_KEY` guards the writes, while the watchlist and the CVEs found are readable
+  by anyone who reaches the port, with the key set or not (measured on 2026-10-11 against
+  `patchradar serve`), over plain HTTP; the image listens on 0.0.0.0 and `docker-compose.yml`
+  publishes it on loopback only. It lists every host a scan contacts and what each receives —
+  the watched names to NVD as keywords, the CVE ids found to FIRST, a month to MSRC, nothing
+  to CISA and the Debian tracker, which are downloaded whole — where the watchlist is stored
+  (`~/.patchradar/patchradar.db`, a path `PATCHRADAR_HOME` does not move) and every section of
+  what the inventory collector reads. `tests/test_nis2_evidence.py` compares the hosts with
+  the ones the networked modules name, the endpoint table with the app's routes and the key
+  each asks for, the inventory table with the collector's sections, and refuses "NIS2-ready",
+  "no data sent to third parties" and similar claims anywhere in it, in `SECURITY.md` or in
+  the README.
+- **Every release carries SBOMs and dated scans** (`.github/workflows/sbom.yml`): CycloneDX 1.5
+  of the image, Debian packages included (Syft), and of the Python environment
+  (cyclonedx-py), plus Trivy reports of the image and of the repository at the tag, and a note
+  giving the commit and Docker Hub's digests and saying that a CVE scan is not a penetration
+  test. It runs after "Build and Push Docker Image" has pushed the image of a release, and
+  takes the tag as this repository cuts it, bare (`2026.46`), not with the `v` the other Radar
+  use; on demand it attaches the files to a release that is already out.
+- **`SECURITY.md` says how vulnerabilities are found, how fast they are answered, how
+  customers are told and how to roll back.** A fix ships with the next release; for CVSS 9.0
+  or more, customers who gave a security contact hear within 48 hours. Reports go to
+  security@maksimtech.com; GitHub's private vulnerability reporting stays open.
+- **`uv.lock`**, written by uv 0.12.18, and a Quality step that fails when it falls behind
+  `pyproject.toml`.
+
+### Fixed
+
+- **The licence gate had never refused anything.** `pip-licenses --fail-on="GPL;AGPL;LGPL"`
+  compares whole licence strings, and no package declares just "GPL": they declare "GNU
+  Lesser General Public License v2 or later (LGPLv2+)" and the like. Measured on 2026-10-11
+  with chardet 5.2.0 installed: exit 0 without `--partial-match`, exit 1 with it. The flag is
+  there now; PatchRadar's own runtime dependencies pass it.
+- **The weekly mutation run stopped before trying a mutant.** On 2026-10-10 mutmut's copy
+  lacked README.md and LICENSE, which `tests/test_declared_files.py` looks for because the
+  Dockerfile copies them; they are in `also_copy` now, with `docs/` and `SECURITY.md` for the
+  new tests.
+
 ---
 
 ## [2026.46] — 2026-10-10
