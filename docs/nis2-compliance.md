@@ -217,6 +217,7 @@ Analisi automatiche, ciascuna con il proprio workflow in `.github/workflows`:
 | `SonarCloud` | qualità, duplicazioni e copertura | ogni pull request, ogni push su `main` |
 | `Docker Scout` | vulnerabilità note nell'immagine pubblicata | ogni push su `main`, ogni build dell'immagine, ogni settimana |
 | `Security Posture` | raccoglie gli avvisi pubblicati dagli altri e fallisce se un avviso alto o critico non ha un'eccezione motivata | ogni pull request, ogni push su `main`, ogni settimana |
+| `CodSpeed` | prestazioni: esegue i benchmark del repository e pubblica sulla pull request il confronto con `main`; non blocca il merge | ogni pull request, ogni push su `main` |
 | `mutmut` | mutation testing: verifica che i test si accorgano delle modifiche al codice | ogni settimana |
 <!-- scanners:end -->
 
@@ -263,6 +264,10 @@ SBOM:
 | `trivy-fs-<versione>-<data>.json` | vulnerabilità note nei file del repository al tag, scansione Trivy |
 | `EVIDENCE-<versione>.md` | cosa sono questi file, quando e da quale commit e digest sono stati prodotti |
 <!-- assets:end -->
+
+Se a un tag il repository non contiene un file che Trivy sappia analizzare, come un
+lockfile, il rapporto `trivy-fs` di quella release è vuoto. Un rapporto vuoto non
+indica l'assenza di vulnerabilità, e in quel caso la nota `EVIDENCE` lo dice.
 
 ## 7. E se il fornitore sparisce
 
