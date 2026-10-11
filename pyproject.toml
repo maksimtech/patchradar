@@ -139,6 +139,15 @@ also_copy = [
     "sonar-project.properties",
     "SECURITY-EXCEPTIONS.toml",
     "CHANGELOG.md",
+    # Read by tests/test_nis2_evidence.py: the document it holds to the code,
+    # the policy it points to, and the README it keeps free of claims. README.md
+    # and LICENSE are also what tests/test_declared_files.py looks for, because the
+    # Dockerfile copies them: without them the run of 2026-10-10 stopped in the
+    # stats phase.
+    "docs",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE",
 ]
 # mutmut 3.8 refuses to run on Windows and points at WSL, so this is a CI-only
 # configuration: the scheduled workflow runs it on ubuntu.

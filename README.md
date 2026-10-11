@@ -223,6 +223,28 @@ codspeed run --mode simulation -- pytest benchmarks/ --codspeed
 
 ---
 
+## Security
+
+Report a vulnerability as described in [SECURITY.md](SECURITY.md), which also gives
+the response times, how customers are told and how to roll back.
+
+`patchradar serve` has no user accounts. `PATCHRADAR_API_KEY` guards the writes
+only: anyone who can reach the port can read the watchlist and the CVEs found, with
+or without the key, over plain HTTP. Keep it on 127.0.0.1, as the default and
+`docker-compose.yml` do, or put it behind a proxy with TLS and authentication.
+
+Every GitHub release carries CycloneDX SBOMs of the Docker image and of the Python
+environment, and dated Trivy reports of the image and of the repository at the tag.
+They are an automated scan for known vulnerabilities, not a penetration test.
+
+For customers subject to NIS2, [docs/nis2-compliance.md](docs/nis2-compliance.md)
+(in Italian) answers the seven questions a supplier of software gets asked: what the
+software is made of, who can reach the web interface, which hosts it contacts and
+with what data, what it stores and what the inventory collector reads, how it is
+checked before release, and what it does not have.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to open issues or pull requests.

@@ -1,0 +1,185 @@
+name: Release Evidence
+# What a customer subject to NIS2 asks for in questions 1 and 6
+# (docs/nis2-compliance.md): the list of what the software is made of, and the
+# dated result of a security test. Every release gets, as assets:
+#
+#   sbom-image-<version>.cdx.json      CycloneDX 1.5 of the published image,
+#                                      Debian packages included (Syft)
+#   sbom-source-<version>.cdx.json     CycloneDX 1.5 of the Python environment
+#                                      the package installs (cyclonedx-py)
+#   trivy-image-<version>-<date>.json  known vulnerabilities in that image
+#   trivy-fs-<version>-<date>.json     known vulnerabilities in the repository
+#                                      files at the tag
+#   EVIDENCE-<version>.md              what these are, from which commit and
+#                                      image digest, on which date
+#
+# Releases here are cut by scripts/release.py with `gh release create
+# <version>`: the tag is bare CalVer (2026.46, no "v"), and docker.yml, which
+# runs on `release: published`, tags the image with that same bare version
+# (maksimtech/patchradar:2026.46).
+#
+# It runs after "Build and Push Docker Image" has pushed the image of the
+# release, not when the release is created: at that moment the image those files
+# describe does not exist yet. The release does, so the files have somewhere to
+# go. workflow_dispatch attaches them to a release that was cut before this
+# workflow existed, or refreshes them; a rebuild of docker.yml by hand does not
+# trigger this workflow, because it is not a release.
+#
+# The Trivy reports are an automated scan for known CVEs. They are not a
+# penetration test, and EVIDENCE says so to whoever opens the release.
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the evidence to, e.g. 2026.46"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  evidence:
+    name: Release Evidence
+    # A release whose image was built and pushed. docker.yml dispatched by hand
+    # rebuilds an image without a release event and has nothing new to attach.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'release')
+    runs-on: ubuntu-26.04
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+      IMAGE: maksimtech/patchradar
+    steps:
+      # The tag reaches the shell through env, never pasted into the script, and
+      # has to look like a release before anything uses it. OUT is set here and
+      # not in the job's env: `runner` is not available there, and GitHub refused
+      # mailradar's whole file over it (tests/test_nis2_evidence.py).
+      - name: Check the tag
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^[0-9]{4}\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::not a release tag: $TAG"
+            exit 1
+          fi
+          {
+            echo "VERSION=${TAG}"
+            echo "DATE=$(date -u +%Y%m%d)"
+            echo "OUT=$RUNNER_TEMP/evidence"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/evidence"
+
+      - name: Checkout the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+
+      # The interpreter of the image (python:3.14-slim-trixie), so that the two
+      # SBOMs describe the same dependency resolution.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      # Two environments: the one described holds the package and what it pulls
+      # in, and nothing of the tool that describes it.
+      - name: SBOM of the Python environment
+        run: |
+          python -m venv /tmp/product
+          /tmp/product/bin/pip install --quiet .
+          python -m venv /tmp/cyclonedx
+          /tmp/cyclonedx/bin/pip install --quiet "cyclonedx-bom==7.4.0"
+          # --pyproject names the product as the SBOM's main component; without
+          # it the file lists an environment and does not say whose.
+          /tmp/cyclonedx/bin/cyclonedx-py environment /tmp/product/bin/python \
+            --pyproject pyproject.toml --mc-type application \
+            --output-format JSON --spec-version 1.5 \
+            --output-file "$OUT/sbom-source-${VERSION}.cdx.json"
+
+      # Anonymous pulls from the runners' shared addresses hit Docker Hub's rate
+      # limit; Syft and Trivy read the credentials this step writes.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          syft-version: v1.52.0
+
+      - name: SBOM of the image
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+        run: |
+          "$SYFT" "registry:${IMAGE}:${TAG}" --platform linux/amd64 \
+            -o "cyclonedx-json@1.5=$OUT/sbom-image-${VERSION}.cdx.json"
+
+      - name: Scan the image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE }}:${{ env.TAG }}
+          format: json
+          output: ${{ env.OUT }}/trivy-image-${{ env.VERSION }}-${{ env.DATE }}.json
+          exit-code: '0'
+
+      - name: Scan the repository at the tag (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: ${{ env.OUT }}/trivy-fs-${{ env.VERSION }}-${{ env.DATE }}.json
+          exit-code: '0'
+          skip-setup-trivy: true
+
+      - name: Describe the evidence
+        run: |
+          COMMIT=$(git rev-parse HEAD)
+          # The digests come from Docker Hub: Syft's metadata.component.version
+          # is the tag, and mailradar's first note said "digest v2026.44". The
+          # index digest is the one to pin; the amd64 one is the image described.
+          curl -fsS "https://hub.docker.com/v2/repositories/${IMAGE}/tags/${TAG}" > "$RUNNER_TEMP/tag.json"
+          read -r INDEX_DIGEST AMD64_DIGEST < <(python - "$RUNNER_TEMP/tag.json" <<'PY'
+          import json, sys
+          tag = json.load(open(sys.argv[1], encoding="utf-8"))
+          amd64 = [i["digest"] for i in tag["images"] if i.get("os") == "linux" and i.get("architecture") == "amd64"]
+          print(tag["digest"], amd64[0] if amd64 else "absent")
+          PY
+          )
+          cat > "$OUT/EVIDENCE-${VERSION}.md" <<EOF
+          # PatchRadar ${VERSION}: release evidence
+
+          Produced on $(date -u +%Y-%m-%d) by the Release Evidence workflow, run
+          ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID},
+          from commit ${COMMIT} (tag ${TAG}) and image ${IMAGE}:${TAG}:
+          index digest ${INDEX_DIGEST}, the one to pin; the SBOM and the scan of
+          the image describe its linux/amd64 image, digest ${AMD64_DIGEST}.
+
+          - sbom-image-${VERSION}.cdx.json: CycloneDX 1.5 SBOM of the image, Debian
+            packages included, made with Syft v1.52.0.
+          - sbom-source-${VERSION}.cdx.json: CycloneDX 1.5 SBOM of the Python
+            environment the package installs on Python 3.14, made with
+            cyclonedx-bom 7.4.0.
+          - trivy-image-${VERSION}-${DATE}.json: known vulnerabilities in the image
+            on that date, Trivy.
+          - trivy-fs-${VERSION}-${DATE}.json: known vulnerabilities in the repository
+            files at the tag on that date, Trivy.
+
+          The Trivy reports are an automated scan for known vulnerabilities. They
+          are not a penetration test: no penetration test has been carried out.
+          Accepted vulnerabilities, each with a reason and a review date, are in
+          SECURITY-EXCEPTIONS.toml. The answers to the questions a customer subject
+          to NIS2 may ask are in docs/nis2-compliance.md.
+          EOF
+          ls -l "$OUT"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$OUT"/* --clobber
