@@ -46,6 +46,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **The release evidence describes what ships, and says when a scan saw nothing.** The
+  source SBOM listed the build venv's own pip, which the image removes, and, the version
+  being dynamic, named the package without a version: both are fixed, and a tag that
+  disagrees with the installed version is refused. An empty `trivy-fs` report, as at a tag
+  with no lockfile, is now called what it is in the note and in the document. CodSpeed is
+  listed among the checks of question 5.
 - **The licence gate had never refused anything.** `pip-licenses --fail-on="GPL;AGPL;LGPL"`
   compares whole licence strings, and no package declares just "GPL": they declare "GNU
   Lesser General Public License v2 or later (LGPLv2+)" and the like. Measured on 2026-10-11
