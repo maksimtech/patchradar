@@ -220,3 +220,84 @@ def test_an_error_from_cellar_names_cellar():
     client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(503)))
     with pytest.raises(LawFetchError, match="Cellar answered HTTP 503"):
         real_fetch_html("https://publications.europa.eu/resource/celex/x", client=client)
+
+
+# ─── HTTPS redirect upgrade (_get_over_https) ─────────────────────────────────
+
+# Cellar responds to the CELEX URL with 303 → http://; _get_over_https must
+# upgrade that hop to https:// before following it (measured 2026-10-11).
+
+_CELLAR_CELEX = "https://publications.europa.eu/resource/celex/32016R0679"
+_CELLAR_RESOLVED_HTTP = "http://publications.europa.eu/resource/cellar/resolved-content"
+_CELLAR_RESOLVED_HTTPS = "https://publications.europa.eu/resource/cellar/resolved-content"
+
+
+def test_cellar_http_redirect_is_upgraded_to_https():
+    """_get_over_https must follow a 303 → http:// over https:// instead."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        url = str(request.url)
+        if url == _CELLAR_CELEX:
+            return httpx.Response(303, headers={"Location": _CELLAR_RESOLVED_HTTP})
+        if url == _CELLAR_RESOLVED_HTTPS:
+            return httpx.Response(200, text="<html>https-content</html>")
+        return httpx.Response(404)
+
+    client = _client(handler)
+    result = real_fetch_html(_CELLAR_CELEX, client=client)
+
+    # Content must come from the https:// hop, not the http:// redirect target
+    assert result == "<html>https-content</html>"
+    # The http:// URL was never requested (upgraded before the GET)
+    assert _CELLAR_RESOLVED_HTTP not in seen
+    assert _CELLAR_RESOLVED_HTTPS in seen
+
+
+def test_https_to_https_redirect_is_followed_normally():
+    """A redirect that stays on https:// is followed without modification."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if str(request.url).endswith("/x"):
+            return httpx.Response(301, headers={"Location": "https://eur-lex.europa.eu/y"})
+        return httpx.Response(200, text="<html>ok</html>")
+
+    client = _client(handler)
+    result = real_fetch_html("https://eur-lex.europa.eu/x", client=client)
+
+    assert result == "<html>ok</html>"
+    assert seen == ["https://eur-lex.europa.eu/x", "https://eur-lex.europa.eu/y"]
+
+
+def test_too_many_redirects_raises():
+    """Exceeding MAX_REDIRECTS raises LawFetchError."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "https://eur-lex.europa.eu/loop"})
+
+    client = _client(handler)
+    with pytest.raises(LawFetchError, match="redirected more than"):
+        real_fetch_html("https://eur-lex.europa.eu/x", client=client)
+
+
+def test_get_helper_uses_ephemeral_client_when_none_given(monkeypatch):
+    """fetch_html opens its own httpx.Client when the caller passes no client.
+
+    This covers the ``if client is None`` branch inside fetch_html that
+    ordinarily runs in production (no caller-supplied client).
+    """
+    _real_client = httpx.Client
+
+    def _mock_client_class(**kwargs):
+        return _real_client(
+            transport=httpx.MockTransport(
+                lambda req: httpx.Response(200, text="<html>own-client</html>")
+            ),
+            timeout=kwargs.get("timeout", 30.0),
+        )
+
+    monkeypatch.setattr(httpx, "Client", _mock_client_class)
+    result = real_fetch_html("https://eur-lex.europa.eu/page")
+    assert result == "<html>own-client</html>"
