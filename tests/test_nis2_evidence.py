@@ -728,3 +728,16 @@ def test_vuldb_is_declared_as_contacted_only_with_its_key(doc):
     request = source.index("await client.post(")
     assert refuse < request
     assert "solo se `VULDB_API_KEY` è impostata" in prose(doc)
+
+
+def test_the_branch_rules_are_described_without_an_exception(doc):
+    """On 2026-10-12 the ruleset on main lost the owner's bypass and requires a pull
+    request for every change, the version bump included (release.sh opens one). The
+    document says so with the date it was read, and keeps the earlier state as past."""
+    text = prose(doc)
+    assert "lette dalle impostazioni del repository il 2026-10-12" in text
+    assert "Non prevedono eccezioni, nemmeno per l'account del manutentore" in text
+    for stale in ("è configurato per poter scavalcare", "può scavalcare queste regole",
+                  "può scavalcare le regole", "vanno direttamente su `main`",
+                  "Non c'è una regola che imponga la pull request"):
+        assert stale not in text, stale

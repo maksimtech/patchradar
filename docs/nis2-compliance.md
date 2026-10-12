@@ -232,17 +232,20 @@ dipendenze (nessun avviso registrato a quella data) e gli aggiornamenti di sicur
 automatici di Dependabot; `.github/dependabot.yml` chiede ogni settimana gli
 aggiornamenti delle dipendenze Python, delle GitHub Actions e dell'immagine di base.
 
-Le regole del ramo `main`, lette dalle impostazioni del repository il 2026-10-11
-(ruleset "main protection", attivo), vietano la cancellazione del ramo e la riscrittura
-della storia e richiedono due controlli superati: Tests e Quality. Non c'è una regola
-che imponga la pull request, né una che imponga una storia lineare, e l'account
-`maksimtech` del manutentore può scavalcare le regole. CodeQL, Security Posture e gli
-altri strumenti della tabella girano su ogni pull request ma non sono tra i controlli
-obbligatori.
+Le regole del ramo `main`, lette dalle impostazioni del repository il 2026-10-12
+(ruleset "main protection", attivo), impongono che ogni modifica passi da una pull
+request, senza approvazioni richieste, e che superi due controlli: Tests e Quality;
+vietano la cancellazione del ramo e la riscrittura della storia. Non impongono una
+storia lineare. Non prevedono eccezioni, nemmeno per l'account del manutentore: anche
+il commit che aggiorna il numero di versione arriva su `main` attraverso una pull
+request. Fino a quel giorno non c'era una regola che imponesse la pull request, e
+l'account `maksimtech` del manutentore poteva scavalcare le altre. CodeQL, Security
+Posture e gli altri strumenti della tabella girano su ogni pull request ma non sono
+tra i controlli obbligatori.
 
 PatchRadar ha un manutentore unico. Non c'è nessuna revisione obbligatoria da parte di
-una seconda persona: le modifiche vengono unite dal manutentore dopo che la CI è verde,
-e i commit di release vanno direttamente su `main`. È un limite noto di un progetto con
+una seconda persona: le modifiche vengono unite dal manutentore dopo che la CI è verde.
+È un limite noto di un progetto con
 una sola persona.
 
 ## 6. Qualcuno dall'esterno ha provato a entrare
