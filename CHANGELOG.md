@@ -14,6 +14,9 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Added
 
+- **VulDB as a scan source** (`patchradar.collectors.vuldb`), queried only when
+  `VULDB_API_KEY` is set; the key travels in the `X-VulDB-ApiKey` header and the software
+  name as the search term. Pushed straight to main on 2026-10-12 without an entry here.
 - **`docs/nis2-compliance.md`: the answers to the seven questions a customer subject to NIS2
   asks a software supplier, with only what the repository can back.** Written in Italian, for
   customers under d.lgs. 138/2024. Where the answer is "no" it says no: there is no penetration
@@ -46,6 +49,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **main was red after VulDB arrived.** Quality failed on an import placed after code in
+  `cli.py` (ruff E402, I001), and Security Posture on a high CodeQL alert in a test that
+  checked the record URL with a substring test; the test now compares the host.
+- **The VulDB search term was not encoded.** The body was `f"search={keyword}&details=1"`, so a
+  software name with `&`, `=` or a space was cut or added parameters. It is form-encoded now.
+- **The NIS2 document said VulDB is contacted on every `scan`.** It is contacted only when
+  `VULDB_API_KEY` is set; the collector refuses before any request otherwise.
 - **Security Posture judged every pull request by main's alerts.** It listed the alerts without
   a `ref`, so GitHub answered for main, and its wait compared the scanners' runs with the merge
   commit, which none of them carries: on mailradar #39 it waited two seconds. It now waits for

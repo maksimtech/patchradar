@@ -15,6 +15,7 @@ below a threshold so a scan does not silently exhaust the quota.
 """
 import logging
 import os
+from urllib.parse import urlencode
 
 import httpx
 
@@ -102,6 +103,12 @@ def _matches_keyword(entry: dict, keyword: str) -> bool:
     return keyword.lower() in title and keyword_pattern(keyword).search(title) is not None
 
 
+def request_body(keyword: str) -> str:
+    """The form body of a search. Encoded, so that a software name with `&`, `=`
+    or a space arrives as one value and cannot add parameters to the request."""
+    return urlencode({"search": keyword, "details": 1})
+
+
 async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
     """Fetch vulnerabilities from VulDB for a given keyword.
 
@@ -122,7 +129,7 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
         "X-VulDB-ApiKey": key,
         "Content-Type": "application/x-www-form-urlencoded",
     }
-    body = f"search={keyword}&details=1"
+    body = request_body(keyword)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
