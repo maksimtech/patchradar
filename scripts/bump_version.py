@@ -155,7 +155,8 @@ def git_commit(version: str, files: list[str] | None = None, cwd: Path | None = 
 
 def _origin_is_github(cwd: Path | None) -> bool:
     url = subprocess.run(
-        ["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True, cwd=cwd
+        ["git", "remote", "get-url", "origin"], capture_output=True, text=True, encoding="utf-8", check=True,
+        cwd=cwd,
     ).stdout
     return "github.com" in url and RELEASE_REPO in url
 
@@ -175,7 +176,7 @@ def git_push(version: str, cwd: Path | None = None) -> None:
         url = subprocess.run(
             ["gh", "pr", "create", "--repo", RELEASE_REPO, "--base", "main", "--head", branch,
              "--title", title, "--body", f"Version bump for PatchRadar {version}, made by bump_version.py."],
-            capture_output=True, text=True, check=True, cwd=cwd,
+            capture_output=True, text=True, encoding="utf-8", check=True, cwd=cwd,
         ).stdout.strip()
         subprocess.run(["gh", "pr", "merge", url, "--auto", "--squash", "--subject", title], check=True, cwd=cwd)
         print(f"🔀 {url} will be merged when its checks pass")
