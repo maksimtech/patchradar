@@ -49,6 +49,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **On a pull request, Security Posture called live exceptions unused.** CodeQL reports only what
+  the change introduces on a pull request ref, so when it reported anything, an exception for a
+  finding still open on main in an untouched file matched nothing and failed the gate
+  (cookieradar #37, 2026-10-12). main's open alerts now count as history the record may match,
+  like the closed ones; blocking is still decided on the pull request's own alerts. Simulated on
+  #37's real alerts: the false "unused" goes, the real new alert stays.
 - **main was red after VulDB arrived.** Quality failed on an import placed after code in
   `cli.py` (ruff E402, I001), and Security Posture on a high CodeQL alert in a test that
   checked the record URL with a substring test; the test now compares the host.
