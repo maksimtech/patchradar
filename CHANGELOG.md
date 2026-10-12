@@ -96,6 +96,10 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **The NIS2 document describes the branch rules as they are since 2026-10-12.** The ruleset on
+  main lost the owner's bypass and requires a pull request for every change, the version bump
+  included; the document said the maintainer could bypass the rules, that no rule required a pull request and that release commits went straight to main. A test holds the new
+  wording and refuses the old.
 - **The release goes through a pull request.** main now takes pull requests only, the owner
   included, after a cloud session pushed straight to it with the owner's account.
   `bump_version.py` commits the bump on `release/<version>`, pushes that branch and opens its
