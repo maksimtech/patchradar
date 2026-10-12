@@ -23,6 +23,7 @@ from patchradar.collectors.msrc import MAX_DAYS_BACK as msrc_max_days
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
+from patchradar.collectors.vuldb import SOURCE as vuldb_source
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
 from patchradar.epss import enrich as epss_enrich
@@ -395,7 +396,6 @@ async def _scan_target(
 # joined the fan-out, a scan whose only result came from KEV printed "every CVE
 # above comes from MSRC". `tests/test_collector_wiring.py` now holds this tuple
 # and the fan-out together.
-from patchradar.collectors.vuldb import SOURCE as vuldb_source
 SCAN_SOURCES = ("NVD", "MSRC", kev_source, vuldb_source)
 
 # NVD answers a keyless client over quota with 403, and a key holder going too

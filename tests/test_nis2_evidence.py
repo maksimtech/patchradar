@@ -718,3 +718,13 @@ def test_an_empty_repository_scan_is_not_presented_as_a_clean_one(doc):
     describe = _evidence_step("Describe the evidence")
     assert "found no file it could analyse" in describe
     assert "non indica l'assenza di vulnerabilità" in " ".join(doc.split())
+
+
+def test_vuldb_is_declared_as_contacted_only_with_its_key(doc):
+    """Without VULDB_API_KEY the collector refuses before any request, so the
+    document says VulDB is reached only when the key is set."""
+    source = (PACKAGE / "collectors" / "vuldb.py").read_text(encoding="utf-8")
+    refuse = source.index('raise CollectorError(SOURCE, "no_api_key"')
+    request = source.index("await client.post(")
+    assert refuse < request
+    assert "solo se `VULDB_API_KEY` è impostata" in prose(doc)

@@ -9,6 +9,8 @@ All tests mock the network: a test that reaches vuldb.com would consume real
 credits, and a scan test that exercises VulDB without mocking it would do the
 same silently.
 """
+from urllib.parse import parse_qs, urlsplit
+
 import httpx
 import pytest
 import respx
@@ -160,7 +162,9 @@ async def test_record_fields_are_populated():
     assert record["severity"] == "CRITICAL"
     assert record["published_at"] == "2024-07-01"
     assert record["source"] == "VulDB"
-    assert "vuldb.com" in record["url"]
+    # The host, not a substring: CodeQL flagged the substring test (alert #59,
+    # py/incomplete-url-substring-sanitization) and failed Security Posture on main.
+    assert urlsplit(record["url"]).hostname == "vuldb.com"
 
 
 @pytest.mark.asyncio
@@ -321,3 +325,12 @@ def test_api_key_returns_none_when_unset(monkeypatch):
 def test_api_key_returns_none_for_blank(monkeypatch):
     monkeypatch.setenv(vuldb.API_KEY_ENV, "   ")
     assert vuldb.api_key() is None
+
+
+def test_the_keyword_reaches_vuldb_as_one_form_field():
+    """The body was built as f"search={keyword}&details=1": a software name with
+    `&`, `=` or a space was cut or added parameters to the request. It is
+    form-encoded now, so whatever the watchlist holds arrives as one value."""
+    for keyword in ("AT&T Connect", "foo&details=0", "a=b c", "Ünïcode +1"):
+        body = vuldb.request_body(keyword)
+        assert parse_qs(body, strict_parsing=True) == {"search": [keyword], "details": ["1"]}
