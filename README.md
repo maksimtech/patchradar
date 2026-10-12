@@ -171,6 +171,7 @@ two is not the same as a complete scan.
 | [MSRC](https://msrc.microsoft.com) | Microsoft Patch Tuesday | ✅ Active |
 | [Debian Security](https://security-tracker.debian.org) | Linux packages | ✅ Active |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Known exploited vulnerabilities | ✅ Active |
+| [VulDB](https://vuldb.com) | Independent vulnerability database | ✅ Active |
 | [FIRST EPSS](https://www.first.org/epss/) | Exploitation forecast (enrichment) | ✅ Active |
 
 KEV answers a different question from the others. They report what has been

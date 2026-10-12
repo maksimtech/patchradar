@@ -73,6 +73,37 @@ def kev_offline_by_default():
 
 
 @pytest.fixture(autouse=True)
+def vuldb_offline_by_default(monkeypatch):
+    """Give every test a VulDB collector that returns nothing, without a request.
+
+    The same reasoning as ``kev_offline_by_default``: a scan reaches VulDB
+    through the CLI and the API alike, so any test that exercises a scan would
+    otherwise either hit vuldb.com (consuming real credits) or raise a
+    ``CollectorError`` for a missing API key — which breaks every test that
+    asserts ``errors == []`` on a clean scan.
+
+    Patching ``fetch_cves`` to return an empty list is better than just
+    deleting the env var, because the latter still raises ``CollectorError``
+    (caught as a scan error), while this makes VulDB behave as if it answered
+    with no results.
+
+    Tests in ``test_vuldb.py`` override this with their own ``_set_api_key``
+    fixture and ``respx`` mocks.
+    """
+    from patchradar import cli as pr_cli
+    from patchradar.api import main as api_main
+    from patchradar.collectors import vuldb
+
+    async def _no_results(keyword, days_back=30):
+        return []
+
+    monkeypatch.delenv("VULDB_API_KEY", raising=False)
+    monkeypatch.setattr(vuldb, "fetch_cves", _no_results)
+    monkeypatch.setattr(api_main, "vuldb_fetch", _no_results)
+    monkeypatch.setattr(pr_cli, "vuldb_fetch", _no_results)
+
+
+@pytest.fixture(autouse=True)
 def epss_offline_by_default(monkeypatch):
     """Give every test an EPSS lookup that scores nothing, without a request.
 

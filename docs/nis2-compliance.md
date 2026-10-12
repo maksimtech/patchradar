@@ -111,6 +111,7 @@ cosa ricevono:
 | `api.msrc.microsoft.com` | `scan` | il mese dei bollettini richiesti; nessun nome di software, il filtro avviene sulla macchina |
 | `www.cisa.gov` | `scan` | nulla: scarica il catalogo KEV intero e lo filtra sulla macchina |
 | `security-tracker.debian.org` | `scan` dall'interfaccia web; `patchradar debian` senza `--file` | nulla: scarica il tracker intero e lo filtra sulla macchina |
+| `vuldb.com` | `scan` | il nome di ogni software della watchlist come parola chiave di ricerca; la chiave `VULDB_API_KEY` in un'intestazione |
 | `api.first.org` | `scan` | gli identificativi CVE trovati dalla scansione |
 | `publications.europa.eu` | `scan` da riga di comando, quando ci sono rilievi da citare | il numero CELEX dell'atto citato |
 | `eur-lex.europa.eu` | come sopra, se `publications.europa.eu` non risponde | il numero CELEX dell'atto citato |
@@ -123,8 +124,8 @@ repository; le altre portano quello predefinito della libreria httpx
 (`python-httpx/<versione>`).
 
 Ogni vulnerabilità salvata porta un link alla pagina che la descrive, su
-`nvd.nist.gov`, `msrc.microsoft.com`, `www.cisa.gov` o
-`security-tracker.debian.org`. PatchRadar non li apre: l'interfaccia li mostra, e li
+`nvd.nist.gov`, `msrc.microsoft.com`, `www.cisa.gov`,
+`vuldb.com` o `security-tracker.debian.org`. PatchRadar non li apre: l'interfaccia li mostra, e li
 apre il browser dell'utente se ci fa clic.
 
 Su disco PatchRadar scrive:

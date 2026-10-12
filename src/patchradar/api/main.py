@@ -20,6 +20,7 @@ from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
+from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
 from patchradar.epss import enrich as epss_enrich
 from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, SOFTWARE_NAME_PATTERN, normalise_software_name
@@ -288,6 +289,7 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
         lambda: msrc_fetch(sw, days_back=days),
         lambda: debian_fetch(sw),
         lambda: kev_fetch(sw),
+        lambda: vuldb_fetch(sw, days_back=days),
     )
     collected: list[dict] = []
     for fetch in fetches:
