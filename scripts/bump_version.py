@@ -5,6 +5,7 @@ Usage: python3 scripts/bump_version.py [patch|minor]
 """
 
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -132,17 +133,55 @@ def check_suite(command: list | None = None, cwd=None) -> bool:
     return completed.returncode == 0
 
 
-def git_commit(version: str) -> None:
-    subprocess.run(["git", "add", "pyproject.toml", str(INIT)], check=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"chore: bump version to {version}"],
-        check=True
-    )
-    print(f"✅ Git commit: chore: bump version to {version}")
+RELEASE_REPO = "maksimtech/patchradar"
 
-def git_push() -> None:
-    subprocess.run(["git", "push"], check=True)
-    print("✅ Pushed to remote")
+
+def release_branch(version: str) -> str:
+    return f"release/{version}"
+
+
+def git_commit(version: str, files: list[str] | None = None, cwd: Path | None = None) -> None:
+    """Commit the bump on release/<version>, not on main.
+
+    Since 2026-10-12 main takes pull requests only, the owner's included: a cloud
+    session had pushed straight to it with the owner's account and left it red, so
+    the ruleset lost its bypass. The bump travels like any other change.
+    """
+    subprocess.run(["git", "switch", "-c", release_branch(version)], check=True, cwd=cwd)
+    subprocess.run(["git", "add", *(files or ["pyproject.toml", str(INIT)])], check=True, cwd=cwd)
+    subprocess.run(["git", "commit", "-m", f"chore: bump version to {version}"], check=True, cwd=cwd)
+    print(f"✅ Git commit on {release_branch(version)}: chore: bump version to {version}")
+
+
+def _origin_is_github(cwd: Path | None) -> bool:
+    url = subprocess.run(
+        ["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True, cwd=cwd
+    ).stdout
+    return "github.com" in url and RELEASE_REPO in url
+
+
+def git_push(version: str, cwd: Path | None = None) -> None:
+    """Push release/<version> only, back to main, and open the pull request.
+
+    The pull request is opened with auto-merge only when origin is this repository
+    on GitHub and gh is there to ask; otherwise the next step is printed.
+    """
+    branch = release_branch(version)
+    subprocess.run(["git", "push", "-u", "origin", branch], check=True, cwd=cwd)
+    subprocess.run(["git", "switch", "main"], check=True, cwd=cwd)
+    print(f"✅ Pushed {branch} (main is not touched)")
+    if shutil.which("gh") and _origin_is_github(cwd):
+        title = f"chore: bump version to {version}"
+        url = subprocess.run(
+            ["gh", "pr", "create", "--repo", RELEASE_REPO, "--base", "main", "--head", branch,
+             "--title", title, "--body", f"Version bump for PatchRadar {version}, made by bump_version.py."],
+            capture_output=True, text=True, check=True, cwd=cwd,
+        ).stdout.strip()
+        subprocess.run(["gh", "pr", "merge", url, "--auto", "--squash", "--subject", title], check=True, cwd=cwd)
+        print(f"🔀 {url} will be merged when its checks pass")
+    else:
+        print(f"ℹ️  Open a pull request from {branch} to main.")
+    print("   Once it is merged: git pull, then python scripts/release.py")
 
 def main():
     # --fix: a third segment on the count that already shipped, for something
@@ -174,12 +213,13 @@ def main():
 
     git_commit(new)
 
-    push = input("Push to remote? [y/N] ").strip().lower()
+    push = input(f"Push {release_branch(new)} and open its pull request? [y/N] ").strip().lower()
     if push == "y":
-        git_push()
+        git_push(new)
+    else:
+        print(f"   Left on {release_branch(new)}: push it and open a pull request to main when ready.")
 
     print(f"\n✅ Done! Version bumped to {new}")
-    print(f"   Next: create release {new} on GitHub")
 
 if __name__ == "__main__":
     main()
