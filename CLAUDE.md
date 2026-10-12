@@ -1,122 +1,76 @@
-# PatchRadar — CLAUDE.md
+# PatchRadar — istruzioni per Claude Code
 
-Contesto rapido per riprendere il lavoro senza dover ricostruire la storia.
+Claude Code legge questo file da solo. Contiene regole di lavoro e fatti che il
+repository conferma; la storia sta nel CHANGELOG e nelle pull request, non qui.
 
 ## Cos'è
 
-CVE intelligence per stack software aziendali. Aggrega NVD, KEV, EPSS, MSRC,
-Debian/Ubuntu e segnala quali CVE toccano il software in inventario, con
-priorità CVSS + exploit maturity. Lega ogni segnalazione alla norma di legge
-(GDPR, NIS2, ecc.) che la richiede. API FastAPI + CLI Typer + Docker.
+Raccolta di CVE per il software in una watchlist, con CLI (`add`, `remove`,
+`list`, `scan`, `status`, `serve`, `collector`, `import`, `debian`), API e
+interfaccia web FastAPI (`patchradar serve`) e database SQLite in
+`~/.patchradar/patchradar.db`. Cosa contatta in rete, cosa scrive su disco e chi
+può usare l'interfaccia web è in `docs/nis2-compliance.md`, sezioni 2 e 3.
 
-Repo: <https://github.com/maksimtech/patchradar>
+## Regole di lavoro
 
-## Struttura
+- **Ogni modifica passa da una pull request** su `main`, unita quando i controlli
+  obbligatori sono verdi, anche se il ruleset di questo repository non la impone.
+  Niente push diretti su `main` e niente `gh pr merge --admin`. Unica eccezione,
+  il commit di versione che crea `scripts/release.py` (vedi `RELEASING.md`).
+- **Commit firmati** con l'identità e la chiave configurate nel repository:
+  `git log -1 --format=%G?` deve dare `G`. Messaggi `tipo(ambito): …`, con il
+  perché nel corpo. La riga `Co-Authored-By` la indica l'ambiente di Claude Code;
+  non scrivere nomi di modello né link a sessioni in questo file.
+- **TDD**: il test che riproduce il difetto fallisce prima della correzione, e si
+  vede fallire.
+- **Niente mock.** Input reali, oggetti reali, server locali veri. Al confine di
+  rete si possono riprodurre solo risposte registrate dal servizio vero, in
+  fixture che lo dichiarano (`_recorded`); una fixture costruita o ricavata si
+  dichiara `_derived`. Risposte inventate e patch di funzioni interne per
+  simulare un comportamento non si usano. "Non misurato" non è zero. Alcuni test
+  esistenti costruiscono risposte a mano: non è il modello da copiare.
+- **`docs/nis2-compliance.md` è documentazione per i clienti** ed è tenuta al
+  codice da `tests/test_nis2_evidence.py`: se cambiano gli host contattati, i file
+  scritti, gli endpoint dell'API, l'immagine o i workflow, il documento si
+  aggiorna nella stessa PR. Nessuna affermazione che il repository non possa
+  dimostrare.
+- **Avvisi di sicurezza accettati** solo in `SECURITY-EXCEPTIONS.toml`, con motivo
+  e `review_by`; mai `# nosec` o `# noqa` per zittire uno scanner.
+- **Repository di terzi**: nessuna issue, PR o commento senza conferma esplicita
+  del proprietario.
 
-```
-src/patchradar/
-  law_fetcher.py   # scarica GDPR/NIS2 da Cellar/EUR-Lex e Consumer Code da Normattiva
-  law_checker.py   # confronta testo attuale col cache SHA-256
-  law_cache.py     # ~/.patchradar/law_cache.json
-  collectors/      # NVD, KEV, EPSS, MSRC, Debian …
-  affected.py      # matching CVE ↔ inventario
-  priority.py      # scoring finale
-  cli.py           # entry point `patchradar`
-  api/             # FastAPI app
-  db/              # aiosqlite migrations
-tests/             # ~2028 test, pytest-asyncio auto
-```
+## Comandi
 
-## Comandi essenziali
-
-```bash
-pip install -e . --break-system-packages   # prima volta / dopo pyproject changes
-pip install hypothesis --break-system-packages  # per test_properties.py
-
-# Test
-python -m pytest tests/test_law_fetcher.py -q          # solo law_fetcher
-python -m pytest -q --ignore=tests/test_properties.py  # tutto tranne hypothesis
-python -m pytest -q                                     # tutto (serve hypothesis)
-
-# Coverage law_fetcher (100% — mantenere così)
-python -m pytest tests/test_law_fetcher.py \
-  --cov=patchradar.law_fetcher --cov-report=term-missing -q
-
-# Linting
-ruff check src/ tests/
-mypy src/
-```
-
-## law_fetcher.py — decisioni chiave
-
-**Sorgenti EU:** Cellar (`publications.europa.eu/resource/celex/{celex}`) è la
-prima scelta; EUR-Lex (`eur-lex.europa.eu`) è il fallback (ora risponde 202 +
-WAF challenge ma potrebbe tornare disponibile). Entrambi i fallimenti sono
-riportati insieme nell'eccezione.
-
-**Redirect HTTP→HTTPS:** Cellar risponde 303 → `http://` (misurato 2026-10-11).
-`_get_over_https()` aggiorna lo schema a `https://` prima di ogni hop, non
-dopo. Il file non arriva mai in chiaro.
-
-**Layout HTML riconosciuti:**
-- ELI / Official Journal: `<div id="art_5">` + `<div id="005.001">` per paragrafo
-- Consolidated EUR-Lex: `<p class="title-article-norm">Articolo 5</p>` + `<p class="norm">`
-- Normattiva (Akoma Ntoso): `<div class="bodyTesto">` + `<h2 class="article-num-akn" id="art_5">` + `<div class="art-comma-div-akn">` + `<div class="pointedList-rest-akn">`
-
-**Normattiva:** Consumer Code (`CONSUMER_CODE`) — un articolo per request, URN
-come chiave, marker `(( ))` rimossi da `_without_update_marks()`.
-
-**Coverage:** `law_fetcher.py` è al 100%. Non rompere questo invariante.
-
-## Atti monitorati
-
-| Costante       | CELEX / URN                                           | Fonte       |
-|----------------|-------------------------------------------------------|-------------|
-| `GDPR`         | `32016R0679`                                          | EUR-Lex     |
-| `EPRIVACY`     | `02002L0058-20091219` (consolidato 19.12.2009)        | EUR-Lex     |
-| `NIS2`         | `32022L2555`                                          | EUR-Lex     |
-| `DIGITAL_CONTENT` | `32019L0770`                                       | EUR-Lex     |
-| `CONSUMER_CODE` | `urn:nir:stato:decreto.legislativo:2005-09-06;206`   | Normattiva  |
-
-## Convenzioni di test
-
-- `_client(handler)` → `httpx.Client(transport=httpx.MockTransport(handler))` — **senza** `follow_redirects=True` (patchradar gestisce i redirect a mano)
-- `monkeypatch.setattr(law_fetcher, "fetch_html", fake)` per mock HTTP
-- `NOW = datetime(2026, 9, 19, 14, 0, tzinfo=UTC)` nei test di fetch_provisions
-- Fixture HTML inline come costanti `_UPPER_SNAKE_HTML` prima dei test che le usano
-
-## Git
-
-Branch principale: `main`. Push diretto (no PR richiesta per fix/test).
-Prefissi commit: `fix(scope):`, `test(scope):`, `feat(scope):`, `docs(scope):`.
-
-Attribuzione da aggiungere in fondo a ogni commit:
-```
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0154qVT8TUGnkx4DFoZCbD76
-```
-
-## PR aperte / stato attuale (12 ottobre 2026)
-
-- `law_fetcher.py`: 100% coverage, tutto pushato su main
-- Ultimi commit su main: `47ab50f` (100% coverage), `bb23124` (redirect paths), `ed6f915` (fix HTTPS #44)
-
-## Dipendenze note mancanti in questa sessione cloud
+Come li esegue la CI (Quality e Tests). Su Windows il Python del venv è
+`.venv/Scripts/python`, su Linux `.venv/bin/python`. Le dipendenze di sviluppo
+sono un gruppo PEP 735 e servono pip 25.1 o successivo. I test asincroni girano
+con `asyncio_mode = "auto"`.
 
 ```bash
-pip install aiosqlite pytest-asyncio hypothesis --break-system-packages
-pip install -e . --break-system-packages
+python -m venv .venv
+.venv/Scripts/python -m pip install --upgrade pip
+.venv/Scripts/python -m pip install --group dev -e .
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/ruff check src tests benchmarks scripts tools
+.venv/Scripts/mypy src/patchradar
+uv lock --check            # con uv 0.12.18, la versione fissata in quality.yml
 ```
 
-## Radar correlati (stesso org GitHub maksimtech)
+## Release
 
-- **mailradar** — monitoraggio email security (SPF/DKIM/DMARC)
-- **exeradar** — analisi eseguibili / supply chain
-- Stessa struttura, stesse convenzioni, stessa CI
+`scripts/release.py` porta la versione (CalVer `YYYY.count[.fix]`, vedi
+`RELEASING.md`) e crea la release GitHub con un tag senza `v`, per esempio
+`2026.46`. L'evento di release fa partire PyPI e l'immagine
+`maksimtech/patchradar:2026.46`; poi Release Evidence (`sbom.yml`) allega SBOM e
+scansioni datate. Per una release già uscita:
+`gh workflow run sbom.yml -f tag=2026.46`.
 
-## Note veloci
+## Note
 
-- `Provision.key = (celex, article)` — univoco cross-act (art. 5 esiste sia in GDPR che ePrivacy)
-- `text_sha256(text)` su UTF-8 — chiunque può ricomputarlo da `~/.patchradar/law_cache.json`
-- `CELLAR_TYPE = "application/xhtml+xml"` — `text/html` risponde 404, `text/html;notice=branch` risponde 400
-- `CELLAR_LANGUAGES = {"IT": "ita", ...}` — Cellar vuole ISO 639-2, non i due lettere
+- `law_fetcher.py` e `law_cache.py` sono copiati, non condivisi, in mailradar,
+  exeradar, cookieradar, apkradar e patchradar: una correzione va portata in
+  tutte le copie. I redirect si seguono a mano e mai in chiaro
+  (`_get_over_https`): Cellar risponde con un 303 verso `http://`.
+- Chiavi lette dall'ambiente: `NVD_API_KEY` (facoltativa), `VULDB_API_KEY` (senza,
+  VulDB non viene interrogato), `PATCHRADAR_API_KEY` (protegge solo le scritture
+  dell'API), `PATCHRADAR_HOME` (sposta solo la cache dei testi di legge).
