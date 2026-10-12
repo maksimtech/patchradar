@@ -59,17 +59,51 @@ def run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     print(f"$ {' '.join(cmd)}")
     return subprocess.run(cmd, check=True, **kwargs)
 
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=True
+    ).stdout.strip()
+
+
+def check_main_published(cwd: Path = REPO_ROOT) -> str:
+    """The commit the release is made from: main, as the remote has it.
+
+    Since 2026-10-12 main takes pull requests only, the owner's included, so this
+    script no longer pushes it: the version bump reaches main through the pull
+    request bump_version.py opens. What is checked here is that the local main is
+    that main, clean and neither ahead nor behind, and its commit is returned so
+    that the GitHub release is made on exactly it rather than on whatever main is
+    by the time GitHub reads the request.
+    """
+    branch = _git(cwd, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch != "main":
+        raise SystemExit(f"Not on main (current branch: {branch})")
+    if _git(cwd, "status", "--porcelain"):
+        raise SystemExit("Working tree not clean: commit or discard the changes first")
+    _git(cwd, "fetch", "--quiet", "origin", "main")
+    head = _git(cwd, "rev-parse", "HEAD")
+    if head == _git(cwd, "rev-parse", "origin/main"):
+        return head
+    ahead = int(_git(cwd, "rev-list", "--count", "origin/main..HEAD"))
+    if ahead:
+        raise SystemExit(
+            f"main has {ahead} commit(s) the remote does not: main takes pull requests only, "
+            f"so the bump has to arrive through its pull request (python scripts/bump_version.py)"
+        )
+    raise SystemExit("main is behind the remote: git pull, then run this again")
+
 def main():
     version = get_current_version()
-    # Fail before anything is pushed if the entry is missing.
+    # Fail before anything is created if the entry is missing.
     notes = extract_release_notes(version)
 
     print("\n🛡️  PatchRadar Release")
     print(f"   Version: {version}")
     print(f"   Notes:   {CHANGELOG_FILE} § [{version}] ({len(notes.splitlines())} lines)")
     print("\nThis will:")
-    print("  1. Push main to remote")
-    print(f"  2. Create GitHub release {version}")
+    print(f"  1. Check that main, as the remote has it, carries {version}")
+    print(f"  2. Create GitHub release {version} on that commit")
     print("  3. GitHub Actions publishes to PyPI automatically")
     print()
 
@@ -78,10 +112,8 @@ def main():
         print("Aborted.")
         sys.exit(0)
 
-    print("\n📤 Pushing to remote...")
-    run(["git", "push", "origin", "main"])
-
-    print(f"\n🚀 Creating GitHub release {version}...")
+    sha = check_main_published()
+    print(f"\n🚀 Creating GitHub release {version} on {sha[:12]}...")
     with tempfile.NamedTemporaryFile(
         "w", suffix=".md", delete=False, encoding="utf-8"
     ) as handle:
@@ -90,6 +122,7 @@ def main():
     try:
         run([
             "gh", "release", "create", version,
+            "--target", sha,
             "--title", version,
             "--notes-file", notes_path,
             "--latest"

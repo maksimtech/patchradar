@@ -94,6 +94,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ---
 
+### Changed
+
+- **The release goes through a pull request.** main now takes pull requests only, the owner
+  included, after a cloud session pushed straight to it with the owner's account.
+  `bump_version.py` commits the bump on `release/<version>`, pushes that branch and opens its
+  pull request with auto-merge; `release.py` pushes nothing, checks that the local main is the
+  remote's, and creates the GitHub release on that exact commit (`--target`).
+
+
 ## [2026.46] — 2026-10-10
 
 ### Fixed

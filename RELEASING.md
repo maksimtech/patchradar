@@ -54,19 +54,30 @@ under a heading matching the version about to ship.
 
 ## Releasing
 
+`main` takes pull requests only, the owner's included (since 2026-10-12, after a
+cloud session pushed straight to it with the owner's account), so the version bump
+travels like any other change.
+
 ```bash
 # 1. Version bump (interactive: it asks for confirmation)
 python scripts/bump_version.py          # the count goes up
 python scripts/bump_version.py --fix    # or the third segment
 
-# 2. Release (interactive: it asks for confirmation)
-python scripts/release.py
+# 2. Once its pull request is merged
+git pull
+python scripts/release.py               # interactive: it asks for confirmation
 ```
+
+`bump_version.py` writes the version, runs the suite, commits the bump on
+`release/<version>` and, if asked, pushes that branch and opens its pull request
+with auto-merge (when `gh` is installed and `origin` is this repository on GitHub).
 
 `release.py` does, in this order:
 
-1. `git push origin main`
-2. `gh release create <version> --latest`, with the notes taken from the CHANGELOG
+1. checks that the local `main` is clean and is `main` as the remote has it — not
+   ahead, not behind — and pushes nothing
+2. `gh release create <version> --target <that commit> --latest`, with the notes
+   taken from the CHANGELOG
 3. it stops: **`publish.yml` starts on its own** on `release: published` and
    publishes to PyPI with trusted publishing — no token to hand over
 
@@ -75,8 +86,8 @@ Step 3 is **irreversible**: a version on PyPI cannot be withdrawn, only marked
 
 ## Branches
 
-`main` is the only permanent branch and is always releasable: release commits go
-straight onto it. Longer or riskier work sits on short-lived branches (`feat/…`,
+`main` is the only permanent branch and is always releasable; every change reaches
+it through a pull request, the release bump included. Longer or riskier work sits on short-lived branches (`feat/…`,
 `fix/…`) until it is ready — that is how `feature/version-gap` stayed out of
 2026.41, because it had the code and not yet a face.
 

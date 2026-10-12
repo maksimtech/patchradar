@@ -14,9 +14,10 @@ può usare l'interfaccia web è in `docs/nis2-compliance.md`, sezioni 2 e 3.
 ## Regole di lavoro
 
 - **Ogni modifica passa da una pull request** su `main`, unita quando i controlli
-  obbligatori sono verdi, anche se il ruleset di questo repository non la impone.
-  Niente push diretti su `main` e niente `gh pr merge --admin`. Unica eccezione,
-  il commit di versione che crea `scripts/release.py` (vedi `RELEASING.md`).
+  obbligatori sono verdi. Dal 2026-10-12 il ruleset la impone senza eccezioni,
+  nemmeno per il proprietario: un push diretto su `main` viene rifiutato, e lo è
+  anche `gh pr merge --admin`. Anche il commit di versione passa da una PR (vedi
+  `RELEASING.md`).
 - **Commit firmati** con l'identità e la chiave configurate nel repository:
   `git log -1 --format=%G?` deve dare `G`. Messaggi `tipo(ambito): …`, con il
   perché nel corpo. La riga `Co-Authored-By` la indica l'ambiente di Claude Code;
@@ -58,9 +59,12 @@ uv lock --check            # con uv 0.12.18, la versione fissata in quality.yml
 
 ## Release
 
-`scripts/release.py` porta la versione (CalVer `YYYY.count[.fix]`, vedi
-`RELEASING.md`) e crea la release GitHub con un tag senza `v`, per esempio
-`2026.46`. L'evento di release fa partire PyPI e l'immagine
+`scripts/bump_version.py` porta la versione (CalVer `YYYY.count[.fix]`, vedi
+`RELEASING.md`), fa girare la suite e mette il commit su `release/<versione>`; poi
+pubblica quel ramo e apre la PR con auto-merge. Dopo il merge, `git pull` e
+`scripts/release.py`, che non spinge nulla: verifica che `main` locale sia quello
+del remoto e crea la release GitHub su quel commit, con un tag senza `v` (per
+esempio `2026.46`). L'evento di release fa partire PyPI e l'immagine
 `maksimtech/patchradar:2026.46`; poi Release Evidence (`sbom.yml`) allega SBOM e
 scansioni datate. Per una release già uscita:
 `gh workflow run sbom.yml -f tag=2026.46`.
