@@ -114,3 +114,47 @@ def test_the_bump_is_committed_on_a_release_branch_and_main_is_left_alone(repo):
     assert _git(remote, "log", "-1", "--format=%s", "release/2026.47") == "chore: bump version to 2026.47"
     assert _git(remote, "log", "-1", "--format=%s", "main") == "initial", "main was pushed"
     assert _git(work, "rev-parse", "--abbrev-ref", "HEAD") == "main"
+
+
+# --- who opens the pull request ----------------------------------------------------
+#
+# The pull request is opened with gh, with auto-merge, only when origin is this
+# repository on GitHub. CodeQL alert #60 (py/incomplete-url-substring-sanitization)
+# was right about the first version: it asked whether "github.com" and the repository
+# name occurred anywhere in the URL, which a host of anyone's choosing satisfies.
+# The URLs below are set on a real clone with `git remote set-url`; git does not
+# contact them to answer `git remote get-url`.
+
+
+@pytest.mark.parametrize("url", [
+    "https://github.com/maksimtech/patchradar.git",
+    "https://github.com/maksimtech/patchradar",
+    "https://GitHub.com/maksimtech/patchradar.git",
+    "git@github.com:maksimtech/patchradar.git",
+    "ssh://git@github.com/maksimtech/patchradar.git",
+])
+def test_origin_on_github_is_recognised(repo, url):
+    work, _ = repo
+    _git(work, "remote", "set-url", "origin", url)
+    assert bump._origin_is_github(work)
+
+
+@pytest.mark.parametrize("url", [
+    "https://evil.example/github.com/maksimtech/patchradar.git",
+    "https://github.com.evil.example/maksimtech/patchradar.git",
+    "https://evil.example/?github.com/maksimtech/patchradar",
+    "git@evil.example:github.com/maksimtech/patchradar.git",
+    "https://github.com/maksimtech/patchradar-fork.git",
+    "https://github.com/someone/maksimtech/patchradar.git",
+    "https://github.com/someone-else/patchradar.git",
+])
+def test_origin_that_only_mentions_github_is_not_trusted(repo, url):
+    work, _ = repo
+    _git(work, "remote", "set-url", "origin", url)
+    assert not bump._origin_is_github(work)
+
+
+def test_a_local_origin_is_not_github(repo):
+    work, remote = repo
+    assert _git(work, "remote", "get-url", "origin") == str(remote)
+    assert not bump._origin_is_github(work)
