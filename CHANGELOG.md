@@ -96,6 +96,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **`SECURITY-EXCEPTIONS.toml`: the settled entries that stay now say why.** Docker Scout and Snyk
+  stopped reporting the gcc-14 advisories (CVE-2026-102010 and CVE-2026-95619, and their Snyk ids)
+  on 2026-10-07 and 2026-10-08, so the gate lists them as settled. `patchradar debian` on 2026-10-15
+  still reports gcc-14 no-dsa in trixie at 14.2.0-19, with the fix only in sid, so the package is
+  still unfixed and only the reporting changed. The entries are kept, and each now records when the
+  scanner fell silent and what Debian said, as this file's CVE-2026-82560 entry already did.
+  Deleting a flaw that is demonstrably present because a scanner fell silent is the one direction
+  the file must not drift in.
+
 - **The NIS2 document describes the branch rules as they are since 2026-10-12.** The ruleset on
   main lost the owner's bypass and requires a pull request for every change, the version bump
   included; the document said the maintainer could bypass the rules, that no rule required a pull request and that release commits went straight to main. A test holds the new
