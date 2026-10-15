@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -153,12 +154,36 @@ def git_commit(version: str, files: list[str] | None = None, cwd: Path | None = 
     print(f"✅ Git commit on {release_branch(version)}: chore: bump version to {version}")
 
 
+def _github_repo(url: str) -> str | None:
+    """owner/name when the remote URL points at github.com, otherwise None.
+
+    The host and the path are read apart and compared whole: a substring test lets
+    any host that mentions github.com in its path or its own name through (CodeQL
+    py/incomplete-url-substring-sanitization, alert #60).
+    """
+    url = url.strip()
+    if "://" in url:
+        parts = urllib.parse.urlsplit(url)
+        host, path = parts.hostname or "", parts.path
+    else:
+        # scp-like syntax: [user@]host:path
+        scp = re.fullmatch(r"(?:[^@/:]+@)?([^@/:]+):(.+)", url)
+        if not scp:
+            return None
+        host, path = scp.group(1).lower(), scp.group(2)
+    if host != "github.com":
+        return None
+    path = path.strip("/")
+    return path.removesuffix(".git") or None
+
+
 def _origin_is_github(cwd: Path | None) -> bool:
     url = subprocess.run(
         ["git", "remote", "get-url", "origin"], capture_output=True, text=True, encoding="utf-8", check=True,
         cwd=cwd,
     ).stdout
-    return "github.com" in url and RELEASE_REPO in url
+    repo = _github_repo(url)
+    return repo is not None and repo.lower() == RELEASE_REPO.lower()
 
 
 def git_push(version: str, cwd: Path | None = None) -> None:
