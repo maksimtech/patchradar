@@ -65,7 +65,7 @@ patchradar add notepad --version 8.5.0 --cpe "cpe:2.3:a:notepad-plus-plus:notepa
 patchradar scan notepad --days 365         # what affects 8.5.0, and what is unknown
 patchradar scan notepad --days 365 --all   # also the CVEs that do not affect it
 
-# Show latest CVEs in terminal
+# Show the most urgent stored CVEs, ranked as a scan ranks them
 patchradar status
 
 # Remove software

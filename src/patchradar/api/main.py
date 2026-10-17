@@ -37,7 +37,7 @@ from patchradar.db.database import (
 )
 from patchradar.epss import enrich as epss_enrich
 from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, SOFTWARE_NAME_PATTERN, normalise_software_name
-from patchradar.priority import merge_by_cve
+from patchradar.priority import merge_by_cve, priority
 
 logger = logging.getLogger("patchradar")
 
@@ -206,6 +206,16 @@ def sanitize_cve(cve: dict) -> dict:
     # Numeric fields. The EPSS pair is passed through as stored, including a
     # missing one: `.get` yields None, and None here means FIRST does not score
     # the CVE — which a 0.0 would misreport as "almost certainly not exploited".
+    # Why the row is where it is, as the CLI prints it: a rank without its
+    # reason is a number taken on trust.
+    rank = priority(cve)
+    safe["priority"] = rank.label
+    safe["priority_reason"] = _strip_control_chars(rank.reason)[:300]
+    for flag in ("known_exploited", "kev_ransomware"):
+        safe[flag] = cve.get(flag) if isinstance(cve.get(flag), bool) else None
+    for field in ("kev_date_added", "kev_due_date"):
+        value = cve.get(field)
+        safe[field] = _strip_control_chars(value).strip()[:20] if isinstance(value, str) else None
     for field in ("verdict", "verdict_reason", "verdict_fixed_version", "judged_version"):
         value = cve.get(field)
         safe[field] = _strip_control_chars(value).strip()[:300] if isinstance(value, str) else None

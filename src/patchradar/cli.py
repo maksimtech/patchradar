@@ -635,11 +635,14 @@ def _print_cves(software: str, cves: list, judged: bool = False):
     console.print(table)
 
 def _print_cves_table(cves: list):
-    table = Table(title="🛡️ PatchRadar — Latest CVEs", box=box.ROUNDED, show_lines=True)
+    # Most urgent first, in the order the database now returns: a scan's report
+    # and `status` rank the same rows the same way.
+    table = Table(title="🛡️ PatchRadar — Most urgent CVEs", box=box.ROUNDED, show_lines=True)
     table.add_column("CVE ID", style="bold cyan", no_wrap=True)
     table.add_column("Software", style="blue")
     table.add_column("Score", justify="center", width=6)
     table.add_column("Severity", justify="center", width=10)
+    table.add_column("Priority", width=10)
     table.add_column("Source", width=6)
     # Only when a stored verdict is current for some row: a watchlist matched by
     # name alone gets the table it always had.
@@ -653,12 +656,14 @@ def _print_cves_table(cves: list):
         severity_color = SEVERITY_STYLES.get(severity, "white")
         verdict = cve.get("verdict")
         extra = [Text(verdict or "—", style=VERDICT_STYLES.get(verdict, "dim"))] if judged else []
+        rank = priority(cve)
 
         table.add_row(
             Text(str(cve.get("id", ""))),
             Text(str(cve.get("software") or "")),
             score_str,
             Text(severity, style=severity_color),
+            Text(rank.label, style=PRIORITY_STYLES[rank.rank]),
             Text(str(cve.get("source") or "")),
             *extra,
         )

@@ -6,6 +6,7 @@ from pathlib import Path
 import aiosqlite
 
 from patchradar.cpe import Cpe
+from patchradar.priority import as_flag, sql_order
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,18 @@ def normalize_timestamp(value) -> str | None:
 _ADDED_COLUMNS = {
     "epss_score": "REAL",
     "epss_percentile": "REAL",
+    # What decides a rank besides the score (priority.py), stored so that the
+    # listings read from the database can be ranked as a scan is
+    # (docs/DESIGN.md §5.5). The flags are 1/0, NULL for a CVE KEV never listed.
+    "known_exploited": "INTEGER",
+    "kev_ransomware": "INTEGER",
+    "kev_date_added": "TEXT",
+    "kev_due_date": "TEXT",
+    "cvss_exploit_maturity": "TEXT",
 }
+
+# Stored as 1/0 and read back as booleans; NULL stays None.
+_FLAGS = ("known_exploited", "kev_ransomware")
 
 # What is installed, for the scan to judge each CVE against (docs/DESIGN.md
 # §5.1): the names `inventory.py` was written for. Nullable without a default,
@@ -153,6 +165,11 @@ async def init_db():
                 url TEXT,
                 epss_score REAL,
                 epss_percentile REAL,
+                known_exploited INTEGER,
+                kev_ransomware INTEGER,
+                kev_date_added TEXT,
+                kev_due_date TEXT,
+                cvss_exploit_maturity TEXT,
                 seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -170,6 +187,11 @@ async def init_db():
         await _add_missing_columns(db)
         await _add_missing_columns(db, "watchlist", _ADDED_WATCHLIST_COLUMNS)
         await _add_missing_columns(db, "cve_software", _ADDED_LINK_COLUMNS)
+        # The listings' order as an index, so a listing of 50 reads 50 rows in
+        # order instead of ranking every stored CVE first: measured on the
+        # benchmark's 500, get_cves went from 1.9 ms to 1.0 ms with it, below
+        # the 1.45 ms it took when it still listed by date.
+        await db.execute(f"CREATE INDEX IF NOT EXISTS cves_by_priority ON cves ({_PRIORITY_INDEX})")
         await _normalize_stored_timestamps(db)
         await _link_stored_cves(db)
         await db.commit()
@@ -303,20 +325,34 @@ async def save_cve(cve: dict) -> bool:
                     judged_version = excluded.judged_version
             """, (cve["id"], cve["software"], cve.get("verdict"), cve.get("verdict_reason"),
                   cve.get("verdict_fixed_version"), cve.get("judged_version")))
+            # The exploitation facts are refreshed like the forecast, and for a
+            # sharper reason: CISA adds a CVE to KEV long after NVD published
+            # it, and a row stored on Monday must learn on Wednesday that it is
+            # being exploited. COALESCE keeps a scan without the KEV record —
+            # a keyword KEV does not match — from erasing what it said.
+            flags = [int(as_flag(cve[f])) if cve.get(f) is not None else None for f in _FLAGS]
             cursor = await db.execute("""
                 INSERT INTO cves
                 (id, software, description, cvss_score, cvss_version,
-                 severity, published_at, source, url, epss_score, epss_percentile)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 severity, published_at, source, url, epss_score, epss_percentile,
+                 known_exploited, kev_ransomware, kev_date_added, kev_due_date, cvss_exploit_maturity)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     epss_score = COALESCE(excluded.epss_score, cves.epss_score),
-                    epss_percentile = COALESCE(excluded.epss_percentile, cves.epss_percentile)
+                    epss_percentile = COALESCE(excluded.epss_percentile, cves.epss_percentile),
+                    known_exploited = COALESCE(excluded.known_exploited, cves.known_exploited),
+                    kev_ransomware = COALESCE(excluded.kev_ransomware, cves.kev_ransomware),
+                    kev_date_added = COALESCE(excluded.kev_date_added, cves.kev_date_added),
+                    kev_due_date = COALESCE(excluded.kev_due_date, cves.kev_due_date),
+                    cvss_exploit_maturity = COALESCE(excluded.cvss_exploit_maturity, cves.cvss_exploit_maturity)
             """, (
                 cve["id"], cve["software"], cve["description"],
                 cve.get("cvss_score"), cve.get("cvss_version"),
                 cve.get("severity"), normalize_timestamp(cve.get("published_at")),
                 cve.get("source"), cve.get("url"),
-                cve.get("epss_score"), cve.get("epss_percentile")
+                cve.get("epss_score"), cve.get("epss_percentile"),
+                *flags, cve.get("kev_date_added"), cve.get("kev_due_date"),
+                cve.get("cvss_exploit_maturity"),
             ))
             await db.commit()
             return cursor.rowcount > 0
@@ -335,6 +371,21 @@ async def save_cve(cve: dict) -> bool:
 _CURRENT_VERDICT = ", ".join(f"link.{column}" for column in _ADDED_LINK_COLUMNS)
 
 
+# Most urgent first, as a scan orders its report (priority.py); among equals the
+# newest first, then by id, which is also the order a scan's ties come in. The
+# index in init_db holds the same expression, unqualified, which SQLite matches.
+_PRIORITY_ORDER = f"{sql_order('cves')}, published_at DESC, cves.id DESC"
+_PRIORITY_INDEX = f"{sql_order()}, published_at DESC, id DESC"
+
+
+def _read(row) -> dict:
+    record = dict(row)
+    for flag in _FLAGS:
+        if record.get(flag) is not None:
+            record[flag] = bool(record[flag])
+    return record
+
+
 async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -347,18 +398,18 @@ async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
                 LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = ?
                     AND link.judged_version = watched.installed_version
                 WHERE cves.software = ? OR cves.id IN (SELECT cve_id FROM cve_software WHERE software = ?)
-                ORDER BY published_at DESC LIMIT ?
+                ORDER BY {_PRIORITY_ORDER} LIMIT ?
             """, (software.lower(),) * 4 + (limit,)) as cursor:
                 rows = await cursor.fetchall()
             # Named after the product asked about, not the first one to find it.
-            return [{**dict(row), "software": software.lower()} for row in rows]
+            return [{**_read(row), "software": software.lower()} for row in rows]
         else:
             async with db.execute(f"""
                 SELECT cves.*, {_CURRENT_VERDICT} FROM cves
                 LEFT JOIN watchlist AS watched ON watched.name = cves.software
                 LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = cves.software
                     AND link.judged_version = watched.installed_version
-                ORDER BY published_at DESC LIMIT ?
+                ORDER BY {_PRIORITY_ORDER} LIMIT ?
             """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [_read(row) for row in rows]

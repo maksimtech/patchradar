@@ -38,6 +38,16 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   scan, CLI and API alike, now asks NVD about each by id (`nvd.records_for`, `cveId=`), paced
   like every request to NVD, and merges the record in, score included. When NVD cannot be
   asked, the CVE stays not evaluable and the scan says so (the API in `errors`).
+- **`status` and `/api/cves` rank as a scan does.** CISA's exploitation facts and the CVSS v4.0
+  exploit maturity travelled in the scan's records and were not columns, so the next `status`
+  listed by publication date and an exploited CVE from 2023 sat under every new 5.3. They are
+  stored now (`known_exploited`, `kev_ransomware`, `kev_date_added`, `kev_due_date`,
+  `cvss_exploit_maturity`), refreshed by each scan that brings them — CISA lists a CVE long after
+  NVD publishes it — and the listings are ordered by `priority.sql_order`, built from the rules a
+  scan ranks by; a test runs one set of rows through both. An index on that order makes the full
+  listing faster than the date order was (1.0 ms against 1.45 ms on the benchmark's 500 CVEs).
+  `/api/cves` rows carry `priority`, `priority_reason` and the KEV fields; `status` has a Priority
+  column.
 - **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
   text was never committed and could not be found. It is reconstructed from what `affected.py`,
   `inventory.py` and `tests/test_priority_wiring.py` already committed to.

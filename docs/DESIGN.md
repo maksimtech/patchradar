@@ -118,16 +118,20 @@ is not shown until a scan judges the new one. `status` and `/api/cves` show it;
 the API records version and CPE (`POST /api/watchlist/{name}?version=&cpe=`) and
 judges with the same function as the CLI (`affected.mark`).
 
-Still in memory only: the KEV fields that decide a rank — the migration
-`tests/test_priority_wiring.py` waits for.
+What decides a rank is stored too: `known_exploited`, `kev_ransomware`,
+`kev_date_added`, `kev_due_date` and the provider's `cvss_exploit_maturity`, in
+`cves`, refreshed by every scan that brings them (CISA lists a CVE long after NVD
+publishes it). `status` and `/api/cves` list most urgent first, with the order
+`priority.sql_order` builds from the rules a scan ranks by, and an index on that
+expression keeps a listing of 50 a read of 50 rows.
 
 ### 5.6 Order of work
 
 1. **PR-01a** — the columns, `add --version --cpe`, the verdict for NVD records
    in the command-line scan, `--all`, the README.
-2. **PR-01b** — in two parts: the verdict stored and the API (01b-1); the KEV
-   fields stored, with the database-backed listings ranked by priority, and KEV
-   and MSRC entries judged through NVD's record of the same CVE (01b-2).
+2. **PR-01b** — in three parts: the verdict stored and the API (01b-1); KEV
+   and MSRC entries judged through NVD's record of the same CVE (01b-2); the KEV
+   fields stored, with the database-backed listings ranked by priority (01b-3).
 3. **PR-01c** — the web UI; `patchradar import` writing the mappings a person
    confirmed, `channel` included.
 
