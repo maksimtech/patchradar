@@ -4,7 +4,8 @@ PatchRadar — the same reading, against what NVD actually sent.
 `test_affected.py` builds each shape by hand: it proves the rules and it agrees
 with itself. This one runs the whole module over a real payload — the 21 CVEs NVD
 returns for `cpe:2.3:a:notepad-plus-plus:notepad\\+\\+` — and pins the three
-answers the versionradar design measured on 2026-09-28.
+answers the prototype of the version-aware scan measured on 2026-09-28
+(docs/DESIGN.md §5).
 
 It earned its place immediately. The first run of this module against this file
 returned **zero hits for all three versions**, because the tests spelled the

@@ -9,7 +9,7 @@
 
 > Know when your software is vulnerable — before attackers do.
 
-PatchRadar checks the CVE feeds for the software on your watchlist and tells you which vulnerabilities affect it, most urgent first. No more manually checking NVD, MSRC, or Snyk — just add your software and run a scan.
+PatchRadar checks the CVE feeds for the software on your watchlist, most urgent first. By name it finds the CVEs that **name** the software; give it the installed version and the product's CPE and it says which of them **affect** that version, which do not, and which nobody can tell yet.
 
 Scans run when you start one — `patchradar scan`, or **Scan** in the web UI. There is no scheduler and no notification inside PatchRadar: to scan on a schedule, run `patchradar scan` from cron or the Windows Task Scheduler.
 
@@ -26,6 +26,7 @@ Scans run when you start one — `patchradar scan`, or **Scan** in the web UI. T
 - 🔍 **On-demand CVE scans** — `patchradar scan` queries NVD, MSRC and CISA KEV; a scan from the web UI (`POST /api/scan`) also queries the Debian Security Tracker
 - 🎯 **Ranked by what is actually a threat** — CISA KEV for observed exploitation, FIRST EPSS for the 30-day forecast, CVSS only to break the tie
 - 📋 **Personal watchlist** — add any software you want to monitor
+- 🎯 **Judged against what is installed** — with `--version` and `--cpe`, each CVE is *affected*, *not affected* or *not evaluable*, from NVD's own list of affected versions, and the scan says which update closes how many
 - 🎨 **Beautiful web UI** — dark theme dashboard with charts and filters
 - 💻 **CLI first** — full command line interface for automation
 - 📊 **CVSS scoring** — color-coded severity (Critical / High / Medium / Low)
@@ -59,12 +60,46 @@ patchradar list
 # Scan for CVEs (last 30 days)
 patchradar scan --days 30
 
+# Say what is installed, so the scan can judge each CVE against it
+patchradar add notepad --version 8.5.0 --cpe "cpe:2.3:a:notepad-plus-plus:notepad\+\+"
+patchradar scan notepad --days 365         # what affects 8.5.0, and what is unknown
+patchradar scan notepad --days 365 --all   # also the CVEs that do not affect it
+
 # Show latest CVEs in terminal
 patchradar status
 
 # Remove software
 patchradar remove proxmox
 ```
+
+### Which CVEs affect the installed version
+
+A scan by name finds the CVEs that mention the software. For Notepad++ the NVD
+answer recorded for the tests holds 21, and 11 of them concern other versions or
+another product: by name alone they are all in the table, ranked, as if each
+were a job.
+
+`patchradar add <name> --version <v> --cpe <cpe>` records what is installed.
+The CPE is typed by you, as NVD writes it — PatchRadar never guesses one from a
+name — and it is checked for form: `notepad++` is refused with the escaped
+`notepad\+\+` shown, because NVD would match nothing and the scan would read
+as clean. The scan then judges every CVE NVD returned with NVD's own list of
+affected versions:
+
+- **affected** — listed in the table, with "fixed in X" only where NVD states it;
+- **not evaluable** — NVD has not yet said which products the CVE affects (the
+  usual state for weeks after publication), the CVE came from MSRC or KEV alone,
+  or NVD's versions belong to another scheme: listed, because "cannot tell" is
+  not an all-clear;
+- **not affected** — counted, and listed only with `--all`.
+
+One line gives the split, one says which update closes how many of the
+affected ones — the rest stay open because NVD does not state where they were
+fixed, not because the update falls short — and a count from NVD is always
+followed by the reminder that it counts identifiers, not flaws. Entries without
+a version are scanned by name as before, and the scan names them. The verdict
+is not stored yet, so `status`, the API and the web UI still show CVEs by name
+([docs/DESIGN.md](docs/DESIGN.md) §5.5).
 
 ### Asking Debian what it is actually doing
 

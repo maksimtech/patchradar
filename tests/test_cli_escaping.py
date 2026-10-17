@@ -17,11 +17,13 @@ Two distinct failure modes are covered here:
 import asyncio
 from io import StringIO
 
+import aiosqlite
 import pytest
 import typer
 from rich.console import Console
 
 import patchradar.cli as cli
+from patchradar.db import database
 from patchradar.db.database import add_to_watchlist, get_watchlist
 
 
@@ -198,7 +200,9 @@ def test_cli_add_escapes_on_duplicate():
     # Markup cannot get this far any more (see above): what the duplicate
     # message prints is the canonical name, and it prints it verbatim.
     asyncio.run(add_to_watchlist("windows 10"))
-    out = render(cli.add, "  Windows 10  ")
+    # Called as a function, `add` gets its options' Typer defaults unless they
+    # are passed; None is what the command line gives when they are left out.
+    out = render(cli.add, "  Windows 10  ", version=None, cpe=None)
     assert "windows 10 is already in your watchlist" in out
     assert asyncio.run(get_watchlist()) == ["windows 10"]
 
@@ -221,11 +225,17 @@ def test_cli_remove_escapes_on_missing(monkeypatch):
     assert MARKUP_NAME in out
 
 
-def test_cli_list_escapes_watchlist_entries(monkeypatch):
-    async def fake_watchlist():
-        return [MARKUP_NAME, "nginx"]
+def test_cli_list_escapes_watchlist_entries():
+    """Every way in refuses brackets now; a row written before that rule, by
+    an older version, is still in somebody's database. It is put there the way
+    it got there — straight into the table — and printed verbatim."""
+    async def old_rows():
+        async with aiosqlite.connect(database.DB_PATH) as db:
+            await db.executemany("INSERT INTO watchlist (name) VALUES (?)",
+                                 [(MARKUP_NAME,), ("nginx",)])
+            await db.commit()
 
-    monkeypatch.setattr(cli, "get_watchlist", fake_watchlist)
+    asyncio.run(old_rows())
     out = render(cli.list_watchlist)
     assert MARKUP_NAME in out
 

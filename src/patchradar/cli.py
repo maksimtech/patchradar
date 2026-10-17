@@ -14,6 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 import patchradar
+from patchradar.affected import AFFECTED, CAVEAT, NOT_AFFECTED, NOT_EVALUABLE, closed_by, judge, orderable
 from patchradar.collectors.debian import DEBIAN_RELEASE as debian_release
 from patchradar.collectors.debian import get_tracker_snapshot
 from patchradar.collectors.errors import CollectorError
@@ -26,7 +27,18 @@ from patchradar.collectors.nvd import fetch_cves
 from patchradar.collectors.vuldb import SOURCE as vuldb_source
 from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
-from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
+from patchradar.cpe import CpeError, parse_cpe
+from patchradar.db.database import (
+    WatchEntry,
+    add_to_watchlist,
+    get_cves,
+    get_watch_entries,
+    get_watchlist,
+    init_db,
+    remove_from_watchlist,
+    save_cve,
+    set_installed,
+)
 from patchradar.epss import enrich as epss_enrich
 from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, normalise_software_name
 from patchradar.priority import (
@@ -275,8 +287,14 @@ def _print_law_check(law, out=None) -> None:
 
 
 @app.command()
-def add(software: str = typer.Argument(..., help="Software to monitor")):
-    """Add software to your watchlist."""
+def add(
+    software: str = typer.Argument(..., help="Software to monitor"),
+    version: str = typer.Option(None, "--version",
+                                help="Installed version, to judge each CVE against (needs --cpe)"),
+    cpe: str = typer.Option(None, "--cpe",
+                            help="CPE 2.3 name as NVD writes it, e.g. cpe:2.3:a:notepad-plus-plus:notepad\\+\\+"),
+):
+    """Add software to your watchlist, or record what is installed of it."""
     # The same rule and the same canonical form as the API: "  Proxmox  " was
     # stored as is, beside the "proxmox" the API stores, and a multi-line name
     # reached the watchlist that every other way in refuses.
@@ -287,10 +305,31 @@ def add(software: str = typer.Argument(..., help="Software to monitor")):
             f"spaces, '-', '_' and '.', up to {SOFTWARE_NAME_MAX_LENGTH} characters"
         )
         raise typer.Exit(1)
+    # Both checked before anything is written: a version the scan cannot order
+    # is refused once, here, rather than "not evaluable" on every CVE of every
+    # scan, and a CPE NVD would match nothing with must not read as clean.
+    if version is not None and not orderable(version):
+        console.print(Text(f"❌ {version} is not a version the scan can compare: numbers "
+                           f"separated by dots, as in 8.9.6.4 or 1.1.1t", style="red"))
+        raise typer.Exit(1)
+    parsed = None
+    if cpe is not None:
+        try:
+            parsed = parse_cpe(cpe)
+        except CpeError as exc:
+            console.print(Text(f"❌ {exc}", style="red"))
+            raise typer.Exit(1) from None
     added = run(add_to_watchlist(name))
+    if version is not None or parsed is not None:
+        run(set_installed(name, version=version, cpe=parsed))
+    stored = ", ".join(part for part in (f"version {version}" if version else "",
+                                          parsed.text if parsed else "") if part)
+    detail = Text(f" — {stored}") if stored else Text("")
     safe = escape(name)
     if added:
-        console.print(f"✅ [green]Added[/green] [bold]{safe}[/bold] to watchlist")
+        console.print(Text.from_markup(f"✅ [green]Added[/green] [bold]{safe}[/bold] to watchlist") + detail)
+    elif stored:
+        console.print(Text.from_markup(f"✏️  [green]Updated[/green] [bold]{safe}[/bold]") + detail)
     else:
         console.print(f"⚠️  [yellow]{safe}[/yellow] is already in your watchlist")
 
@@ -307,14 +346,16 @@ def remove(software: str = typer.Argument(..., help="Software to remove")):
 @app.command(name="list")
 def list_watchlist():
     """Show your current watchlist."""
-    items = run(get_watchlist())
+    items = run(get_watch_entries())
     if not items:
         console.print("📭 Your watchlist is empty. Use [bold]patchradar add <software>[/bold]")
         return
     table = Table(title="🛡️ PatchRadar Watchlist", box=box.ROUNDED)
     table.add_column("Software", style="cyan bold")
+    table.add_column("Version")
+    table.add_column("CPE")
     for item in items:
-        table.add_row(Text(str(item)))
+        table.add_row(Text(item.name), Text(item.installed_version or "—"), Text(item.cpe or "—"))
     console.print(table)
 
 async def _scan_target(
@@ -322,6 +363,8 @@ async def _scan_target(
     days: int,
     collected: list | None = None,
     failed: list | None = None,
+    entry: WatchEntry | None = None,
+    show_all: bool = False,
 ) -> int:
     """Scan a single target for CVEs and return count.
 
@@ -370,12 +413,32 @@ async def _scan_target(
         except CollectorError as exc:
             epss_failure = exc
     all_cves = sort_by_priority(all_cves)
+    # What is installed decides what the table lists (docs/DESIGN.md §5.4):
+    # each CVE found by name is judged against the version with NVD's own
+    # configurations, and the ones that do not affect it are counted, not
+    # listed, unless --all asks for them.
+    installed = entry.installed() if entry is not None else None
+    judged = installed is not None
+    if installed is not None:
+        version, vendor, product = installed
+        for cve in all_cves:
+            verdict = judge(cve, version=version, vendor=vendor, cpe_product=product)
+            cve["verdict"] = verdict.status
+            cve["verdict_reason"] = verdict.reason
+            cve["verdict_fixed_version"] = verdict.fixed_version
+    for cve in all_cves:
+        cve.pop("configurations", None)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
         collected.extend(all_cves)
-    if all_cves:
-        _print_cves(target, all_cves)
+    shown = all_cves
+    if judged and not show_all:
+        shown = [cve for cve in all_cves if cve["verdict"] != NOT_AFFECTED]
+    if shown:
+        _print_cves(target, shown, judged=judged)
+    if installed is not None and all_cves:
+        _print_judgement(target, installed[0], all_cves, show_all)
     for failure in failures:
         console.print(
             f"⚠️  [yellow]{escape(str(failure))}[/yellow] — "
@@ -390,7 +453,29 @@ async def _scan_target(
     # Only an answer from every source may be reported as an all-clear.
     if not all_cves and not failures:
         console.print(f"[green]{safe_target}[/green] — no CVEs found in last {days} days")
+    if judged:
+        # Whatever the counts: a CVE exists when someone asked for an identifier.
+        console.print(Text(f"ℹ️  {CAVEAT[0].upper()}{CAVEAT[1:]}", style="dim"))
     return len(all_cves)
+
+
+def _print_judgement(target: str, version: str, cves: list[dict], show_all: bool) -> None:
+    """The split of what was found by name, and what one update closes."""
+    counts = Counter(cve["verdict"] for cve in cves)
+    unlisted = "" if show_all or not counts[NOT_AFFECTED] else " (not listed; --all lists them)"
+    console.print(Text(
+        f"{target} {version} — found by name: {len(cves)}; affecting {version}: "
+        f"{counts[AFFECTED]}; not evaluable: {counts[NOT_EVALUABLE]}; "
+        f"not affecting it: {counts[NOT_AFFECTED]}{unlisted}"
+    ))
+    update, closed = closed_by(cve["verdict_fixed_version"] for cve in cves if cve["verdict"] == AFFECTED)
+    if update is None:
+        return
+    line = f"Updating to {update} closes {closed} of {counts[AFFECTED]}."
+    if closed < counts[AFFECTED]:
+        line += (" The rest stay open because NVD does not state where they were fixed, "
+                 "not because the update falls short.")
+    console.print(Text(line))
 
 
 # Every source `scan` queries. Named here so the summary can say which ones
@@ -455,6 +540,8 @@ def scan(
     # min=1: a window of no days is a usage error, refused here; it used to
     # reach the NVD collector and end the command in a ValueError traceback.
     days: int = typer.Option(7, "--days", "-d", min=1, help="Days back to search"),
+    show_all: bool = typer.Option(False, "--all",
+                                  help="Also list the CVEs that do not affect the installed version"),
 ):
     """Scan for CVEs affecting your software."""
     async def _scan():
@@ -462,12 +549,22 @@ def scan(
         if not targets:
             console.print("Nothing to scan. Add software with [bold]patchradar add[/bold]")
             return
+        entries = {entry.name: entry for entry in await get_watch_entries()}
         cves: list[dict] = []
         failures: list[CollectorError] = []
-        total = sum([await _scan_target(t, days, cves, failures) for t in targets])
+        total = sum([await _scan_target(t, days, cves, failures, entries.get(t.lower()), show_all)
+                     for t in targets])
         console.print(f"\n Total: [bold]{total}[/bold] CVEs found\n")
         # After the total, because it is the total it qualifies.
         _report_silent_sources(failures, list(targets))
+        by_name = [t for t in targets if not (t.lower() in entries and entries[t.lower()].judgeable)]
+        if by_name:
+            # The total above counts CVEs that name these, not CVEs that affect
+            # what is installed; the line says which entries that is true of.
+            console.print(Text(
+                f"ℹ️  Matched by name only, version not checked: {', '.join(by_name)}. "
+                f"patchradar add <name> --version <version> --cpe <cpe> lets the scan judge them."
+            ))
         if not vuldb_api_key():
             console.print(f"ℹ️  {vuldb_source} was not asked: set VULDB_API_KEY to add it to the scan.")
         if days > msrc_max_days:
@@ -488,7 +585,10 @@ def status():
         _print_cves_table(cves)
     run(_status())
 
-def _print_cves(software: str, cves: list):
+VERDICT_STYLES = {AFFECTED: "bold red", NOT_EVALUABLE: "yellow", NOT_AFFECTED: "green"}
+
+
+def _print_cves(software: str, cves: list, judged: bool = False):
     table = Table(
         title=f"🚨 CVEs for [bold]{escape(software)}[/bold]",
         box=box.ROUNDED,
@@ -501,6 +601,8 @@ def _print_cves(software: str, cves: list):
     # trust, so the reason travels with it: which catalogue, since when, and the
     # remediation date when CISA states one.
     table.add_column("Priority", max_width=34)
+    if judged:
+        table.add_column("Verdict", max_width=34)
     table.add_column("Description", max_width=52)
 
     for cve in cves:
@@ -514,11 +616,16 @@ def _print_cves(software: str, cves: list):
         why = Text(rank.label, style=PRIORITY_STYLES[rank.rank])
         why.append("\n" + rank.reason, style="dim")
 
+        verdict = []
+        if judged:
+            verdict = [Text(cve["verdict"], style=VERDICT_STYLES[cve["verdict"]])]
+            verdict[0].append("\n" + cve["verdict_reason"], style="dim")
         table.add_row(
             Text(str(cve.get("id", ""))),
             score_str,
             Text(severity, style=severity_color),
             why,
+            *verdict,
             Text(_truncate(cve.get("description"), 120)),
         )
     console.print(table)

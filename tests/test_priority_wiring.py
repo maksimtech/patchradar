@@ -10,7 +10,7 @@ The second half pins the boundary deliberately. `known_exploited`,
 `kev_ransomware` and `kev_due_date` travel in the records the collectors return
 and are **not** columns in `cves`, so the exploitation fact exists in memory
 during a scan and is gone by the next `patchradar status`. Until the migration of
-DESIGN §5 lands, only the in-memory path can rank — and the day someone adds the
+docs/DESIGN.md §5.5 lands, only the in-memory path can rank — and the day someone adds the
 column, this test is what says "now wire the API too".
 
 The EPSS pair *is* stored, which narrows that gap without closing it: a ranking

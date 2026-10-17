@@ -14,6 +14,22 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Added
 
+- **The scan judges CVEs against the installed version** (docs/DESIGN.md §5). A scan found the
+  CVEs that name a product and could not say which affect what is installed: for Notepad++ the
+  recorded NVD answer holds 21, of which 11 concern other versions or another product, and all
+  21 were listed and ranked. `patchradar add <name> --version <v> --cpe <cpe>` records the
+  installed version and the product's CPE — typed by a person, never guessed, checked for form
+  (`notepad++` is refused with NVD's `notepad\+\+`) — in five new watchlist columns, migrated
+  into existing databases. Each CVE NVD returned is then *affected*, *not affected* or *not
+  evaluable*, from its own `configurations` (`affected.judge`); "cannot tell" never becomes
+  "not affected". The table lists the first and the last, `--all` the rest; one line gives the
+  split, one what an update closes, and the NVD caveat is always printed. Entries without a
+  version are scanned by name, and the scan says which. `list` shows version and CPE. The
+  verdict is not stored yet (§5.5): `status`, the API and the web UI are the next step.
+- **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
+  text was never committed and could not be found. It is reconstructed from what `affected.py`,
+  `inventory.py` and `tests/test_priority_wiring.py` already committed to.
+
 - **VulDB as a scan source** (`patchradar.collectors.vuldb`), queried only when
   `VULDB_API_KEY` is set; the key travels in the `X-VulDB-ApiKey` header and the software
   name as the search term. Pushed straight to main on 2026-10-12 without an entry here.

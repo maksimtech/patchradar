@@ -17,10 +17,9 @@ runtimes, twenty-nine are NVIDIA pieces and twenty-five belong to Python.
 Counting a runtime as an unwatched product reports work that does not exist: it
 is patched by whatever installed it.
 
-Nothing here writes to the database. Storing a confirmed mapping needs the
-watchlist columns the versionradar design sets out (`vendor`, `product_id`,
-`installed_version`, `channel`, `cpe`), and that migration is deliberately not
-part of this.
+Nothing here writes to the database. The watchlist columns a confirmed mapping
+goes into (`vendor`, `product_id`, `installed_version`, `channel`, `cpe`) exist
+since docs/DESIGN.md §5.1; writing them from an import is §5.6, step 3.
 """
 from __future__ import annotations
 
