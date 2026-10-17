@@ -107,6 +107,29 @@ def update_init(old: str, new: str) -> None:
     print(f"✅ __init__.py: {old} → {new}")
 
 
+LOCK = PYPROJECT.parent / "uv.lock"
+
+# What the bump commit carries. uv.lock is there because pyproject.toml holds the
+# version statically, so the lock records it as well: on 2026-10-17 the first bump
+# since uv.lock arrived, 2026.47, moved the other two, and Quality refused it.
+BUMPED_FILES = ["pyproject.toml", str(INIT.relative_to(PYPROJECT.parent)), "uv.lock"]
+
+
+def update_lock(old: str, new: str, path: Path = LOCK) -> None:
+    """The project's own entry in uv.lock, and nothing else: a dependency can
+    carry the same number. A tree without a lock has nothing to move."""
+    if not path.is_file():
+        return
+    with path.open(encoding="utf-8", newline="") as f:
+        content = f.read()
+    entry = re.compile(r'(name = "patchradar"\r?\nversion = ")' + re.escape(old) + '"')
+    updated, count = entry.subn(lambda m: f'{m.group(1)}{new}"', content, count=1)
+    if count:
+        with path.open("w", encoding="utf-8", newline="") as f:
+            f.write(updated)
+        print(f"✅ uv.lock: {old} → {new}")
+
+
 # What the gate runs. `sys.executable` rather than "python3": whoever releases is
 # in a virtual environment, and that is the interpreter that has the suite.
 SUITE_COMMAND = [sys.executable, "-m", "pytest", "-q"]
@@ -149,7 +172,7 @@ def git_commit(version: str, files: list[str] | None = None, cwd: Path | None = 
     the ruleset lost its bypass. The bump travels like any other change.
     """
     subprocess.run(["git", "switch", "-c", release_branch(version)], check=True, cwd=cwd)
-    subprocess.run(["git", "add", *(files or ["pyproject.toml", str(INIT)])], check=True, cwd=cwd)
+    subprocess.run(["git", "add", *(files or BUMPED_FILES)], check=True, cwd=cwd)
     subprocess.run(["git", "commit", "-m", f"chore: bump version to {version}"], check=True, cwd=cwd)
     print(f"✅ Git commit on {release_branch(version)}: chore: bump version to {version}")
 
@@ -228,12 +251,13 @@ def main():
 
     update_pyproject(current, new)
     update_init(current, new)
+    update_lock(current, new)
 
     if not check_suite():
         print(
             f"\n❌ The suite fails with {new} in place. Nothing was committed:\n"
-            f"   pyproject.toml and the package __init__ are left modified so you\n"
-            f"   can see what broke. `git checkout` on both undoes the bump."
+            f"   pyproject.toml, the package __init__ and uv.lock are left modified\n"
+            f"   so you can see what broke. `git checkout` on them undoes the bump."
         )
         sys.exit(1)
 

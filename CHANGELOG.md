@@ -12,6 +12,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`bump_version.py` left `uv.lock` behind.** `pyproject.toml` holds the version statically, so the
+  lock records it too, and the bump moved only the other two files: on 2026-10-17 Quality refused the
+  2026.47 bump with "The lockfile at `uv.lock` needs to be updated", and the lock was moved by hand on
+  its branch. The bump now moves the project's own entry, and nothing that only shares the number, and
+  commits it; a test holds the lock to the version `pyproject.toml` states, so the suite the bump runs
+  refuses one that falls behind.
+
 ## [2026.47] — 2026-10-17
 
 ### Added

@@ -188,6 +188,7 @@ class TestTheSuiteGate:
         monkeypatch.setattr(bump, "get_current_version", lambda: "2026.43")
         monkeypatch.setattr(bump, "update_pyproject", lambda *a: calls.append("pyproject"))
         monkeypatch.setattr(bump, "update_init", lambda *a: calls.append("init"))
+        monkeypatch.setattr(bump, "update_lock", lambda *a: calls.append("lock"))
         monkeypatch.setattr(bump, "git_commit", lambda *a: calls.append("commit"))
         monkeypatch.setattr(bump, "check_suite", lambda *a, **k: suite_passes)
         monkeypatch.setattr(sys, "argv", ["bump_version.py"])
@@ -205,7 +206,7 @@ class TestTheSuiteGate:
 
         assert exit_code.value.code == 1
         assert "commit" not in calls, "it committed a version its suite refuses"
-        assert calls == ["pyproject", "init"], (
+        assert calls == ["pyproject", "init", "lock"], (
             "the version has to be written before the suite runs, or the suite "
             "cannot see what the bump breaks"
         )
@@ -215,9 +216,51 @@ class TestTheSuiteGate:
 
         bump.main()
 
-        assert calls == ["pyproject", "init", "commit"]
+        assert calls == ["pyproject", "init", "lock", "commit"]
 
     def test_the_default_command_is_this_project_suite(self):
         """Read off the module rather than written here, so renaming it fails."""
         assert bump.SUITE_COMMAND[:2] == [sys.executable, "-m"]
         assert "pytest" in bump.SUITE_COMMAND
+
+
+class TestLock:
+    """pyproject.toml holds the version statically, so uv.lock records it too.
+
+    The bump moved pyproject.toml and __init__.py and left the lock behind: on
+    2026-10-17 the first bump since uv.lock arrived, 2026.47, was refused by
+    Quality with "The lockfile at `uv.lock` needs to be updated".
+    """
+
+    LOCK = (
+        'version = 1\n'
+        '[[package]]\nname = "other"\nversion = "2026.46"\n\n'
+        '[[package]]\nname = "patchradar"\nversion = "2026.46"\nsource = { editable = "." }\n'
+    )
+
+    def test_the_project_s_own_entry_moves(self, tmp_path):
+        lock = tmp_path / "uv.lock"
+        lock.write_text(self.LOCK, encoding="utf-8", newline="\n")
+
+        bump.update_lock("2026.46", "2026.47", lock)
+
+        text = lock.read_text(encoding="utf-8")
+        assert 'name = "patchradar"\nversion = "2026.47"' in text
+        assert 'name = "other"\nversion = "2026.46"' in text, "a dependency on the same number moved"
+
+    def test_without_a_lock_there_is_nothing_to_move(self, tmp_path):
+        bump.update_lock("2026.46", "2026.47", tmp_path / "uv.lock")
+
+        assert not (tmp_path / "uv.lock").exists()
+
+    def test_the_lock_is_committed_with_the_bump(self):
+        assert "uv.lock" in bump.BUMPED_FILES
+
+    def test_the_lock_carries_the_version_pyproject_states(self):
+        """Here as well as in Quality, so the gate in bump_version.py, which runs
+        the suite after writing the version, refuses a bump that leaves it behind."""
+        root = Path(__file__).resolve().parents[1]
+        lock = (root / "uv.lock").read_text(encoding="utf-8").replace("\r\n", "\n")
+
+        assert f'name = "patchradar"\nversion = "{bump.get_current_version()}"' in lock
+
