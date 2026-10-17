@@ -98,8 +98,10 @@ affected ones — the rest stay open because NVD does not state where they were
 fixed, not because the update falls short — and a count from NVD is always
 followed by the reminder that it counts identifiers, not flaws. Entries without
 a version are scanned by name as before, and the scan names them. The verdict
-is not stored yet, so `status`, the API and the web UI still show CVEs by name
-([docs/DESIGN.md](docs/DESIGN.md) §5.5).
+is stored with the version it was given for: `patchradar status` and
+`/api/cves` show it while that version is still the installed one, and the API
+takes the version and CPE too (`POST /api/watchlist/<name>?version=…&cpe=…`).
+The web UI does not show it yet ([docs/DESIGN.md](docs/DESIGN.md) §5.5, §5.6).
 
 ### Asking Debian what it is actually doing
 

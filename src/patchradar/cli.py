@@ -14,7 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 import patchradar
-from patchradar.affected import AFFECTED, CAVEAT, NOT_AFFECTED, NOT_EVALUABLE, closed_by, judge, orderable
+from patchradar.affected import AFFECTED, CAVEAT, NOT_AFFECTED, NOT_EVALUABLE, closed_by, mark, orderable
 from patchradar.collectors.debian import DEBIAN_RELEASE as debian_release
 from patchradar.collectors.debian import get_tracker_snapshot
 from patchradar.collectors.errors import CollectorError
@@ -419,15 +419,7 @@ async def _scan_target(
     # listed, unless --all asks for them.
     installed = entry.installed() if entry is not None else None
     judged = installed is not None
-    if installed is not None:
-        version, vendor, product = installed
-        for cve in all_cves:
-            verdict = judge(cve, version=version, vendor=vendor, cpe_product=product)
-            cve["verdict"] = verdict.status
-            cve["verdict_reason"] = verdict.reason
-            cve["verdict_fixed_version"] = verdict.fixed_version
-    for cve in all_cves:
-        cve.pop("configurations", None)
+    mark(all_cves, installed)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
@@ -637,11 +629,18 @@ def _print_cves_table(cves: list):
     table.add_column("Score", justify="center", width=6)
     table.add_column("Severity", justify="center", width=10)
     table.add_column("Source", width=6)
+    # Only when a stored verdict is current for some row: a watchlist matched by
+    # name alone gets the table it always had.
+    judged = any(cve.get("verdict") for cve in cves)
+    if judged:
+        table.add_column("Verdict")
 
     for cve in cves:
         score_str = _format_score(cve.get("cvss_score"))
         severity = _normalise_severity(cve.get("severity"))
         severity_color = SEVERITY_STYLES.get(severity, "white")
+        verdict = cve.get("verdict")
+        extra = [Text(verdict or "—", style=VERDICT_STYLES.get(verdict, "dim"))] if judged else []
 
         table.add_row(
             Text(str(cve.get("id", ""))),
@@ -649,6 +648,7 @@ def _print_cves_table(cves: list):
             score_str,
             Text(severity, style=severity_color),
             Text(str(cve.get("source") or "")),
+            *extra,
         )
     console.print(table)
 

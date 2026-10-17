@@ -65,6 +65,18 @@ _ADDED_WATCHLIST_COLUMNS = {
 }
 
 
+# The verdict on a CVE for one watched product (docs/DESIGN.md §5.5), on the
+# link between the two: one CVE stored once is "affected" for one product and
+# "not affected" for another. `judged_version` is the installed version it was
+# given for, so a verdict about 8.5.0 is never shown as one about 8.9.6.4.
+_ADDED_LINK_COLUMNS = {
+    "verdict": "TEXT",
+    "verdict_reason": "TEXT",
+    "verdict_fixed_version": "TEXT",
+    "judged_version": "TEXT",
+}
+
+
 async def _add_missing_columns(db, table: str = "cves", columns: dict | None = None) -> None:
     """Bring an existing table up to the current schema."""
     columns = _ADDED_COLUMNS if columns is None else columns
@@ -148,11 +160,16 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS cve_software (
                 cve_id TEXT NOT NULL,
                 software TEXT NOT NULL,
+                verdict TEXT,
+                verdict_reason TEXT,
+                verdict_fixed_version TEXT,
+                judged_version TEXT,
                 PRIMARY KEY (cve_id, software)
             )
         """)
         await _add_missing_columns(db)
         await _add_missing_columns(db, "watchlist", _ADDED_WATCHLIST_COLUMNS)
+        await _add_missing_columns(db, "cve_software", _ADDED_LINK_COLUMNS)
         await _normalize_stored_timestamps(db)
         await _link_stored_cves(db)
         await db.commit()
@@ -272,10 +289,20 @@ async def save_cve(cve: dict) -> bool:
     """
     async with aiosqlite.connect(DB_PATH) as db:
         try:
-            await db.execute(
-                "INSERT OR IGNORE INTO cve_software (cve_id, software) VALUES (?, ?)",
-                (cve["id"], cve["software"]),
-            )
+            # The latest scan decides the verdict, unlike the description: NVD
+            # analysing a CVE turns "not evaluable" into an answer, and a scan by
+            # name, with no verdict, says the old one no longer applies.
+            await db.execute("""
+                INSERT INTO cve_software
+                (cve_id, software, verdict, verdict_reason, verdict_fixed_version, judged_version)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cve_id, software) DO UPDATE SET
+                    verdict = excluded.verdict,
+                    verdict_reason = excluded.verdict_reason,
+                    verdict_fixed_version = excluded.verdict_fixed_version,
+                    judged_version = excluded.judged_version
+            """, (cve["id"], cve["software"], cve.get("verdict"), cve.get("verdict_reason"),
+                  cve.get("verdict_fixed_version"), cve.get("judged_version")))
             cursor = await db.execute("""
                 INSERT INTO cves
                 (id, software, description, cvss_score, cvss_version,
@@ -301,24 +328,36 @@ async def save_cve(cve: dict) -> bool:
             logger.debug("save_cve failure", exc_info=True)
             return False
 
+# The verdict columns of the link, shown only while the installed version is
+# still the one they were given for; NULL otherwise, as for a CVE never judged.
+_CURRENT_VERDICT = ", ".join(
+    f"CASE WHEN link.judged_version = watched.installed_version THEN link.{column} END AS {column}"
+    for column in _ADDED_LINK_COLUMNS
+)
+
+
 async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         if software:
             # The column as well as the links, so a row written without a link
             # (by hand, or by an older release after the migration) still shows.
-            async with db.execute("""
-                SELECT * FROM cves
-                WHERE software = ? OR id IN (SELECT cve_id FROM cve_software WHERE software = ?)
+            async with db.execute(f"""
+                SELECT cves.*, {_CURRENT_VERDICT} FROM cves
+                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = ?
+                LEFT JOIN watchlist AS watched ON watched.name = ?
+                WHERE cves.software = ? OR cves.id IN (SELECT cve_id FROM cve_software WHERE software = ?)
                 ORDER BY published_at DESC LIMIT ?
-            """, (software.lower(), software.lower(), limit)) as cursor:
+            """, (software.lower(),) * 4 + (limit,)) as cursor:
                 rows = await cursor.fetchall()
             # Named after the product asked about, not the first one to find it.
             return [{**dict(row), "software": software.lower()} for row in rows]
         else:
-            async with db.execute(
-                "SELECT * FROM cves ORDER BY published_at DESC LIMIT ?",
-                (limit,)
-            ) as cursor:
+            async with db.execute(f"""
+                SELECT cves.*, {_CURRENT_VERDICT} FROM cves
+                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = cves.software
+                LEFT JOIN watchlist AS watched ON watched.name = cves.software
+                ORDER BY published_at DESC LIMIT ?
+            """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
         return [dict(row) for row in rows]
