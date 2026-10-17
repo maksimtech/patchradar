@@ -58,6 +58,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   also kept when the keyword names, as a word, one of the products it lists as Known Affected:
   1,057, 980 and 1,099 on the same document, in the same time. The September fixture had no
   ProductTree; the tests read a recorded excerpt of October's with its product names.
+- **Without `VULDB_API_KEY` no scan could end in an all-clear.** VulDB answers only with a key, and
+  without it the collector refused every target: one "results … are incomplete" line per target,
+  "VulDB answered for none of the N targets scanned" at the end, and never "no CVEs found", which
+  needs every source to have answered; over HTTP the refusal sat in `errors` of every scan. A
+  fixture in conftest.py replaced the VulDB collector with one returning nothing in every test, so
+  the suite never saw it. A source nobody configured is now not queried, by the CLI or the API, and
+  a scan says once that VulDB was not asked and how to add it; the fixture now only removes the key
+  from the environment. With the key set, nothing changes.
 
 - **On a pull request, Security Posture called live exceptions unused.** CodeQL reports only what
   the change introduces on a pull request ref, so when it reported anything, an exception for a

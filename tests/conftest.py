@@ -73,34 +73,19 @@ def kev_offline_by_default():
 
 
 @pytest.fixture(autouse=True)
-def vuldb_offline_by_default(monkeypatch):
-    """Give every test a VulDB collector that returns nothing, without a request.
+def vuldb_unconfigured_by_default(monkeypatch):
+    """Every test runs as most installations do: with no VULDB_API_KEY.
 
-    The same reasoning as ``kev_offline_by_default``: a scan reaches VulDB
-    through the CLI and the API alike, so any test that exercises a scan would
-    otherwise either hit vuldb.com (consuming real credits) or raise a
-    ``CollectorError`` for a missing API key — which breaks every test that
-    asserts ``errors == []`` on a clean scan.
-
-    Patching ``fetch_cves`` to return an empty list is better than just
-    deleting the env var, because the latter still raises ``CollectorError``
-    (caught as a scan error), while this makes VulDB behave as if it answered
-    with no results.
-
-    Tests in ``test_vuldb.py`` override this with their own ``_set_api_key``
-    fixture and ``respx`` mocks.
+    This used to replace the VulDB collector with one that returned nothing,
+    because without the key the real one made every scan "incomplete" and broke
+    every test asserting ``errors == []`` — which is to say the fixture hid the
+    defect it was written around: the default configuration could never give an
+    all-clear (tests/test_scan_unconfigured_source.py). A source nobody
+    configured is now not queried, so the environment is all a test needs to
+    set. Tests in ``test_vuldb.py`` set the key themselves and answer from
+    recordings with ``respx``.
     """
-    from patchradar import cli as pr_cli
-    from patchradar.api import main as api_main
-    from patchradar.collectors import vuldb
-
-    async def _no_results(keyword, days_back=30):
-        return []
-
     monkeypatch.delenv("VULDB_API_KEY", raising=False)
-    monkeypatch.setattr(vuldb, "fetch_cves", _no_results)
-    monkeypatch.setattr(api_main, "vuldb_fetch", _no_results)
-    monkeypatch.setattr(pr_cli, "vuldb_fetch", _no_results)
 
 
 @pytest.fixture(autouse=True)

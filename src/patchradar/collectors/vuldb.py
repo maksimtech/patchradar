@@ -168,8 +168,3 @@ async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
             records.append(parsed)
 
     return records
-
-
-# Kept so test_vuldb.py can restore the real function after the
-# session-wide vuldb_offline_by_default fixture replaces it.
-_real_fetch_cves = fetch_cves

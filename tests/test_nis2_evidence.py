@@ -276,7 +276,9 @@ def test_the_law_check_runs_from_the_command_line_scan_only():
 @reads_source
 def test_the_web_scan_asks_debian_and_the_command_line_scan_does_not():
     assert "debian_fetch(sw)" in inspect.getsource(api_main._scan_one)
-    assert "for fetch in (fetch_cves, msrc_fetch, kev_fetch, vuldb_fetch):" in inspect.getsource(cli._scan_target)
+    command_line = inspect.getsource(cli._scan_target)
+    assert "fetches = (fetch_cves, msrc_fetch, kev_fetch)" in command_line
+    assert "debian_fetch" not in command_line
 
 
 @reads_source

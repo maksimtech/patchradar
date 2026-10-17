@@ -24,6 +24,7 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
 from patchradar.collectors.nvd import fetch_cves
 from patchradar.collectors.vuldb import SOURCE as vuldb_source
+from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist, save_cve
 from patchradar.epss import enrich as epss_enrich
@@ -337,7 +338,11 @@ async def _scan_target(
         # line and a scan over HTTP that consult different sources print
         # different totals for the same machine, and neither says which.
         # `tests/test_collector_wiring.py` holds the two lists together.
-        for fetch in (fetch_cves, msrc_fetch, kev_fetch, vuldb_fetch):
+        # VulDB only with its key: without it every target came back "incomplete"
+        # and no scan could ever end in an all-clear. A source nobody configured
+        # is not one that failed; `scan` says once that it was not asked.
+        fetches = (fetch_cves, msrc_fetch, kev_fetch) + ((vuldb_fetch,) if vuldb_api_key() else ())
+        for fetch in fetches:
             try:
                 all_cves += await fetch(target, days_back=days)
             except CollectorError as exc:
@@ -419,11 +424,12 @@ def _report_silent_sources(failures: list[CollectorError], targets: list[str]) -
     # target — so a count equal to the number of targets means it failed on all
     # of them.
     failures_per_source = Counter(f.source for f in failures)
-    silent = [s for s in SCAN_SOURCES if failures_per_source[s] >= len(targets)]
+    queried = [s for s in SCAN_SOURCES if s != vuldb_source or vuldb_api_key()]
+    silent = [s for s in queried if failures_per_source[s] >= len(targets)]
     if not silent:
         return
 
-    answered = [source for source in SCAN_SOURCES if source not in silent]
+    answered = [source for source in queried if source not in silent]
     for source in silent:
         where = (
             f"every CVE above comes from {', '.join(answered)}"
@@ -462,6 +468,8 @@ def scan(
         console.print(f"\n Total: [bold]{total}[/bold] CVEs found\n")
         # After the total, because it is the total it qualifies.
         _report_silent_sources(failures, list(targets))
+        if not vuldb_api_key():
+            console.print(f"ℹ️  {vuldb_source} was not asked: set VULDB_API_KEY to add it to the scan.")
         if days > msrc_max_days:
             # The collector caps its window without a word, so `--days 365`
             # looked like a year of Patch Tuesdays and was three months of them.
