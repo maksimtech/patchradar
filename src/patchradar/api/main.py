@@ -20,6 +20,7 @@ from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
+from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
 from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
 from patchradar.epss import enrich as epss_enrich
@@ -284,13 +285,17 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
     # KEV ignores `days`: it is a standing list of what is being exploited, not
     # a feed of recent publications, and the entries that have been on it
     # longest are the ones that have gone unpatched the longest.
-    fetches = (
+    #
+    # VulDB only with its key, as in the CLI: without it `errors` always held its
+    # refusal, so a scan could never come back without errors.
+    fetches = [
         lambda: nvd_fetch(sw, days_back=days),
         lambda: msrc_fetch(sw, days_back=days),
         lambda: debian_fetch(sw),
         lambda: kev_fetch(sw),
-        lambda: vuldb_fetch(sw, days_back=days),
-    )
+    ]
+    if vuldb_api_key():
+        fetches.append(lambda: vuldb_fetch(sw, days_back=days))
     collected: list[dict] = []
     for fetch in fetches:
         try:
