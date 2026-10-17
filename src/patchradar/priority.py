@@ -317,6 +317,34 @@ def merge_by_cve(records: list[dict]) -> list[dict]:
     return [merged[key] for key in order] + loose
 
 
+def as_flag(value: object) -> bool:
+    """A yes or no from a field that may hold CISA's "Known"/"Unknown" (see `_is_true`)."""
+    return _is_true(value)
+
+
+def sql_order(table: str = "") -> str:
+    """ORDER BY terms that put stored rows in `sort_by_priority`'s order.
+
+    Built from the constants `priority()` decides with, so the two cannot drift
+    (tests/test_priority_stored.py runs one set of rows through both), and run
+    by SQLite so a listing of 50 stays a query for 50. Rank first, then the
+    score, an absent one below every real one; the caller adds the tie-breaks.
+    The stored flags are 1/0/NULL, so `= 1` is the "Known" test here. Columns
+    are qualified with `table` when one is given, bare otherwise (an index).
+    """
+    t = f"{table}." if table else ""
+    promotes = ", ".join(f"'{maturity}'" for maturity in sorted(_PROMOTES))
+    return (
+        f"CASE WHEN {t}known_exploited = 1 AND {t}kev_ransomware = 1 THEN {RANK_KEV_RANSOMWARE} "
+        f"WHEN {t}known_exploited = 1 THEN {RANK_KEV} "
+        f"WHEN {t}epss_score >= {EPSS_THRESHOLD} AND {t}epss_score <= 1.0 THEN {RANK_EPSS} "
+        f"WHEN {t}cvss_exploit_maturity IN ({promotes}) THEN {RANK_REPORTED} "
+        f"WHEN {t}cvss_score IS NOT NULL THEN {RANK_SCORED} "
+        f"ELSE {RANK_UNSCORED} END DESC, "
+        f"COALESCE({t}cvss_score, {_NO_SCORE_IN_SORT}) DESC"
+    )
+
+
 def sort_by_priority(rows: list[dict]) -> list[dict]:
     """Already-merged rows, most urgent first.
 

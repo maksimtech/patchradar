@@ -47,12 +47,20 @@ missing version is an absence, and a default would be a claim:
 | column | holds | set by |
 |---|---|---|
 | `cpe` | the CPE 2.3 name of the product, as NVD writes it: `cpe:2.3:a:notepad-plus-plus:notepad\+\+` | `add --cpe` |
-| `vendor` | the CPE vendor field, `notepad-plus-plus` | derived from `cpe` |
-| `product_id` | the CPE product field, escaped as NVD escapes it, `notepad\+\+` | derived from `cpe` |
+| `vendor` | the vendor source that answers by version — `inventory.py`'s *source*: `chrome`, `edge`, `msrc`, `mozilla` | the inventory import, once confirmed (§5.6) |
+| `product_id` | the product that source needs: `chrome`, `Edge` | the inventory import, once confirmed |
 | `installed_version` | the version installed, `8.5.0` | `add --version` |
-| `channel` | the release channel a vendor source answers for (stable, ESR, LTS) | reserved for the inventory import (§5.6) |
+| `channel` | the release channel the source answers for (stable, ESR, LTS) | the inventory import, once confirmed |
 
 An existing database gets them on the next start, as `cves` got its EPSS columns.
+
+Two routes to an answer by version, kept apart: the CPE, through NVD's
+configurations, which the scan judges with today; and a vendor source, which
+`inventory.py` proposes and a person confirms. The CPE's own vendor and product
+(`notepad-plus-plus`, `notepad\+\+`) are read from `cpe` when the scan needs
+them, not stored. Until 2026-10-17 they were stored in `vendor` and `product_id`,
+by a misreading of this table that `inventory.py` contradicted; no release
+carried that.
 
 ### 5.2 Nothing is guessed
 
@@ -78,9 +86,14 @@ name is judged against the installed version with NVD's own `configurations`:
   version of this product is not among them.
 - **not evaluable** — anything that cannot be decided: NVD has not yet stated
   which products the CVE affects (no `configurations`, the usual state of a CVE
-  for weeks after publication), the CVE came from a source other than NVD and
-  NVD's record was not part of the scan, or NVD's versions belong to another
-  scheme than the installed one (`2.07` against `16.0.14334`).
+  for weeks after publication), NVD could not be asked about a CVE that came
+  from KEV or MSRC alone, or NVD's versions belong to another scheme than the
+  installed one (`2.07` against `16.0.14334`).
+
+A CVE that reached the scan only through KEV or MSRC, which carry no
+`cpeMatch`, is looked up in NVD by id (`cveId=`) for an entry that can be judged,
+and NVD's record is merged in — configurations and score with it. Paced like
+every request to NVD; an entry matched by name costs no lookup.
 
 "Not evaluable" never becomes "not affected": for a security tool an answer it
 cannot give is not an absolution.
@@ -104,18 +117,35 @@ The total line keeps its meaning: CVEs found by name.
 
 ### 5.5 What is stored
 
-PR-01a judges in memory, during the scan. Storing the verdict — so that
-`status`, the API and the web UI can show it — needs columns in `cves` and is the
-migration `tests/test_priority_wiring.py` waits for, together with the KEV fields.
+The verdict is kept on the link between a CVE and a product, `cve_software`
+(`verdict`, `verdict_reason`, `verdict_fixed_version`, `judged_version`), because
+one CVE stored once can be affected for one watched product and not for another.
+The latest scan decides it. It is read back only while the installed version is
+still `judged_version`: after `add --version` with a new version, the old verdict
+is not shown until a scan judges the new one. `status` and `/api/cves` show it;
+the API records version and CPE (`POST /api/watchlist/{name}?version=&cpe=`) and
+judges with the same function as the CLI (`affected.mark`).
+
+What decides a rank is stored too: `known_exploited`, `kev_ransomware`,
+`kev_date_added`, `kev_due_date` and the provider's `cvss_exploit_maturity`, in
+`cves`, refreshed by every scan that brings them (CISA lists a CVE long after NVD
+publishes it). `status` and `/api/cves` list most urgent first, with the order
+`priority.sql_order` builds from the rules a scan ranks by, and an index on that
+expression keeps a listing of 50 a read of 50 rows.
 
 ### 5.6 Order of work
 
 1. **PR-01a** — the columns, `add --version --cpe`, the verdict for NVD records
    in the command-line scan, `--all`, the README.
-2. **PR-01b** — KEV and MSRC entries judged through NVD's record of the same
-   CVE; the verdict and the KEV fields stored; the API.
-3. **PR-01c** — the web UI; `patchradar import` writing the mappings a person
-   confirmed, `channel` included.
+2. **PR-01b** — in three parts: the verdict stored and the API (01b-1); KEV
+   and MSRC entries judged through NVD's record of the same CVE (01b-2); the KEV
+   fields stored, with the database-backed listings ranked by priority (01b-3).
+3. **PR-01c** — `patchradar import --accept "<name>"` writing the products a
+   person confirmed, only those the survey identified completely (source and
+   product), into `vendor`, `product_id` and `installed_version` (01c-1);
+   the web UI (01c-2). `channel` stays empty until a source the survey
+   identifies needs one: the two certain today, Chrome and Edge, are matched
+   without it.
 
 ## 6. What PatchRadar does not do
 

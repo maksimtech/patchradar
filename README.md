@@ -65,7 +65,7 @@ patchradar add notepad --version 8.5.0 --cpe "cpe:2.3:a:notepad-plus-plus:notepa
 patchradar scan notepad --days 365         # what affects 8.5.0, and what is unknown
 patchradar scan notepad --days 365 --all   # also the CVEs that do not affect it
 
-# Show latest CVEs in terminal
+# Show the most urgent stored CVEs, ranked as a scan ranks them
 patchradar status
 
 # Remove software
@@ -88,9 +88,10 @@ affected versions:
 
 - **affected** — listed in the table, with "fixed in X" only where NVD states it;
 - **not evaluable** — NVD has not yet said which products the CVE affects (the
-  usual state for weeks after publication), the CVE came from MSRC or KEV alone,
-  or NVD's versions belong to another scheme: listed, because "cannot tell" is
-  not an all-clear;
+  usual state for weeks after publication), NVD could not be asked about a CVE
+  that came from KEV or MSRC alone — those are looked up in NVD by id — or NVD's
+  versions belong to another scheme: listed, because "cannot tell" is not an
+  all-clear;
 - **not affected** — counted, and listed only with `--all`.
 
 One line gives the split, one says which update closes how many of the
@@ -98,8 +99,13 @@ affected ones — the rest stay open because NVD does not state where they were
 fixed, not because the update falls short — and a count from NVD is always
 followed by the reminder that it counts identifiers, not flaws. Entries without
 a version are scanned by name as before, and the scan names them. The verdict
-is not stored yet, so `status`, the API and the web UI still show CVEs by name
-([docs/DESIGN.md](docs/DESIGN.md) §5.5).
+is stored with the version it was given for: `patchradar status` and
+`/api/cves` show it while that version is still the installed one, and the API
+takes the version and CPE too (`POST /api/watchlist/<name>?version=…&cpe=…`).
+The web UI shows it too: the version beside each watched name, a version and a
+CPE in the add form, Priority and Verdict columns, and the CVEs that do not
+affect the installed version counted and one click away
+([docs/DESIGN.md](docs/DESIGN.md) §5.5, §5.6).
 
 ### Asking Debian what it is actually doing
 
@@ -144,8 +150,13 @@ package, because the machine worth surveying is the one without a checkout: run
 reconfiguration of every installed product, and it changes nothing else either.
 
 `patchradar import` then reports, per product, whether a vendor source can answer
-by version. It writes nothing and guesses nothing: a name cannot be turned into a
-vendor's product id by deduction, so it proposes and a person confirms.
+by version. It guesses nothing: a name cannot be turned into a vendor's product id
+by deduction, so it proposes and a person confirms. Without `--accept` it writes
+nothing; `patchradar import <file> --accept "Google Chrome"`, once per product,
+puts a product listed as watchable by version on the watchlist with its version
+and source. One the survey could not identify completely — a source without the
+product it needs, a component, a program nothing answers for — is refused with
+the survey's reason, however it is asked.
 
 The file boundary in the middle is the point. The analysis is Python, tested
 against recorded snapshots, and runs on a machine that never saw the one being

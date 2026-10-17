@@ -63,6 +63,11 @@
   .cve-link:hover { text-decoration: underline; }
   .desc { color: #8b949e; max-width: 400px; }
   .source-badge { font-size: 0.7rem; background: #21262d; padding: 2px 6px; border-radius: 4px; color: #8b949e; }
+  .verdict { font-size: 0.75rem; font-weight: 600; }
+  .verdict-affected { color: #f85149; }
+  .verdict-not-evaluable { color: #d29922; }
+  .verdict-not-affected { color: #3fb950; }
+  .verdict-none, .watch-version { color: #8b949e; font-weight: 400; }
   .scanning { opacity: 0.6; }
   .toast { position: fixed; bottom: 2rem; right: 2rem; background: #238636; color: #fff; padding: 0.8rem 1.2rem; border-radius: 8px; font-size: 0.9rem; display: none; z-index: 100; }
   .empty { text-align: center; padding: 3rem; color: #8b949e; }
@@ -126,6 +131,10 @@
           <input type="text" id="add-input" placeholder="Add software..." aria-label="Add software to watchlist">
           <button class="btn btn-primary" id="add-btn">Add</button>
         </div>
+        <div class="add-form">
+          <input type="text" id="add-version" placeholder="Installed version (optional)" aria-label="Installed version, to judge each CVE against">
+          <input type="text" id="add-cpe" placeholder="CPE as NVD writes it (optional)" aria-label="CPE 2.3 name as NVD writes it, for example cpe:2.3:a:vendor:product">
+        </div>
         <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;">
           <button class="btn btn-scan" id="scan-btn"> Scan All</button>
           <button class="btn" id="import-btn" style="background:#1f6feb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;"> Import from file</button>
@@ -155,6 +164,7 @@
         <button class="filter-btn high" data-filter="HIGH">High</button>
         <button class="filter-btn medium" data-filter="MEDIUM">Medium</button>
         <button class="filter-btn low" data-filter="LOW">Low</button>
+        <button class="filter-btn" id="toggle-unaffected" type="button"></button>
       </div>
       <div style="margin-bottom:0.8rem">
         <input class="search-input" id="search-input" type="text" placeholder=" Filter by software..." aria-label="Filter CVEs by software name" >

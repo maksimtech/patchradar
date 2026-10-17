@@ -6,12 +6,13 @@ Two structural facts, in the spirit of `test_collector_wiring.py`: a module is
 dead weight until something calls it, and a report that ranks while the API does
 not is a drift nobody notices until two people compare their screens.
 
-The second half pins the boundary deliberately. `known_exploited`,
-`kev_ransomware` and `kev_due_date` travel in the records the collectors return
-and are **not** columns in `cves`, so the exploitation fact exists in memory
-during a scan and is gone by the next `patchradar status`. Until the migration of
-docs/DESIGN.md §5.5 lands, only the in-memory path can rank — and the day someone adds the
-column, this test is what says "now wire the API too".
+The second half pinned a boundary deliberately: `known_exploited`,
+`kev_ransomware` and the KEV dates travelled in the scan's records and were not
+columns in `cves`, so the exploitation fact was gone by the next `patchradar
+status`, and the day someone added the columns this file was to say "now wire
+the API too". They arrived with docs/DESIGN.md §5.5, and the tests below now
+hold the other side: the facts are stored, and the stored listings are ranked
+by the same rules (`priority.sql_order`), not by date.
 
 The EPSS pair *is* stored, which narrows that gap without closing it: a ranking
 computed from the database would know the forecast and still not know what CISA
@@ -70,24 +71,18 @@ def test_the_report_shows_why_a_row_ranks_where_it_does():
     assert "reason" in body, "a rank without its reason is a number taken on trust"
 
 
-def test_the_database_does_not_store_the_exploitation_fact_yet():
-    """The boundary, asserted so it cannot move silently.
-
-    If this fails because a column was added, the ranking is no longer confined
-    to a single scan: `/cves` and `patchradar status` read from the database and
-    must order by priority too, or the same machine gets two different answers.
-    """
+def test_the_database_stores_every_fact_a_rank_is_decided_by():
     schema = _function_source(DB_SOURCE, "init_db")
-    stored = [fact for fact in KEV_FACTS if fact in schema]
-    assert not stored, (
-        "the schema now holds " + ", ".join(stored)
-        + " — rank the database-backed paths as well (API /cves, status)"
-    )
+    missing = [fact for fact in KEV_FACTS if fact not in schema]
+    assert not missing, "a rank decided by an unstored fact cannot be repeated by status or /cves"
 
 
-def test_the_api_listing_is_still_ordered_by_date():
+def test_the_stored_listings_are_ordered_by_priority_not_by_date():
     """Named here so the two paths are compared in one place rather than
-    discovered to differ. `get_cves` orders by publication date, which is the
-    only order the stored columns support."""
-    assert "ORDER BY published_at DESC" in DB_SOURCE
-    assert "order_by_priority" not in API_SOURCE
+    discovered to differ: `get_cves`, which `status` and `/api/cves` read, orders
+    by the expression `priority.sql_order` builds from the scan's own rules —
+    written out in the statement, and held to that text by
+    tests/test_sql_is_not_formatted.py."""
+    body = _function_source(DB_SOURCE, "get_cves")
+    assert body.count("ORDER BY CASE") == 2
+    assert "ORDER BY published_at DESC" not in body

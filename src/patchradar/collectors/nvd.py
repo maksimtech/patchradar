@@ -9,6 +9,7 @@ import httpx
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
 from patchradar.cvss import exploit_maturity
+from patchradar.priority import merge_by_cve
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +337,31 @@ async def _fetch_window(
                                  detail=f"empty page at {start_index} of {total}")
 
 
+def _pacer(sleep: Callable[[float], Awaitable[None]], delay: float) -> Callable[[], Awaitable[None]]:
+    """What one call awaits before each of its requests to NVD."""
+    sent = 0
+
+    async def pace() -> None:
+        # Inside one call the previous request has only just been answered, so
+        # the whole interval is waited, as before. Before the first request the
+        # clock is read: a call that starts inside the interval left by the last
+        # request this process sent — whichever keyword sent it — waits for
+        # what is left of it, and one that starts later waits for nothing. A
+        # request that failed counts too: a 403 is the limit speaking.
+        global _last_request_at
+        nonlocal sent
+        if sent:
+            await sleep(delay)
+        elif _last_request_at is not None:
+            remaining = delay - (_monotonic() - _last_request_at)
+            if remaining > 0:
+                await sleep(remaining)
+        sent += 1
+        _last_request_at = _monotonic()
+
+    return pace
+
+
 async def fetch_cves(
     keyword: str, days_back: int = 7, *,
     wait: Callable[[float], Awaitable[None]] | None = None,
@@ -359,30 +385,9 @@ async def fetch_cves(
     caller hands over its own: a test that is about the pacing passes one that
     writes down what it was asked to wait, rather than replacing `_pace`.
     """
-    sleep = wait or _pace
     key = api_key()
     headers = {"apiKey": key} if key else {}
-    delay = KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS
-
-    sent = 0
-
-    async def pace() -> None:
-        # Inside one call the previous request has only just been answered, so
-        # the whole interval is waited, as before. Before the first request the
-        # clock is read: a call that starts inside the interval left by the last
-        # request this process sent — whichever keyword sent it — waits for
-        # what is left of it, and one that starts later waits for nothing. A
-        # request that failed counts too: a 403 is the limit speaking.
-        global _last_request_at
-        nonlocal sent
-        if sent:
-            await sleep(delay)
-        elif _last_request_at is not None:
-            remaining = delay - (_monotonic() - _last_request_at)
-            if remaining > 0:
-                await sleep(remaining)
-        sent += 1
-        _last_request_at = _monotonic()
+    pace = _pacer(wait or _pace, KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS)
 
     results: list[dict] = []
     async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
@@ -394,3 +399,56 @@ async def fetch_cves(
                 start += timedelta(days=1)
             await _fetch_window(client, keyword, start, end, pace, results)
     return results
+
+
+
+async def records_for(
+    cve_ids: list[str], keyword: str, *,
+    wait: Callable[[float], Awaitable[None]] | None = None,
+) -> list[dict]:
+    """NVD's records of these CVEs, asked for one id at a time (`cveId=`).
+
+    For the CVEs a scan found through a source that carries no `cpeMatch` —
+    CISA KEV, MSRC — so that an installed version can be judged against them
+    (docs/DESIGN.md §5.3). Paced like every other request to NVD, and an id NVD
+    does not know simply gives nothing. A failure raises with the records
+    already fetched as `partial`.
+    """
+    key = api_key()
+    headers = {"apiKey": key} if key else {}
+    pace = _pacer(wait or _pace, KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS)
+    results: list[dict] = []
+    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+        for cve_id in cve_ids:
+            await pace()
+            try:
+                response = await client.get(NVD_API, params={"cveId": cve_id})
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise from_http_error(SOURCE, exc, partial=results) from exc
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise CollectorError(SOURCE, BAD_PAYLOAD, status=response.status_code, partial=results) from exc
+            vulnerabilities = data.get("vulnerabilities") if isinstance(data, dict) else None
+            if isinstance(vulnerabilities, list):
+                results.extend(_parse_page(vulnerabilities, keyword))
+    return results
+
+
+async def with_records_for_the_rest(records: list[dict], keyword: str) -> tuple[list[dict], int, CollectorError | None]:
+    """`records`, merged with NVD's record of each one no NVD record came with.
+
+    Returns the merged records, how many CVEs NVD could not be asked about, and
+    the failure that stopped it, if any. The ones left without a record stay as
+    they were, and the verdict on them says so.
+    """
+    missing = [str(r["id"]) for r in records if "configurations" not in r and r.get("id")]
+    if not missing:
+        return records, 0, None
+    try:
+        found = await records_for(missing, keyword)
+        failure = None
+    except CollectorError as exc:
+        found, failure = exc.partial, exc
+    return merge_by_cve(records + found), (len(missing) - len(found) if failure else 0), failure

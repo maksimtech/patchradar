@@ -26,11 +26,11 @@ operation performed without verifying the caller among them — none of which wa
 ever assigned an identifier. `Summary.caveat` carries that sentence so a caller
 cannot print "no known vulnerabilities" without it.
 
-**Wired into the command-line scan** for a watchlist entry that has both an
-installed version and a CPE (docs/DESIGN.md §5): `judge` gives each CVE found by
-name one of three verdicts — affected, not affected, not evaluable — and
-`closed_by` says what one update closes. Storing the verdict, and the API, are
-the next step (§5.5); `tests/test_priority_wiring.py` holds that boundary.
+**Wired into both scans**, the CLI's and the API's, for a watchlist entry that
+has both an installed version and a CPE (docs/DESIGN.md §5): `judge` gives each
+CVE found by name one of three verdicts — affected, not affected, not evaluable
+— `mark` applies it to a scan's records, and `closed_by` says what one update
+closes. The verdict is stored with the version it was given for (§5.5).
 """
 from __future__ import annotations
 
@@ -451,3 +451,21 @@ def judge(record: dict, *, version: str, vendor: str, cpe_product: str) -> Verdi
                                       f"compared with {version}")
     return Verdict(NOT_AFFECTED, f"NVD states the affected versions ({stated}); "
                                  f"{version} is not among them")
+
+
+def mark(records: list[dict], installed: tuple[str, str, str] | None) -> None:
+    """Give each scan record its verdict for `installed` — (version, vendor,
+    product), or None for an entry matched by name — and take NVD's
+    configurations off it, which nothing after the verdict reads.
+
+    The one place the CLI and the API judge, so the two cannot disagree. The
+    record keeps the version it was judged for, which is what lets a stored
+    verdict be told apart from one about a version no longer installed.
+    """
+    for record in records:
+        if installed is not None:
+            version, vendor, product = installed
+            verdict = judge(record, version=version, vendor=vendor, cpe_product=product)
+            record.update(verdict=verdict.status, verdict_reason=verdict.reason,
+                          verdict_fixed_version=verdict.fixed_version, judged_version=version)
+        record.pop("configurations", None)
