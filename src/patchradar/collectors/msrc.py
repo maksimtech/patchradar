@@ -233,11 +233,54 @@ def _matches_keyword(vuln: dict, keyword: str) -> bool:
     return keyword.lower() in text and keyword_pattern(keyword).search(text) is not None
 
 
-def _parse_vuln(vuln: dict, keyword: str) -> dict | None:
-    """Parse a single MSRC vulnerability into a CVE dict."""
+def _products_named(document: dict, keyword: str) -> frozenset[str]:
+    """The ProductIDs of the document whose names hold the keyword as a word.
+
+    MSRC titles an entry by component — "Windows Kernel Information Disclosure
+    Vulnerability" — and names the operating system only in the ProductTree. A
+    scan for "windows 11" found nothing in October 2026, whose document lists
+    1,057 entries affecting a Windows 11 product. Every product of the Branch
+    tree is also in FullProductName (checked on that document), so that list is
+    the one read.
+    """
+    tree = document.get("ProductTree")
+    products = tree.get("FullProductName") if isinstance(tree, dict) else None
+    if not isinstance(products, list):
+        return frozenset()
+    pattern = keyword_pattern(keyword)
+    lowered = keyword.lower()
+    named = set()
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        name = str(product.get("Value") or "").lower()
+        if lowered in name and pattern.search(name):
+            named.add(str(product.get("ProductID")))
+    return frozenset(named)
+
+
+def _affects(vuln: dict, products: frozenset[str]) -> bool:
+    """Whether one of `products` is among those the entry lists as Known Affected.
+
+    Type 3 only: a remediation names products too, but it says where the fix
+    comes from, not what the entry affects.
+    """
+    if not products:
+        return False
+    return any(
+        isinstance(status, dict)
+        and status.get("Type") == 3
+        and not products.isdisjoint(str(pid) for pid in status.get("ProductID") or [])
+        for status in vuln.get("ProductStatuses") or []
+    )
+
+
+def _parse_vuln(vuln: dict, keyword: str, products: frozenset[str] = frozenset()) -> dict | None:
+    """Parse a single MSRC vulnerability into a CVE dict, if it is about `keyword`:
+    named in its title or notes, or affecting one of `products` (see `_products_named`)."""
     if not isinstance(vuln, dict):
         return None
-    if not _matches_keyword(vuln, keyword):
+    if not (_matches_keyword(vuln, keyword) or _affects(vuln, products)):
         return None
     cve_id = vuln.get("CVE")
     if not isinstance(cve_id, str) or not cve_id:
@@ -289,12 +332,13 @@ async def fetch_cves(keyword: str, days_back: int = 30, *, now: datetime | None 
             vulnerabilities = data.get("Vulnerability")
             if not isinstance(vulnerabilities, list):
                 continue
+            products = _products_named(data, keyword)
 
             for vuln in vulnerabilities:
                 # Per-record, not per-month: a single malformed entry used to
                 # discard every remaining CVE of the month silently.
                 try:
-                    parsed = _parse_vuln(vuln, keyword)
+                    parsed = _parse_vuln(vuln, keyword, products)
                 except Exception:
                     logger.debug("skipping unparseable MSRC record", exc_info=True)
                     continue
