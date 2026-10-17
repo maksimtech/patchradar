@@ -75,12 +75,7 @@ def _mock(payload=None, status=200, *, key="test-vuldb-key"):
 
 @pytest.fixture(autouse=True)
 def _set_api_key(monkeypatch):
-    """Every test gets an API key and the real fetch_cves back.
-
-    The session-wide ``vuldb_offline_by_default`` fixture replaces
-    ``fetch_cves`` with a no-op.  This file's tests need the real one.
-    """
-    monkeypatch.setattr(vuldb, "fetch_cves", vuldb._real_fetch_cves)
+    """Every test gets an API key; conftest.py removes it from the environment."""
     monkeypatch.setenv(vuldb.API_KEY_ENV, "test-vuldb-key")
 
 

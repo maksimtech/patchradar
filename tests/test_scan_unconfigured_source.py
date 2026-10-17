@@ -100,3 +100,23 @@ async def test_a_source_that_was_not_asked_is_not_named_as_one_that_answered():
     text = " ".join(result.output.split())   # Rich folds long lines at its own width
     assert "NVD answered for none of the 2 targets scanned" in text, result.output
     assert "every CVE above comes from MSRC, CISA KEV." in text
+
+
+async def test_with_its_key_vuldb_is_asked_by_the_cli_and_the_api(monkeypatch):
+    """The other side: with VULDB_API_KEY set nothing changes, from either entry
+    point. VulDB answers with an empty result, in the shape of its API."""
+    monkeypatch.setenv(vuldb.API_KEY_ENV, "a-key")
+    empty = {"request": {"type": "search"}, "response": {"remaining": 10, "total": 0}, "result": []}
+    with respx.mock(assert_all_called=False) as router:
+        asked = router.post(url__startswith=vuldb.VULDB_API).mock(return_value=httpx.Response(200, json=empty))
+        router.get(url__startswith=nvd.NVD_API).mock(return_value=httpx.Response(200, json=NVD_EMPTY))
+        router.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
+        router.route().mock(return_value=httpx.Response(503))     # Debian, for the API
+
+        result = await asyncio.to_thread(CliRunner().invoke, cli.app, ["scan", "patchradar", "--days", "7"])
+        after_cli = asked.call_count
+        await api_main._scan_one("patchradar", 7, [])
+
+    assert after_cli == 1, result.output
+    assert asked.call_count == 2
+    assert "VULDB_API_KEY" not in result.output
