@@ -1,8 +1,11 @@
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 import aiosqlite
+
+from patchradar.cpe import Cpe
 
 logger = logging.getLogger(__name__)
 
@@ -49,18 +52,31 @@ _ADDED_COLUMNS = {
     "epss_percentile": "REAL",
 }
 
+# What is installed, for the scan to judge each CVE against (docs/DESIGN.md
+# §5.1): the names `inventory.py` was written for. Nullable without a default,
+# for the same reason as above — a version nobody entered is an absence, and a
+# default would be a claim about the machine.
+_ADDED_WATCHLIST_COLUMNS = {
+    "cpe": "TEXT",
+    "vendor": "TEXT",
+    "product_id": "TEXT",
+    "installed_version": "TEXT",
+    "channel": "TEXT",
+}
 
-async def _add_missing_columns(db) -> None:
-    """Bring an existing `cves` table up to the current schema."""
-    async with db.execute("PRAGMA table_info(cves)") as cursor:
+
+async def _add_missing_columns(db, table: str = "cves", columns: dict | None = None) -> None:
+    """Bring an existing table up to the current schema."""
+    columns = _ADDED_COLUMNS if columns is None else columns
+    async with db.execute(f"PRAGMA table_info({table})") as cursor:
         existing = {row[1] for row in await cursor.fetchall()}
-    for column, kind in _ADDED_COLUMNS.items():
+    for column, kind in columns.items():
         if column in existing:
             continue
-        # Interpolated, because SQLite takes no parameters in DDL. The names and
-        # types come from the module constant above and never from input.
-        await db.execute(f"ALTER TABLE cves ADD COLUMN {column} {kind}")
-        logger.info("added column %s to the cves table", column)
+        # Interpolated, because SQLite takes no parameters in DDL. The table,
+        # names and types come from module constants and never from input.
+        await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+        logger.info("added column %s to the %s table", column, table)
 
 
 async def _normalize_stored_timestamps(db) -> None:
@@ -104,7 +120,12 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS watchlist (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
-                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cpe TEXT,
+                vendor TEXT,
+                product_id TEXT,
+                installed_version TEXT,
+                channel TEXT
             )
         """)
         await db.execute("""
@@ -131,6 +152,7 @@ async def init_db():
             )
         """)
         await _add_missing_columns(db)
+        await _add_missing_columns(db, "watchlist", _ADDED_WATCHLIST_COLUMNS)
         await _normalize_stored_timestamps(db)
         await _link_stored_cves(db)
         await db.commit()
@@ -145,6 +167,61 @@ async def add_to_watchlist(name: str) -> bool:
             return True
         except aiosqlite.IntegrityError:
             return False
+
+@dataclass(frozen=True)
+class WatchEntry:
+    """A watchlist row with what is known of the installed product."""
+
+    name: str
+    installed_version: str | None = None
+    cpe: str | None = None
+    vendor: str | None = None
+    product_id: str | None = None
+    channel: str | None = None
+
+    def installed(self) -> tuple[str, str, str] | None:
+        """(version, vendor, product) when a scan can judge CVEs against what is
+        installed — the version to compare, and the vendor and product NVD's
+        `cpeMatch` is read by — and None when any of the three is missing."""
+        if self.installed_version and self.vendor and self.product_id:
+            return self.installed_version, self.vendor, self.product_id
+        return None
+
+    @property
+    def judgeable(self) -> bool:
+        return self.installed() is not None
+
+
+async def get_watch_entries() -> list[WatchEntry]:
+    async with aiosqlite.connect(DB_PATH) as db, db.execute(
+        "SELECT name, installed_version, cpe, vendor, product_id, channel FROM watchlist ORDER BY name"
+    ) as cursor:
+        return [WatchEntry(*row) for row in await cursor.fetchall()]
+
+
+async def set_installed(name: str, *, version: str | None, cpe: Cpe | None) -> bool:
+    """Record what is installed for an entry already on the watchlist.
+
+    Only what is given changes: a new version leaves the CPE as it was. False
+    when the name is not on the watchlist — this never adds one.
+    """
+    fields: dict[str, str] = {}
+    if version is not None:
+        fields["installed_version"] = version
+    if cpe is not None:
+        fields.update(cpe=cpe.text, vendor=cpe.vendor, product_id=cpe.product)
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT 1 FROM watchlist WHERE name = ?", (name.lower(),)) as cursor:
+            if await cursor.fetchone() is None:
+                return False
+        if fields:
+            # Column names from the literal keys above, never from input.
+            assignments = ", ".join(f"{column} = ?" for column in fields)
+            await db.execute(f"UPDATE watchlist SET {assignments} WHERE name = ?",
+                             (*fields.values(), name.lower()))
+            await db.commit()
+        return True
+
 
 async def get_watchlist() -> list[str]:
     async with aiosqlite.connect(DB_PATH) as db, db.execute("SELECT name FROM watchlist ORDER BY name") as cursor:

@@ -26,12 +26,11 @@ operation performed without verifying the caller among them — none of which wa
 ever assigned an identifier. `Summary.caveat` carries that sentence so a caller
 cannot print "no known vulnerabilities" without it.
 
-Not wired into the scan yet, and deliberately: "fixed in X" is a fact about a
-product, and a keyword scan has neither a CPE nor an installed version to ask
-about. That needs the watchlist columns of the versionradar design (§5) —
-`cpe`, `installed_version`. This module is the half of the feature that can be
-written and tested before the migration, and `tests/test_priority_wiring.py`
-holds the boundary.
+**Wired into the command-line scan** for a watchlist entry that has both an
+installed version and a CPE (docs/DESIGN.md §5): `judge` gives each CVE found by
+name one of three verdicts — affected, not affected, not evaluable — and
+`closed_by` says what one update closes. Storing the verdict, and the API, are
+the next step (§5.5); `tests/test_priority_wiring.py` holds that boundary.
 """
 from __future__ import annotations
 
@@ -91,6 +90,11 @@ def _parts(text: object) -> _Version | None:
     return tuple(zip(numbers, letters, strict=True))
 
 
+def orderable(version: str) -> bool:
+    """Whether `version` is one the ranges can be compared with at all."""
+    return _parts(version) is not None
+
+
 def _comparable(left: _Version, right: _Version) -> tuple[_Version, _Version] | None:
     if abs(len(left) - len(right)) > _SCHEME_TOLERANCE and left[0][0] != right[0][0]:
         return None
@@ -145,6 +149,28 @@ class Range:
                 if mine < theirs or (not inclusive and mine == theirs):
                     return False
             elif mine > theirs or (not inclusive and mine == theirs):
+                return False
+        return True
+
+    def comparable(self, version: str) -> bool:
+        """Whether `contains` can give a real answer about `version`.
+
+        `contains` says False both for a version outside the range and for one
+        it cannot order against the range — another scheme, or no version at
+        all — and only the first is "not affected". This is what tells them
+        apart.
+        """
+        have = _parts(version)
+        if have is None:
+            return False
+        if self.unbounded:
+            return True
+        bounds = [self.exact] if self.exact is not None else [self.start, self.end]
+        for bound in bounds:
+            if bound is None:
+                continue
+            limit = _parts(bound)
+            if limit is None or _comparable(have, limit) is None:
                 return False
         return True
 
@@ -321,15 +347,42 @@ def affects(payload: dict, *, version: str, vendor: str,
     return sorted(hits, key=lambda hit: (hit.score is not None, hit.score or 0.0), reverse=True)
 
 
+def _highest_fix(fixed_versions) -> str | None:
+    candidates = [(parts, fixed) for fixed in fixed_versions
+                  if fixed and (parts := _parts(fixed)) is not None]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda pair: pair[0])[1]
+
+
 def target_version(hits: list[Hit]) -> str | None:
     """The highest fix any of them declares: where to go to close what can be
     closed with one update. None when nobody declares one — and then no number
     is invented."""
-    candidates = [(parts, hit.fixed_version) for hit in hits
-                  if hit.fixed_version and (parts := _parts(hit.fixed_version)) is not None]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda pair: pair[0])[1]
+    return _highest_fix(hit.fixed_version for hit in hits)
+
+
+def closed_by(fixed_versions) -> tuple[str | None, int]:
+    """(the update to take, how many of these it closes), from the fixed
+    versions of the CVEs that affect a version — None where NVD states none.
+
+    A CVE without a stated fix is never counted as closed: NVD naming its last
+    affected release says nothing about which one is sound.
+    """
+    fixes = list(fixed_versions)
+    target = _highest_fix(fixes)
+    goal = _parts(target) if target is not None else None
+    if goal is None:
+        return target, 0
+    closed = 0
+    for fixed in fixes:
+        fix = _parts(fixed) if fixed else None
+        if fix is None:
+            continue
+        pair = _comparable(fix, goal)
+        if pair is not None and pair[0] <= pair[1]:
+            closed += 1
+    return target, closed
 
 
 def summarise(payload: dict, *, version: str, vendor: str,
@@ -342,17 +395,7 @@ def summarise(payload: dict, *, version: str, vendor: str,
     "3 of 10" without that distinction invites the opposite reading.
     """
     hits = affects(payload, version=version, vendor=vendor, cpe_product=cpe_product)
-    target = target_version(hits)
-    closed = 0
-    if target is not None:
-        goal = _parts(target)
-        for hit in hits:
-            fix = _parts(hit.fixed_version) if hit.fixed_version else None
-            if fix is None or goal is None:
-                continue
-            pair = _comparable(fix, goal)
-            if pair is not None and pair[0] <= pair[1]:
-                closed += 1
+    target, closed = closed_by(hit.fixed_version for hit in hits)
     scores = [hit.score for hit in hits if hit.score is not None]
     return Summary(
         version=version,
@@ -364,3 +407,47 @@ def summarise(payload: dict, *, version: str, vendor: str,
         caveat=CAVEAT,
         hits=tuple(hits),
     )
+
+
+# ─── One CVE found by name, judged against the installed version ─────────────
+
+AFFECTED = "affected"
+NOT_AFFECTED = "not affected"
+NOT_EVALUABLE = "not evaluable"
+
+
+@dataclass(frozen=True)
+class Verdict:
+    status: str
+    reason: str
+    fixed_version: str | None = None
+
+
+def judge(record: dict, *, version: str, vendor: str, cpe_product: str) -> Verdict:
+    """The verdict on one scan record for the installed `version` (DESIGN §5.3).
+
+    The record carries NVD's `configurations` when NVD returned it — an empty
+    list when NVD has not analysed the CVE yet — and no such key when it came
+    from another source alone. Only a statement NVD made about this product
+    decides: anything short of that is "not evaluable", never "not affected".
+    """
+    configurations = record.get("configurations")
+    if configurations is None:
+        return Verdict(NOT_EVALUABLE, "NVD's record of it was not part of this scan")
+    if not isinstance(configurations, list) or not configurations:
+        return Verdict(NOT_EVALUABLE, "NVD has not yet stated which products it affects")
+
+    spans = ranges_in({"configurations": configurations}, vendor=vendor, cpe_product=cpe_product)
+    if not spans:
+        return Verdict(NOT_AFFECTED, f"NVD lists the products it affects, and "
+                                     f"{vendor}:{cpe_product} is not among them")
+    for span in spans:
+        if span.contains(version):
+            return Verdict(AFFECTED, _note_for(span), span.fixed_version)
+
+    stated = "; ".join(span.describe() for span in spans)
+    if not all(span.comparable(version) for span in spans):
+        return Verdict(NOT_EVALUABLE, f"NVD's affected versions ({stated}) cannot be "
+                                      f"compared with {version}")
+    return Verdict(NOT_AFFECTED, f"NVD states the affected versions ({stated}); "
+                                 f"{version} is not among them")

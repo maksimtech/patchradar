@@ -154,6 +154,7 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
     # Left off the record entirely when the provider defined no threat metric:
     # the absence is the fact, and a key holding "X" would read as a verdict.
     maturity = _extract_exploit_maturity(cve)
+    configurations = cve.get("configurations")
     return {
         **({"cvss_exploit_maturity": maturity} if maturity else {}),
         "id": cve_id,
@@ -167,6 +168,12 @@ def _parse_item(item: dict, keyword: str) -> dict | None:
         "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
         "patch_available": _extract_patch_available(cve),
         "confidentiality_impact": _extract_confidentiality(cve),
+        # Which products and versions NVD says the CVE affects, for the scan to
+        # judge an installed version with (affected.judge). Always present on
+        # an NVD record, empty while NVD has not analysed the CVE: a record
+        # without the key came from another source, which is a different
+        # "cannot tell". Not a column — the verdict is what gets stored (§5.5).
+        "configurations": configurations if isinstance(configurations, list) else [],
     }
 
 
