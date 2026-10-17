@@ -215,12 +215,13 @@ def sanitize_cve(cve: dict) -> dict:
 
 @app.get("/api/watchlist")
 async def api_watchlist():
-    items = await get_watchlist()
     # `watchlist` keeps its shape for what already reads it; `entries` adds
-    # what is installed (docs/DESIGN.md §5.1).
-    entries = [{"name": e.name, "installed_version": e.installed_version, "cpe": e.cpe}
-               for e in await get_watch_entries()]
-    return {"watchlist": items, "entries": entries}
+    # what is installed (docs/DESIGN.md §5.1). One query for both: two made the
+    # endpoint 24% slower (CodSpeed, #59).
+    entries = await get_watch_entries()
+    return {"watchlist": [e.name for e in entries],
+            "entries": [{"name": e.name, "installed_version": e.installed_version, "cpe": e.cpe}
+                        for e in entries]}
 
 @app.post(
     "/api/watchlist/import",

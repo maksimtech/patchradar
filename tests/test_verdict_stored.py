@@ -166,3 +166,14 @@ def test_status_shows_the_verdict_the_scan_gave():
     assert "Verdict" in out
     assert "affected" in out
     assert "not affected" in out
+
+
+@pytest.mark.asyncio
+async def test_the_listing_of_every_product_hides_a_stale_verdict_too():
+    await _watch()
+    await database.save_cve(_record(**AFFECTED_850))
+    await database.set_installed("notepad", version="8.9.6.4", cpe=None)
+
+    [row] = await database.get_cves()
+
+    assert row["verdict"] is None

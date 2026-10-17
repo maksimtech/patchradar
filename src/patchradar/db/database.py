@@ -328,12 +328,11 @@ async def save_cve(cve: dict) -> bool:
             logger.debug("save_cve failure", exc_info=True)
             return False
 
-# The verdict columns of the link, shown only while the installed version is
-# still the one they were given for; NULL otherwise, as for a CVE never judged.
-_CURRENT_VERDICT = ", ".join(
-    f"CASE WHEN link.judged_version = watched.installed_version THEN link.{column} END AS {column}"
-    for column in _ADDED_LINK_COLUMNS
-)
+# The verdict columns of the link. The joins below match a link only while the
+# installed version is still the one its verdict was given for, so a stale one
+# reads as NULL, as for a CVE never judged. In the join rather than as a CASE per
+# column: four CASEs made every listing 12% slower (CodSpeed, #59).
+_CURRENT_VERDICT = ", ".join(f"link.{column}" for column in _ADDED_LINK_COLUMNS)
 
 
 async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
@@ -344,8 +343,9 @@ async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
             # (by hand, or by an older release after the migration) still shows.
             async with db.execute(f"""
                 SELECT cves.*, {_CURRENT_VERDICT} FROM cves
-                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = ?
                 LEFT JOIN watchlist AS watched ON watched.name = ?
+                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = ?
+                    AND link.judged_version = watched.installed_version
                 WHERE cves.software = ? OR cves.id IN (SELECT cve_id FROM cve_software WHERE software = ?)
                 ORDER BY published_at DESC LIMIT ?
             """, (software.lower(),) * 4 + (limit,)) as cursor:
@@ -355,8 +355,9 @@ async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
         else:
             async with db.execute(f"""
                 SELECT cves.*, {_CURRENT_VERDICT} FROM cves
-                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = cves.software
                 LEFT JOIN watchlist AS watched ON watched.name = cves.software
+                LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = cves.software
+                    AND link.judged_version = watched.installed_version
                 ORDER BY published_at DESC LIMIT ?
             """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
