@@ -107,3 +107,19 @@ async def test_only_a_known_affected_status_counts():
     msrc.clear_cache()
 
     assert found == []
+
+
+async def test_a_malformed_product_entry_does_not_hide_the_others():
+    """One product that is not an object is skipped, as one malformed entry of
+    Vulnerability is: it used to cost the month. Derived: the recorded excerpt
+    with a string inserted at the head of FullProductName."""
+    derived = json.loads(json.dumps(OCTOBER))
+    derived["ProductTree"]["FullProductName"].insert(0, "not a product")
+    msrc.clear_cache()
+    with respx.mock:
+        respx.get(f"{msrc.MSRC_API}/cvrf/2026-Oct").mock(return_value=httpx.Response(200, json=derived))
+        respx.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
+        found = await ids("windows 11")
+    msrc.clear_cache()
+
+    assert found == [KERNEL]
