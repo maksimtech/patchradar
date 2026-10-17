@@ -54,6 +54,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   with the registry's version and its vendor source in `vendor` and `product_id`. One it did not
   identify (a source without its product, a component, a program nothing answers for) is refused
   with the survey's reason, and the command exits 1; without `--accept` nothing is written.
+- **The web UI shows what is installed and the verdict.** The watchlist shows the version beside
+  each name; the add form takes a version and a CPE, sent with the CLI's checks, and a refused CPE
+  comes back with NVD's form. The table gains Priority and Verdict columns ("not checked" for a
+  product matched by name), and the CVEs that do not affect the installed version are counted and
+  hidden behind one button, as `scan` does without `--all`. A scan's message gives the split per
+  judged product.
 - **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
   text was never committed and could not be found. It is reconstructed from what `affected.py`,
   `inventory.py` and `tests/test_priority_wiring.py` already committed to.

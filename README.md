@@ -102,7 +102,10 @@ a version are scanned by name as before, and the scan names them. The verdict
 is stored with the version it was given for: `patchradar status` and
 `/api/cves` show it while that version is still the installed one, and the API
 takes the version and CPE too (`POST /api/watchlist/<name>?version=…&cpe=…`).
-The web UI does not show it yet ([docs/DESIGN.md](docs/DESIGN.md) §5.5, §5.6).
+The web UI shows it too: the version beside each watched name, a version and a
+CPE in the add form, Priority and Verdict columns, and the CVEs that do not
+affect the installed version counted and one click away
+([docs/DESIGN.md](docs/DESIGN.md) §5.5, §5.6).
 
 ### Asking Debian what it is actually doing
 

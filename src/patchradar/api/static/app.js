@@ -1,6 +1,9 @@
 let allCves = [];
 let currentFilter = 'ALL';
 let currentSearch = '';
+// The CVEs that do not affect the installed version are counted and hidden, as
+// `patchradar scan` does without --all (docs/DESIGN.md §5.4).
+let showUnaffected = false;
 
 // The key is only needed for write/scan endpoints; reads stay public.
 // Stored per-browser so it is never baked into the served HTML.
@@ -94,6 +97,11 @@ async function loadWatchlist() {
     el.innerHTML = '<div style="color:#8b949e;font-size:0.85rem;padding:0.5rem 0">No software added yet</div>';
     return;
   }
+  // What is installed, beside the name: the scan judges each CVE against it.
+  const installed = {};
+  (Array.isArray(data.entries) ? data.entries : []).forEach(e => {
+    if (e && e.installed_version) installed[e.name] = e.installed_version;
+  });
   // CWE-79 fix: build watchlist via DOM API
   el.innerHTML = '';
   data.watchlist.forEach(sw => {
@@ -102,6 +110,12 @@ async function loadWatchlist() {
 
     const span = document.createElement('span');
     span.textContent = ' ' + sw;  // textContent prevents XSS
+    if (installed[sw]) {
+      const version = document.createElement('span');
+      version.className = 'watch-version';
+      version.textContent = ' ' + installed[sw];
+      span.appendChild(version);
+    }
 
     const btn = document.createElement('button');
     btn.className = 'btn-remove';
@@ -120,11 +134,21 @@ async function addSoftware() {
   const input = document.getElementById('add-input');
   const sw = input.value.trim();
   if (!sw) return;
-  const data = await api(`/api/watchlist/${encodeURIComponent(sw)}`, 'POST');
+  // The version and CPE go with the name, checked by the server as the CLI
+  // checks them; a refusal comes back as a 422 whose detail api() shows.
+  const versionInput = document.getElementById('add-version');
+  const cpeInput = document.getElementById('add-cpe');
+  const params = [];
+  if (versionInput.value.trim()) params.push(`version=${encodeURIComponent(versionInput.value.trim())}`);
+  if (cpeInput.value.trim()) params.push(`cpe=${encodeURIComponent(cpeInput.value.trim())}`);
+  const query = params.length ? `?${params.join('&')}` : '';
+  const data = await api(`/api/watchlist/${encodeURIComponent(sw)}${query}`, 'POST');
   if (!data) return;   // api() already reported the failure
-  if (data.added) {
-    toast(` Added ${sw}`);
+  if (data.added || params.length) {
+    toast(data.added ? ` Added ${sw}` : ` Updated ${sw}`);
     input.value = '';
+    versionInput.value = '';
+    cpeInput.value = '';
     await loadWatchlist();
     await loadStats();
   } else {
@@ -176,7 +200,10 @@ async function scanAll() {
     } else if (data.timed_out) {
       toast(`Scan timed out — ${data.scanned}/${data.watched} scanned, ${data.total} CVEs so far`, '#d29922');
     } else if (data.total !== undefined) {
-      toast(`Found ${data.total} CVEs`);
+      // Per product judged against its installed version, the split `scan` prints.
+      const split = Object.entries(data.verdicts || {}).map(([sw, v]) =>
+        `${sw}: ${v['affected']} affected, ${v['not evaluable']} not evaluable, ${v['not affected']} not affected`);
+      toast(`Found ${data.total} CVEs` + (split.length ? ` — ${split.join('; ')}` : ''));
     }
     await loadCves();
     await loadStats();
@@ -215,11 +242,17 @@ function scoreClass(score) {
 
 function renderTable() {
   const searchTerm = currentSearch.toLowerCase().trim();
-  const filtered = allCves.filter(c => {
+  const matching = allCves.filter(c => {
     const matchSeverity = currentFilter === 'ALL' || (c.severity||'').toUpperCase() === currentFilter;
     const matchSearch = !searchTerm || (c.software||'').toLowerCase().includes(searchTerm) || (c.id||'').toLowerCase().includes(searchTerm);
     return matchSeverity && matchSearch;
   });
+  const unaffected = matching.filter(c => c.verdict === 'not affected').length;
+  const filtered = showUnaffected ? matching : matching.filter(c => c.verdict !== 'not affected');
+  const toggle = document.getElementById('toggle-unaffected');
+  // Nothing hidden, nothing to offer: no button rather than "Show 0".
+  toggle.textContent = !unaffected ? '' : showUnaffected ? 'Hide not affected' : `Show ${unaffected} not affected`;
+  toggle.style.display = unaffected ? '' : 'none';
 
   const wrap = document.getElementById('cve-table-wrap');
   if (!filtered.length) {
@@ -250,7 +283,7 @@ function renderTable() {
   // Header
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  ['CVE ID','Software','Score','Severity','Description','Source','Published'].forEach(h => {
+  ['CVE ID','Software','Score','Severity','Priority','Verdict','Description','Source','Published'].forEach(h => {
     const th = document.createElement('th');
     th.textContent = h;
     headerRow.appendChild(th);
@@ -297,6 +330,25 @@ function renderTable() {
     spanSev.textContent = sev;
     tdSev.appendChild(spanSev);
     tr.appendChild(tdSev);
+
+    // Priority  the rank the server computed, its reason on hover
+    const tdPri = document.createElement('td');
+    const spanPri = document.createElement('span');
+    spanPri.className = 'source-badge';
+    spanPri.textContent = cve.priority || '';
+    spanPri.title = cve.priority_reason || '';
+    tdPri.appendChild(spanPri);
+    tr.appendChild(tdPri);
+
+    // Verdict  against the installed version; an empty one is said, not left blank
+    const tdVer = document.createElement('td');
+    const spanVer = document.createElement('span');
+    const verdict = cve.verdict || '';
+    spanVer.className = `verdict verdict-${verdict ? verdict.replace(' ', '-') : 'none'}`;
+    spanVer.textContent = verdict || 'not checked';
+    spanVer.title = cve.verdict_reason || 'matched by name; no installed version to check it against';
+    tdVer.appendChild(spanVer);
+    tr.appendChild(tdVer);
 
     // Description  textContent prevents XSS
     const tdDesc = document.createElement('td');
@@ -474,6 +526,10 @@ function bindControls() {
 
   document.querySelectorAll('[data-filter]').forEach(btn =>
     btn.addEventListener('click', () => setFilter(btn.dataset.filter, btn)));
+  document.getElementById('toggle-unaffected').addEventListener('click', () => {
+    showUnaffected = !showUnaffected;
+    renderTable();
+  });
 
   const search = document.getElementById('search-input');
   search.addEventListener('input', () => { currentSearch = search.value; renderTable(); });
