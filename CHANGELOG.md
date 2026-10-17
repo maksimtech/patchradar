@@ -49,6 +49,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **`windows 11` found nothing in MSRC.** MSRC titles an entry by component ("Windows Kernel
+  Information Disclosure Vulnerability") and names the operating system only in the document's
+  ProductTree, which each entry points into through its ProductStatuses; the keyword was matched
+  against the title and the notes alone. On the October 2026 document, which lists 1,057 entries
+  affecting a Windows 11 product (KB5127648, its cumulative update, was installed on the machine
+  that ran the scan), `windows 11` and `windows 10` found 0 and `windows server` 4. An entry is now
+  also kept when the keyword names, as a word, one of the products it lists as Known Affected:
+  1,057, 980 and 1,099 on the same document, in the same time. The September fixture had no
+  ProductTree; the tests read a recorded excerpt of October's with its product names.
 - **Without `VULDB_API_KEY` no scan could end in an all-clear.** VulDB answers only with a key, and
   without it the collector refused every target: one "results … are incomplete" line per target,
   "VulDB answered for none of the N targets scanned" at the end, and never "no CVEs found", which
