@@ -26,6 +26,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   split, one what an update closes, and the NVD caveat is always printed. Entries without a
   version are scanned by name, and the scan says which. `list` shows version and CPE. The
   verdict is not stored yet (§5.5): `status`, the API and the web UI are the next step.
+- **The verdict is kept, and the API judges too** (docs/DESIGN.md §5.5). In `cve_software`, per
+  product, with the installed version it was given for: after a new `--version` the old verdict
+  is not shown until a scan judges the new one. `patchradar status` and `/api/cves` show it;
+  `POST /api/watchlist/{name}` takes `version` and `cpe` with the CLI's checks, `GET
+  /api/watchlist` adds `entries`, and `POST /api/scan` judges with the CLI's function
+  (`affected.mark`) and returns the split per product in `verdicts`.
 - **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
   text was never committed and could not be found. It is reconstructed from what `affected.py`,
   `inventory.py` and `tests/test_priority_wiring.py` already committed to.

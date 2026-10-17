@@ -104,16 +104,25 @@ The total line keeps its meaning: CVEs found by name.
 
 ### 5.5 What is stored
 
-PR-01a judges in memory, during the scan. Storing the verdict — so that
-`status`, the API and the web UI can show it — needs columns in `cves` and is the
-migration `tests/test_priority_wiring.py` waits for, together with the KEV fields.
+The verdict is kept on the link between a CVE and a product, `cve_software`
+(`verdict`, `verdict_reason`, `verdict_fixed_version`, `judged_version`), because
+one CVE stored once can be affected for one watched product and not for another.
+The latest scan decides it. It is read back only while the installed version is
+still `judged_version`: after `add --version` with a new version, the old verdict
+is not shown until a scan judges the new one. `status` and `/api/cves` show it;
+the API records version and CPE (`POST /api/watchlist/{name}?version=&cpe=`) and
+judges with the same function as the CLI (`affected.mark`).
+
+Still in memory only: the KEV fields that decide a rank — the migration
+`tests/test_priority_wiring.py` waits for.
 
 ### 5.6 Order of work
 
 1. **PR-01a** — the columns, `add --version --cpe`, the verdict for NVD records
    in the command-line scan, `--all`, the README.
-2. **PR-01b** — KEV and MSRC entries judged through NVD's record of the same
-   CVE; the verdict and the KEV fields stored; the API.
+2. **PR-01b** — in two parts: the verdict stored and the API (01b-1); the KEV
+   fields stored, with the database-backed listings ranked by priority, and KEV
+   and MSRC entries judged through NVD's record of the same CVE (01b-2).
 3. **PR-01c** — the web UI; `patchradar import` writing the mappings a person
    confirmed, `channel` included.
 

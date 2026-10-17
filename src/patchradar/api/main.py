@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 
+from patchradar.affected import AFFECTED, NOT_AFFECTED, NOT_EVALUABLE, mark, orderable
 from patchradar.collectors.debian import fetch_cves as debian_fetch
 from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import fetch_cves as kev_fetch
@@ -22,7 +23,17 @@ from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
 from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
-from patchradar.db.database import add_to_watchlist, get_cves, get_watchlist, init_db, remove_from_watchlist
+from patchradar.cpe import CpeError, parse_cpe
+from patchradar.db.database import (
+    WatchEntry,
+    add_to_watchlist,
+    get_cves,
+    get_watch_entries,
+    get_watchlist,
+    init_db,
+    remove_from_watchlist,
+    set_installed,
+)
 from patchradar.epss import enrich as epss_enrich
 from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, SOFTWARE_NAME_PATTERN, normalise_software_name
 from patchradar.priority import merge_by_cve
@@ -194,6 +205,9 @@ def sanitize_cve(cve: dict) -> dict:
     # Numeric fields. The EPSS pair is passed through as stored, including a
     # missing one: `.get` yields None, and None here means FIRST does not score
     # the CVE — which a 0.0 would misreport as "almost certainly not exploited".
+    for field in ("verdict", "verdict_reason", "verdict_fixed_version", "judged_version"):
+        value = cve.get(field)
+        safe[field] = _strip_control_chars(value).strip()[:300] if isinstance(value, str) else None
     safe["cvss_score"] = cve.get("cvss_score")
     safe["epss_score"] = cve.get("epss_score")
     safe["epss_percentile"] = cve.get("epss_percentile")
@@ -202,7 +216,11 @@ def sanitize_cve(cve: dict) -> dict:
 @app.get("/api/watchlist")
 async def api_watchlist():
     items = await get_watchlist()
-    return {"watchlist": items}
+    # `watchlist` keeps its shape for what already reads it; `entries` adds
+    # what is installed (docs/DESIGN.md §5.1).
+    entries = [{"name": e.name, "installed_version": e.installed_version, "cpe": e.cpe}
+               for e in await get_watch_entries()]
+    return {"watchlist": items, "entries": entries}
 
 @app.post(
     "/api/watchlist/import",
@@ -243,14 +261,29 @@ async def api_watchlist_import(payload: dict):
 async def api_add(
     software: str = Path(
         ..., min_length=1, max_length=SOFTWARE_NAME_MAX_LENGTH, pattern=SOFTWARE_NAME_PATTERN
-    )
+    ),
+    version: str | None = Query(None, min_length=1, max_length=64),
+    cpe: str | None = Query(None, min_length=1, max_length=256),
 ):
     # Normalise here too, so both routes store the same canonical value.
     name = normalise_software_name(software)
     if name is None:
         raise HTTPException(status_code=422, detail="Invalid software name")
+    # The same checks as `patchradar add`, before anything is written.
+    if version is not None and not orderable(version):
+        raise HTTPException(status_code=422, detail=f"{version} is not a version the scan can compare")
+    parsed = None
+    if cpe is not None:
+        try:
+            parsed = parse_cpe(cpe)
+        except CpeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
     added = await add_to_watchlist(name)
-    return {"added": added, "software": name}
+    if version is not None or parsed is not None:
+        await set_installed(name, version=version, cpe=parsed)
+    entry = next(e for e in await get_watch_entries() if e.name == name)
+    return {"added": added, "software": name,
+            "installed_version": entry.installed_version, "cpe": entry.cpe}
 
 
 @app.delete(
@@ -272,7 +305,8 @@ async def api_cves(software: str = Query(None, min_length=1, max_length=100), li
     sanitized = [sanitize_cve(c) for c in cves]
     return {"cves": sanitized, "total": len(sanitized)}
 
-async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
+async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | None = None,
+                    verdicts: dict | None = None) -> int:
     """Collect and persist every source for a single package.
 
     A source that fails is recorded in `errors` rather than silently counted
@@ -321,6 +355,13 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
         logger.warning("scan of %r unranked by EPSS: %s", sw, exc)
         errors.append({"software": sw, "source": exc.source,
                        "reason": exc.reason, "status": exc.status})
+    # Judged by the function the CLI judges with, before anything is stored, so
+    # the verdict lands with the link and the two scans give one answer.
+    installed = entry.installed() if entry is not None else None
+    mark(collected, installed)
+    if installed is not None and verdicts is not None:
+        found = [cve["verdict"] for cve in collected]
+        verdicts[sw] = {status: found.count(status) for status in (AFFECTED, NOT_EVALUABLE, NOT_AFFECTED)}
     for cve in collected:
         await save_cve(cve)
     return len(collected)
@@ -334,6 +375,8 @@ async def _scan_one(sw: str, days: int, errors: list[dict]) -> int:
 )
 async def api_scan(days: int = Query(7, ge=1, le=90)):
     watchlist = await get_watchlist()
+    entries = {entry.name: entry for entry in await get_watch_entries()}
+    verdicts: dict[str, dict[str, int]] = {}
     total = 0
     results = {}
     errors: list[dict] = []
@@ -343,7 +386,7 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
         # scan that never returns pins a worker indefinitely.
         async with asyncio.timeout(SCAN_TIMEOUT_SECONDS):
             for sw in watchlist:
-                count = await _scan_one(sw, days, errors)
+                count = await _scan_one(sw, days, errors, entries.get(sw), verdicts)
                 results[sw] = count
                 total += count
     except TimeoutError:
@@ -357,6 +400,9 @@ async def api_scan(days: int = Query(7, ge=1, le=90)):
     return {
         "total": total,
         "by_software": results,
+        # Per product judged against its installed version: how many of the
+        # CVEs found by name affect it, could not be evaluated, do not affect it.
+        "verdicts": verdicts,
         "timed_out": timed_out,
         "scanned": len(results),
         "watched": len(watchlist),
