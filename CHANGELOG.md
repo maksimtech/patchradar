@@ -12,6 +12,8 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+## [2026.47] — 2026-10-17
+
 ### Added
 
 - **The scan judges CVEs against the installed version** (docs/DESIGN.md §5). A scan found the
@@ -182,7 +184,6 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   `bump_version.py` commits the bump on `release/<version>`, pushes that branch and opens its
   pull request with auto-merge; `release.py` pushes nothing, checks that the local main is the
   remote's, and creates the GitHub release on that exact commit (`--target`).
-
 
 ## [2026.46] — 2026-10-10
 
