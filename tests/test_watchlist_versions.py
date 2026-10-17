@@ -94,7 +94,7 @@ async def test_migrating_twice_is_not_an_error(old_database):
 # ─── storing what is installed ───────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_version_and_cpe_are_stored_with_vendor_and_product():
+async def test_version_and_cpe_are_stored_and_the_cpe_names_vendor_and_product():
     await database.add_to_watchlist("notepad")
 
     assert await database.set_installed("notepad", version="8.5.0", cpe=parse_cpe(NOTEPADPP))
@@ -102,8 +102,8 @@ async def test_version_and_cpe_are_stored_with_vendor_and_product():
     [entry] = await database.get_watch_entries()
     assert entry.installed_version == "8.5.0"
     assert entry.cpe == NOTEPADPP
-    assert entry.vendor == "notepad-plus-plus"
-    assert entry.product_id == "notepad\\+\\+"
+    assert entry.cpe_vendor == "notepad-plus-plus"
+    assert entry.cpe_product == "notepad\\+\\+"
     assert entry.channel is None
     assert entry.judgeable
 

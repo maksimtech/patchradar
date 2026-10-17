@@ -47,12 +47,20 @@ missing version is an absence, and a default would be a claim:
 | column | holds | set by |
 |---|---|---|
 | `cpe` | the CPE 2.3 name of the product, as NVD writes it: `cpe:2.3:a:notepad-plus-plus:notepad\+\+` | `add --cpe` |
-| `vendor` | the CPE vendor field, `notepad-plus-plus` | derived from `cpe` |
-| `product_id` | the CPE product field, escaped as NVD escapes it, `notepad\+\+` | derived from `cpe` |
+| `vendor` | the vendor source that answers by version — `inventory.py`'s *source*: `chrome`, `edge`, `msrc`, `mozilla` | the inventory import, once confirmed (§5.6) |
+| `product_id` | the product that source needs: `chrome`, `Edge` | the inventory import, once confirmed |
 | `installed_version` | the version installed, `8.5.0` | `add --version` |
-| `channel` | the release channel a vendor source answers for (stable, ESR, LTS) | reserved for the inventory import (§5.6) |
+| `channel` | the release channel the source answers for (stable, ESR, LTS) | the inventory import, once confirmed |
 
 An existing database gets them on the next start, as `cves` got its EPSS columns.
+
+Two routes to an answer by version, kept apart: the CPE, through NVD's
+configurations, which the scan judges with today; and a vendor source, which
+`inventory.py` proposes and a person confirms. The CPE's own vendor and product
+(`notepad-plus-plus`, `notepad\+\+`) are read from `cpe` when the scan needs
+them, not stored. Until 2026-10-17 they were stored in `vendor` and `product_id`,
+by a misreading of this table that `inventory.py` contradicted; no release
+carried that.
 
 ### 5.2 Nothing is guessed
 

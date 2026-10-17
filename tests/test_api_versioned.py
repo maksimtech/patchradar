@@ -46,8 +46,7 @@ async def test_the_version_and_cpe_are_recorded_over_http(client):
     assert response.status_code == 200, response.text
     assert response.json()["installed_version"] == "8.5.0"
     [entry] = await database.get_watch_entries()
-    assert (entry.installed_version, entry.vendor, entry.product_id) == ("8.5.0", "notepad-plus-plus",
-                                                                          "notepad\\+\\+")
+    assert entry.installed() == ("8.5.0", "notepad-plus-plus", "notepad\\+\\+")
 
 
 async def test_a_cpe_nvd_would_match_nothing_with_is_refused_with_its_form(client):

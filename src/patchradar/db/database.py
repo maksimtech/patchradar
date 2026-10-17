@@ -5,7 +5,7 @@ from pathlib import Path
 
 import aiosqlite
 
-from patchradar.cpe import Cpe
+from patchradar.cpe import Cpe, parse_cpe
 from patchradar.priority import as_flag, sql_order
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,13 @@ async def add_to_watchlist(name: str) -> bool:
 
 @dataclass(frozen=True)
 class WatchEntry:
-    """A watchlist row with what is known of the installed product."""
+    """A watchlist row with what is known of the installed product.
+
+    `vendor`, `product_id` and `channel` are the vendor source's — the feed
+    that answers by version and the product it needs, as `inventory.py` names
+    them (docs/DESIGN.md §5.1). The CPE's vendor and product are another thing,
+    read from `cpe`: NVD by CPE is the other route.
+    """
 
     name: str
     installed_version: str | None = None
@@ -218,12 +224,21 @@ class WatchEntry:
     product_id: str | None = None
     channel: str | None = None
 
+    @property
+    def cpe_vendor(self) -> str | None:
+        return parse_cpe(self.cpe).vendor if self.cpe else None
+
+    @property
+    def cpe_product(self) -> str | None:
+        return parse_cpe(self.cpe).product if self.cpe else None
+
     def installed(self) -> tuple[str, str, str] | None:
         """(version, vendor, product) when a scan can judge CVEs against what is
-        installed — the version to compare, and the vendor and product NVD's
-        `cpeMatch` is read by — and None when any of the three is missing."""
-        if self.installed_version and self.vendor and self.product_id:
-            return self.installed_version, self.vendor, self.product_id
+        installed — the version to compare, and the CPE's vendor and product
+        NVD's `cpeMatch` is read by — and None when any of them is missing."""
+        if self.installed_version and self.cpe:
+            cpe = parse_cpe(self.cpe)
+            return self.installed_version, cpe.vendor, cpe.product
         return None
 
     @property
@@ -244,17 +259,28 @@ async def set_installed(name: str, *, version: str | None, cpe: Cpe | None) -> b
     Only what is given changes: a new version leaves the CPE as it was. False
     when the name is not on the watchlist — this never adds one.
     """
-    fields: dict[str, str] = {}
+    fields: dict[str, str | None] = {}
     if version is not None:
         fields["installed_version"] = version
     if cpe is not None:
-        fields.update(cpe=cpe.text, vendor=cpe.vendor, product_id=cpe.product)
+        fields["cpe"] = cpe.text
+    return await _update_entry(name, fields)
+
+
+async def set_source(name: str, *, vendor: str, product_id: str, channel: str | None) -> bool:
+    """Record the vendor source that answers by version for an entry already on
+    the watchlist — `inventory.py`'s source, product and channel, once a person
+    has confirmed them. False when the name is not on the watchlist."""
+    return await _update_entry(name, {"vendor": vendor, "product_id": product_id, "channel": channel})
+
+
+async def _update_entry(name: str, fields: dict[str, str | None]) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT 1 FROM watchlist WHERE name = ?", (name.lower(),)) as cursor:
             if await cursor.fetchone() is None:
                 return False
         if fields:
-            # Column names from the literal keys above, never from input.
+            # Column names from literal keys in the callers, never from input.
             assignments = ", ".join(f"{column} = ?" for column in fields)
             await db.execute(f"UPDATE watchlist SET {assignments} WHERE name = ?",
                              (*fields.values(), name.lower()))
