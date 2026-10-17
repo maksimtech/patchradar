@@ -80,8 +80,9 @@ def test_the_database_stores_every_fact_a_rank_is_decided_by():
 def test_the_stored_listings_are_ordered_by_priority_not_by_date():
     """Named here so the two paths are compared in one place rather than
     discovered to differ: `get_cves`, which `status` and `/api/cves` read, orders
-    with the expression `priority.sql_order` builds from the scan's own rules."""
+    by the expression `priority.sql_order` builds from the scan's own rules —
+    written out in the statement, and held to that text by
+    tests/test_sql_is_not_formatted.py."""
     body = _function_source(DB_SOURCE, "get_cves")
-    assert body.count("ORDER BY {_PRIORITY_ORDER}") == 2
-    assert "sql_order(" in DB_SOURCE
+    assert body.count("ORDER BY CASE") == 2
     assert "ORDER BY published_at DESC" not in body

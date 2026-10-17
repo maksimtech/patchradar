@@ -6,7 +6,7 @@ from pathlib import Path
 import aiosqlite
 
 from patchradar.cpe import Cpe, parse_cpe
-from patchradar.priority import as_flag, sql_order
+from patchradar.priority import as_flag
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,20 @@ async def init_db():
         # order instead of ranking every stored CVE first: measured on the
         # benchmark's 500, get_cves went from 1.9 ms to 1.0 ms with it, below
         # the 1.45 ms it took when it still listed by date.
-        await db.execute(f"CREATE INDEX IF NOT EXISTS cves_by_priority ON cves ({_PRIORITY_INDEX})")
+        # The expression is priority.sql_order() written out, so that no
+        # statement here is assembled from strings; tests/test_sql_is_not_formatted.py
+        # holds the two to the same text.
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS cves_by_priority ON cves (CASE
+            WHEN known_exploited = 1 AND kev_ransomware = 1 THEN 5
+            WHEN known_exploited = 1 THEN 4
+            WHEN epss_score >= 0.1 AND epss_score <= 1.0 THEN 3
+            WHEN cvss_exploit_maturity IN ('ATTACKED', 'PROOF_OF_CONCEPT') THEN 2
+            WHEN cvss_score IS NOT NULL THEN 1
+            ELSE 0 END DESC,
+            COALESCE(cvss_score, -1.0) DESC,
+            published_at DESC, id DESC)
+        """)
         await _normalize_stored_timestamps(db)
         await _link_stored_cves(db)
         await db.commit()
@@ -259,31 +272,38 @@ async def set_installed(name: str, *, version: str | None, cpe: Cpe | None) -> b
     Only what is given changes: a new version leaves the CPE as it was. False
     when the name is not on the watchlist — this never adds one.
     """
-    fields: dict[str, str | None] = {}
+    updates = []
     if version is not None:
-        fields["installed_version"] = version
+        updates.append(("UPDATE watchlist SET installed_version = ? WHERE name = ?", (version, name.lower())))
     if cpe is not None:
-        fields["cpe"] = cpe.text
-    return await _update_entry(name, fields)
+        updates.append(("UPDATE watchlist SET cpe = ? WHERE name = ?", (cpe.text, name.lower())))
+    return await _update_entry(name, updates)
 
 
 async def set_source(name: str, *, vendor: str, product_id: str, channel: str | None) -> bool:
     """Record the vendor source that answers by version for an entry already on
     the watchlist — `inventory.py`'s source, product and channel, once a person
     has confirmed them. False when the name is not on the watchlist."""
-    return await _update_entry(name, {"vendor": vendor, "product_id": product_id, "channel": channel})
+    return await _update_entry(name, [(
+        "UPDATE watchlist SET vendor = ?, product_id = ?, channel = ? WHERE name = ?",
+        (vendor, product_id, channel, name.lower()),
+    )])
 
 
-async def _update_entry(name: str, fields: dict[str, str | None]) -> bool:
+async def _update_entry(name: str, updates: list[tuple[str, tuple]]) -> bool:
+    """Run fixed UPDATE statements on an entry already on the watchlist.
+
+    Fixed statements, one per field, rather than a column list joined at run
+    time: Bandit's B608 flagged the joined one on #58, and a statement written
+    out leaves nothing to vouch for.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT 1 FROM watchlist WHERE name = ?", (name.lower(),)) as cursor:
             if await cursor.fetchone() is None:
                 return False
-        if fields:
-            # Column names from literal keys in the callers, never from input.
-            assignments = ", ".join(f"{column} = ?" for column in fields)
-            await db.execute(f"UPDATE watchlist SET {assignments} WHERE name = ?",
-                             (*fields.values(), name.lower()))
+        for statement, values in updates:
+            await db.execute(statement, values)
+        if updates:
             await db.commit()
         return True
 
@@ -394,14 +414,13 @@ async def save_cve(cve: dict) -> bool:
 # installed version is still the one its verdict was given for, so a stale one
 # reads as NULL, as for a CVE never judged. In the join rather than as a CASE per
 # column: four CASEs made every listing 12% slower (CodSpeed, #59).
-_CURRENT_VERDICT = ", ".join(f"link.{column}" for column in _ADDED_LINK_COLUMNS)
-
-
-# Most urgent first, as a scan orders its report (priority.py); among equals the
-# newest first, then by id, which is also the order a scan's ties come in. The
+#
+# The listings below are ordered most urgent first, as a scan orders its report:
+# their ORDER BY is priority.sql_order("cves") written out, then the newest
+# first and the id, which is the order a scan's ties come in. Written out, not
+# interpolated, so that no statement here is assembled from strings;
+# tests/test_sql_is_not_formatted.py holds it to priority's own text, and the
 # index in init_db holds the same expression, unqualified, which SQLite matches.
-_PRIORITY_ORDER = f"{sql_order('cves')}, published_at DESC, cves.id DESC"
-_PRIORITY_INDEX = f"{sql_order()}, published_at DESC, id DESC"
 
 
 def _read(row) -> dict:
@@ -418,24 +437,40 @@ async def get_cves(software: str | None = None, limit: int = 50) -> list[dict]:
         if software:
             # The column as well as the links, so a row written without a link
             # (by hand, or by an older release after the migration) still shows.
-            async with db.execute(f"""
-                SELECT cves.*, {_CURRENT_VERDICT} FROM cves
+            async with db.execute("""
+                SELECT cves.*, link.verdict, link.verdict_reason, link.verdict_fixed_version,
+                    link.judged_version FROM cves
                 LEFT JOIN watchlist AS watched ON watched.name = ?
                 LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = ?
                     AND link.judged_version = watched.installed_version
                 WHERE cves.software = ? OR cves.id IN (SELECT cve_id FROM cve_software WHERE software = ?)
-                ORDER BY {_PRIORITY_ORDER} LIMIT ?
+                ORDER BY CASE
+                    WHEN cves.known_exploited = 1 AND cves.kev_ransomware = 1 THEN 5
+                    WHEN cves.known_exploited = 1 THEN 4
+                    WHEN cves.epss_score >= 0.1 AND cves.epss_score <= 1.0 THEN 3
+                    WHEN cves.cvss_exploit_maturity IN ('ATTACKED', 'PROOF_OF_CONCEPT') THEN 2
+                    WHEN cves.cvss_score IS NOT NULL THEN 1
+                    ELSE 0 END DESC,
+                    COALESCE(cves.cvss_score, -1.0) DESC, published_at DESC, cves.id DESC LIMIT ?
             """, (software.lower(),) * 4 + (limit,)) as cursor:
                 rows = await cursor.fetchall()
             # Named after the product asked about, not the first one to find it.
             return [{**_read(row), "software": software.lower()} for row in rows]
         else:
-            async with db.execute(f"""
-                SELECT cves.*, {_CURRENT_VERDICT} FROM cves
+            async with db.execute("""
+                SELECT cves.*, link.verdict, link.verdict_reason, link.verdict_fixed_version,
+                    link.judged_version FROM cves
                 LEFT JOIN watchlist AS watched ON watched.name = cves.software
                 LEFT JOIN cve_software AS link ON link.cve_id = cves.id AND link.software = cves.software
                     AND link.judged_version = watched.installed_version
-                ORDER BY {_PRIORITY_ORDER} LIMIT ?
+                ORDER BY CASE
+                    WHEN cves.known_exploited = 1 AND cves.kev_ransomware = 1 THEN 5
+                    WHEN cves.known_exploited = 1 THEN 4
+                    WHEN cves.epss_score >= 0.1 AND cves.epss_score <= 1.0 THEN 3
+                    WHEN cves.cvss_exploit_maturity IN ('ATTACKED', 'PROOF_OF_CONCEPT') THEN 2
+                    WHEN cves.cvss_score IS NOT NULL THEN 1
+                    ELSE 0 END DESC,
+                    COALESCE(cves.cvss_score, -1.0) DESC, published_at DESC, cves.id DESC LIMIT ?
             """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
         return [_read(row) for row in rows]
