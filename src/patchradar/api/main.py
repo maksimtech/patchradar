@@ -21,6 +21,7 @@ from patchradar.collectors.errors import CollectorError
 from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import fetch_cves as nvd_fetch
+from patchradar.collectors.nvd import with_records_for_the_rest
 from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
 from patchradar.cpe import CpeError, parse_cpe
@@ -346,6 +347,15 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
     # and was counted twice — so the two scans gave different totals for the
     # same machine, which is what keeping them in step was meant to prevent.
     collected = merge_by_cve(collected)
+    # As in the CLI: what KEV or MSRC alone found is looked up in NVD by id,
+    # for an entry that can be judged.
+    installed = entry.installed() if entry is not None else None
+    if installed is not None:
+        collected, _, failure = await with_records_for_the_rest(collected, sw)
+        if failure is not None:
+            logger.warning("scan of %r: NVD could not be asked by id: %s", sw, failure)
+            errors.append({"software": sw, "source": failure.source,
+                           "reason": failure.reason, "status": failure.status})
     # FIRST is asked once per package about everything the sources returned,
     # before any of it is stored, so the EPSS fields land in the same row as the
     # CVE rather than in a second pass over the database. It cannot change the
@@ -358,7 +368,6 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
                        "reason": exc.reason, "status": exc.status})
     # Judged by the function the CLI judges with, before anything is stored, so
     # the verdict lands with the link and the two scans give one answer.
-    installed = entry.installed() if entry is not None else None
     mark(collected, installed)
     if installed is not None and verdicts is not None:
         found = [cve["verdict"] for cve in collected]

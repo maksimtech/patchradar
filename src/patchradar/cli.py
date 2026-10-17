@@ -23,7 +23,7 @@ from patchradar.collectors.kev import fetch_cves as kev_fetch
 from patchradar.collectors.msrc import MAX_DAYS_BACK as msrc_max_days
 from patchradar.collectors.msrc import fetch_cves as msrc_fetch
 from patchradar.collectors.nvd import api_key as nvd_api_key
-from patchradar.collectors.nvd import fetch_cves
+from patchradar.collectors.nvd import fetch_cves, with_records_for_the_rest
 from patchradar.collectors.vuldb import SOURCE as vuldb_source
 from patchradar.collectors.vuldb import api_key as vuldb_api_key
 from patchradar.collectors.vuldb import fetch_cves as vuldb_fetch
@@ -399,6 +399,14 @@ async def _scan_target(
     # `severity: "UNKNOWN"`. The count therefore also changes meaning, from
     # records returned to CVEs found — which is what the line claims to say.
     all_cves = merge_by_cve(all_cves)
+    # For an entry the scan can judge, the CVEs that came from KEV or MSRC alone
+    # are looked up in NVD by id: without NVD's configurations they could only
+    # be "not evaluable", and KEV's are the ones being exploited.
+    installed = entry.installed() if entry is not None else None
+    unasked, lookup_failure = 0, None
+    if installed is not None:
+        with _status(f"[cyan]Asking NVD about what other sources found for {safe_target}...[/cyan]"):
+            all_cves, unasked, lookup_failure = await with_records_for_the_rest(all_cves, target)
     # FIRST is asked about the CVEs the scan found, in one request, after the
     # merge and before the sort: `priority` ranks on the EPSS fields, so
     # enriching after the sort would order the report on the facts it had a
@@ -417,7 +425,6 @@ async def _scan_target(
     # each CVE found by name is judged against the version with NVD's own
     # configurations, and the ones that do not affect it are counted, not
     # listed, unless --all asks for them.
-    installed = entry.installed() if entry is not None else None
     judged = installed is not None
     mark(all_cves, installed)
     for cve in all_cves:
@@ -436,6 +443,11 @@ async def _scan_target(
             f"⚠️  [yellow]{escape(str(failure))}[/yellow] — "
             f"results for [bold]{safe_target}[/bold] are incomplete"
         )
+    if lookup_failure is not None:
+        console.print(Text(
+            f"⚠️  NVD could not be asked about {unasked} CVE{'s' if unasked != 1 else ''} "
+            f"from other sources ({lookup_failure}) — not evaluable for {target}", style="yellow"
+        ))
     if epss_failure is not None:
         console.print(
             f"⚠️  [yellow]{escape(str(epss_failure))}[/yellow] — "

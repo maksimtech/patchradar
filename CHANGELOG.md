@@ -32,6 +32,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   `POST /api/watchlist/{name}` takes `version` and `cpe` with the CLI's checks, `GET
   /api/watchlist` adds `entries`, and `POST /api/scan` judges with the CLI's function
   (`affected.mark`) and returns the split per product in `verdicts`.
+- **A CVE from KEV or MSRC alone is judged through NVD's record of it.** They carry no
+  `cpeMatch`, so for an entry with an installed version such a CVE could only be "not
+  evaluable" — and KEV's are the ones being exploited. For an entry that can be judged, the
+  scan, CLI and API alike, now asks NVD about each by id (`nvd.records_for`, `cveId=`), paced
+  like every request to NVD, and merges the record in, score included. When NVD cannot be
+  asked, the CVE stays not evaluable and the scan says so (the API in `errors`).
 - **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
   text was never committed and could not be found. It is reconstructed from what `affected.py`,
   `inventory.py` and `tests/test_priority_wiring.py` already committed to.

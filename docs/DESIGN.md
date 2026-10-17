@@ -78,9 +78,14 @@ name is judged against the installed version with NVD's own `configurations`:
   version of this product is not among them.
 - **not evaluable** — anything that cannot be decided: NVD has not yet stated
   which products the CVE affects (no `configurations`, the usual state of a CVE
-  for weeks after publication), the CVE came from a source other than NVD and
-  NVD's record was not part of the scan, or NVD's versions belong to another
-  scheme than the installed one (`2.07` against `16.0.14334`).
+  for weeks after publication), NVD could not be asked about a CVE that came
+  from KEV or MSRC alone, or NVD's versions belong to another scheme than the
+  installed one (`2.07` against `16.0.14334`).
+
+A CVE that reached the scan only through KEV or MSRC, which carry no
+`cpeMatch`, is looked up in NVD by id (`cveId=`) for an entry that can be judged,
+and NVD's record is merged in — configurations and score with it. Paced like
+every request to NVD; an entry matched by name costs no lookup.
 
 "Not evaluable" never becomes "not affected": for a security tool an answer it
 cannot give is not an absolution.

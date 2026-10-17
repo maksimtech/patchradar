@@ -107,7 +107,7 @@ cosa ricevono:
 <!-- hosts:start -->
 | Host | Quando | Cosa riceve |
 | --- | --- | --- |
-| `services.nvd.nist.gov` | `scan`, da riga di comando o dall'interfaccia web | il nome di ogni software della watchlist (o quello passato a `scan`) come parola chiave di ricerca, con l'intervallo di date; la chiave `NVD_API_KEY`, se impostata, in un'intestazione |
+| `services.nvd.nist.gov` | `scan`, da riga di comando o dall'interfaccia web | il nome di ogni software della watchlist (o quello passato a `scan`) come parola chiave di ricerca, con l'intervallo di date; per un software con versione installata e CPE, l'identificativo di ogni CVE trovata solo da CISA KEV o MSRC (`cveId`); la chiave `NVD_API_KEY`, se impostata, in un'intestazione |
 | `api.msrc.microsoft.com` | `scan` | il mese dei bollettini richiesti; nessun nome di software, il filtro avviene sulla macchina |
 | `www.cisa.gov` | `scan` | nulla: scarica il catalogo KEV intero e lo filtra sulla macchina |
 | `security-tracker.debian.org` | `scan` dall'interfaccia web; `patchradar debian` senza `--file` | nulla: scarica il tracker intero e lo filtra sulla macchina |
