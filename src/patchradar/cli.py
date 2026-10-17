@@ -38,6 +38,7 @@ from patchradar.db.database import (
     remove_from_watchlist,
     save_cve,
     set_installed,
+    set_source,
 )
 from patchradar.epss import enrich as epss_enrich
 from patchradar.names import SOFTWARE_NAME_MAX_LENGTH, normalise_software_name
@@ -741,15 +742,18 @@ def import_inventory(
     path: str = typer.Argument(..., help="Inventory snapshot written by `patchradar collector`"),
     show: int = typer.Option(12, "--show", "-n",
                              help="How many entries to list per group; 0 for all"),
+    accept: list[str] = typer.Option(None, "--accept",
+                                     help="Watch this product, once per product: only one listed "
+                                          "as watchable by version"),
 ):
     """Read a machine's inventory and report what could be watched by version.
 
-    Writes nothing, asks nothing of the network, decides nothing. The mapping
-    from what the registry writes to what a vendor API wants cannot be deduced
-    from a name — measured on a real machine, 30% mapped by themselves and a
-    guess produced `MX5` → a Juniper router — so this proposes and a person
-    confirms. Storing a confirmed mapping needs the watchlist columns that do
-    not exist yet.
+    Asks nothing of the network and decides nothing. The mapping from what the
+    registry writes to what a vendor API wants cannot be deduced from a name —
+    measured on a real machine, 30% mapped by themselves and a guess produced
+    `MX5` → a Juniper router — so this proposes and a person confirms: without
+    `--accept` it writes nothing, and with it only the products named, and only
+    those the survey identified completely (docs/DESIGN.md §5.6).
     """
     from patchradar.inventory import CERTAIN, PROPOSED, read_snapshot, survey
 
@@ -818,9 +822,55 @@ def import_inventory(
         if limit is not None and len(rows) > limit:
             console.print(f"  [dim]…and {len(rows) - limit} more[/dim]")
 
-    console.print("\n[dim]Nothing was written. A confirmed mapping needs the watchlist "
-                  "columns (vendor, product_id, installed_version, channel, cpe), "
-                  "which this release does not have.[/dim]")
+    if not accept:
+        console.print("\n[dim]Nothing was written. To watch a product listed as watchable by "
+                      "version, confirm it: patchradar import <file> --accept \"<name>\", once per "
+                      "product.[/dim]")
+        return
+    written, refused = run(_write_accepted(found, accept))
+    console.print(f"\nWritten: {written}. Everything else was only reported.")
+    if refused:
+        raise typer.Exit(1)
+
+
+async def _write_accepted(found, names: list[str]) -> tuple[int, int]:
+    """Write the products a person confirmed; (written, refused).
+
+    Only a product the survey identified completely — the vendor source and the
+    product it needs — is written. A source without its product, a component, a
+    program nothing answers for: refused with the survey's own reason, because
+    writing it would be the guess `import` exists to avoid.
+    """
+    from patchradar.inventory import CERTAIN, Family
+
+    by_name: dict[str, Family] = {}
+    for family in found.families:
+        by_name.setdefault(family.name.lower(), family)
+        for candidate in family.candidates:
+            by_name.setdefault(candidate.name.lower(), family)
+    written = refused = 0
+    for asked in names:
+        family = by_name.get(asked.strip().lower())
+        if family is None:
+            console.print(Text(f"❌ {asked} is not in this inventory", style="red"))
+            refused += 1
+            continue
+        best = family.best
+        if family.confidence is not CERTAIN or not best.source or not best.product_id:
+            source = f"the source is {best.source}; " if best.source else ""
+            console.print(Text(f"❌ {family.name}: not written — {source}{best.reason}", style="red"))
+            refused += 1
+            continue
+        # A certain product is matched by an exact name ("Google Chrome",
+        # "Microsoft Edge"), which the watchlist always takes.
+        name = family.name.strip().lower()
+        await add_to_watchlist(name)
+        await set_installed(name, version=best.installed_version, cpe=None)
+        await set_source(name, vendor=best.source, product_id=best.product_id, channel=None)
+        version = best.installed_version or "(no version in the registry)"
+        console.print(Text(f"✅ Watching {name} {version} — {best.source}/{best.product_id}"))
+        written += 1
+    return written, refused
 
 
 POSITION_STYLES = {

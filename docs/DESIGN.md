@@ -140,8 +140,12 @@ expression keeps a listing of 50 a read of 50 rows.
 2. **PR-01b** — in three parts: the verdict stored and the API (01b-1); KEV
    and MSRC entries judged through NVD's record of the same CVE (01b-2); the KEV
    fields stored, with the database-backed listings ranked by priority (01b-3).
-3. **PR-01c** — the web UI; `patchradar import` writing the mappings a person
-   confirmed, `channel` included.
+3. **PR-01c** — `patchradar import --accept "<name>"` writing the products a
+   person confirmed, only those the survey identified completely (source and
+   product), into `vendor`, `product_id` and `installed_version` (01c-1);
+   the web UI (01c-2). `channel` stays empty until a source the survey
+   identifies needs one: the two certain today, Chrome and Edge, are matched
+   without it.
 
 ## 6. What PatchRadar does not do
 

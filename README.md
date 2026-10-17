@@ -147,8 +147,13 @@ package, because the machine worth surveying is the one without a checkout: run
 reconfiguration of every installed product, and it changes nothing else either.
 
 `patchradar import` then reports, per product, whether a vendor source can answer
-by version. It writes nothing and guesses nothing: a name cannot be turned into a
-vendor's product id by deduction, so it proposes and a person confirms.
+by version. It guesses nothing: a name cannot be turned into a vendor's product id
+by deduction, so it proposes and a person confirms. Without `--accept` it writes
+nothing; `patchradar import <file> --accept "Google Chrome"`, once per product,
+puts a product listed as watchable by version on the watchlist with its version
+and source. One the survey could not identify completely — a source without the
+product it needs, a component, a program nothing answers for — is refused with
+the survey's reason, however it is asked.
 
 The file boundary in the middle is the point. The analysis is Python, tested
 against recorded snapshots, and runs on a machine that never saw the one being

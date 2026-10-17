@@ -48,6 +48,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   listing faster than the date order was (1.0 ms against 1.45 ms on the benchmark's 500 CVEs).
   `/api/cves` rows carry `priority`, `priority_reason` and the KEV fields; `status` has a Priority
   column.
+- **`patchradar import --accept "<name>"` writes what a person confirmed.** `import` proposes and a
+  person confirms, and until the watchlist had the columns the confirmation had nowhere to go.
+  Named once per product, a product the survey identified completely — Chrome, Edge — is watched
+  with the registry's version and its vendor source in `vendor` and `product_id`. One it did not
+  identify (a source without its product, a component, a program nothing answers for) is refused
+  with the survey's reason, and the command exits 1; without `--accept` nothing is written.
 - **docs/DESIGN.md.** The code referred to "the versionradar design, §5" for these columns; the
   text was never committed and could not be found. It is reconstructed from what `affected.py`,
   `inventory.py` and `tests/test_priority_wiring.py` already committed to.
