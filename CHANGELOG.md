@@ -12,6 +12,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Security
+
+- **certifi 2026.10.19** in `uv.lock`, from 2026.7.22. The older bundle trusts emSign root CAs whose
+  intermediate CA keys were compromised (GHSA-6q48-6c7w-9gw2, critical, published 2026-10-20);
+  2026.10.19 is the release the advisory names as fixed. The Security Posture gate stopped every pull
+  request on it.
+
 ### Fixed
 
 - **`bump_version.py` left `uv.lock` behind.** `pyproject.toml` holds the version statically, so the
