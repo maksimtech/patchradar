@@ -10,6 +10,7 @@ from patchradar import cli, law_fetcher
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "gdpr_it_excerpt.html"
 NIS2_PAGE = FIXTURES / "nis2_it_excerpt.html"
+ART_24_PAGE = FIXTURES / "normattiva_dlgs138_2024_art24_recorded.html"
 runner = CliRunner()
 
 
@@ -33,7 +34,7 @@ def eurlex(monkeypatch):
 
     def fake_fetch_html(url, **kwargs):
         calls.append(url)
-        page = NIS2_PAGE if "32022L2555" in url else FIXTURE
+        page = ART_24_PAGE if "normattiva.it" in url else NIS2_PAGE if "32022L2555" in url else FIXTURE
         return page.read_text(encoding="utf-8")
 
     monkeypatch.setattr(law_fetcher, "fetch_html", fake_fetch_html)
@@ -73,14 +74,19 @@ def test_scan_cites_articles(monkeypatch, eurlex):
     assert eurlex == ["https://publications.europa.eu/resource/celex/32016R0679"]
 
 
-def test_critical_unpatched_cites_nis2(monkeypatch, eurlex):
+def test_critical_unpatched_cites_the_italian_nis2_decree(monkeypatch, eurlex):
     out = _scan(monkeypatch, [cve("CVE-2026-1006", severity="CRITICAL", patch=False)])
 
     assert "Critical CVEs with no patch" in out.output
-    assert "Provision applied: NIS2 dir. 2022/2555 art. 21\n" in out.output
-    assert f"SHA256: {_sha('21', NIS2_PAGE)}" in out.output
+    assert "Provision applied: D.Lgs. 138/2024 art. 24\n" in out.output
+    assert f"SHA256: {_sha('24', ART_24_PAGE)}" in out.output
     assert "essential and important entities" in out.output
-    assert eurlex[-1] == "https://publications.europa.eu/resource/celex/32022L2555"
+    assert eurlex[-1] == ("https://www.normattiva.it/uri-res/N2Ls?"
+                          "urn:nir:stato:decreto.legislativo:2024-09-04;138~art24!vig=")
+    flat = " ".join(out.output.split())   # Rich wraps the long URN at 80 columns
+    assert ("D.Lgs. 138/2024: verified against Normattiva "
+            "(URN urn:nir:stato:decreto.legislativo:2024-09-04;138)") in flat
+    assert "EUR-Lex" not in out.output
 
 
 def test_scan_of_whole_watchlist_cites_once(monkeypatch, eurlex):

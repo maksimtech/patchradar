@@ -13,7 +13,7 @@ from patchradar.law_checker import (
     findings_of,
     notes_of,
 )
-from patchradar.law_fetcher import GDPR, NIS2, LawFetchError, Provision
+from patchradar.law_fetcher import DLGS_138_2024, GDPR, LawFetchError, Provision
 
 DAY1 = datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
 DAY2 = datetime(2026, 10, 1, 9, 30, tzinfo=UTC)
@@ -36,7 +36,7 @@ def _fake_fetch(suffix=""):
         return {
             ref: Provision.from_text(ref, f"testo di {ref}{suffix}", stamp, act.celex)
             for ref in refs if ref.split("(")[0] in articles
-        }
+        }, "Cellar"
 
     fake.calls = calls
     return fake
@@ -50,7 +50,7 @@ def cache(tmp_path):
 @pytest.fixture
 def online(monkeypatch):
     fake = _fake_fetch()
-    monkeypatch.setattr(law_fetcher, "fetch_provisions", fake)
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", fake)
     return fake.calls
 
 
@@ -60,7 +60,7 @@ def test_mapping():
     assert FINDING_ARTICLES == {
         "critical": ((GDPR, "32(2)"),),
         "unpatched": ((GDPR, "25"),),
-        "critical_unpatched": ((NIS2, "21"),),
+        "critical_unpatched": ((DLGS_138_2024, "24"),),
         "personal_data": ((GDPR, "32"),),
     }
     assert set(FINDING_TITLES) == set(FINDING_ARTICLES)
@@ -83,7 +83,7 @@ def test_unpatched_only_when_known():
 def test_unknown_patch_status_is_noted():
     assert notes_of([cve(patch=None), cve(patch=None), cve()]) == [
         "2 CVEs with no patch information (not yet analysed by NVD): "
-        "not assessed against GDPR art. 25 or NIS2 art. 21"
+        "not assessed against GDPR art. 25 or D.Lgs. 138/2024 art. 24"
     ]
     assert notes_of([cve()]) == []
 
@@ -137,10 +137,10 @@ def test_citations(cache, online):
     assert [(c.finding, c.law, c.article) for c in law.citations] == [
         ("critical", "GDPR", "32(2)"),
         ("unpatched", "GDPR", "25"),
-        ("critical_unpatched", "NIS2 dir. 2022/2555", "21"),
+        ("critical_unpatched", "D.Lgs. 138/2024", "24"),
         ("personal_data", "GDPR", "32"),
     ]
-    assert online == [(GDPR, ("32", "25")), (NIS2, ("21",))]
+    assert online == [(GDPR, ("32", "25")), (DLGS_138_2024, ("24",))]
     assert [s.source for s in law.acts] == ["verified", "verified"]
     assert NIS2_SCOPE_NOTE in law.notes
     assert all(c.sha256 and c.version_date == "2026-09-19" for c in law.citations)
@@ -148,9 +148,9 @@ def test_citations(cache, online):
 
 
 def test_second_audit_changed_text(cache, monkeypatch):
-    monkeypatch.setattr(law_fetcher, "fetch_provisions", _fake_fetch())
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", _fake_fetch())
     first = check([cve(severity="CRITICAL")], cache=cache, now=DAY1)
-    monkeypatch.setattr(law_fetcher, "fetch_provisions", _fake_fetch(" (rettificato)"))
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", _fake_fetch(" (rettificato)"))
     law = check([cve(severity="CRITICAL")], cache=cache, now=DAY2)
 
     assert law.changed == {"GDPR art. 32(2)": first.citations[0].sha256}
@@ -163,7 +163,7 @@ def test_offline_uses_cache(cache, online, monkeypatch):
     def offline(*args, **kwargs):
         raise LawFetchError("offline")
 
-    monkeypatch.setattr(law_fetcher, "fetch_provisions", offline)
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", offline)
     law = check([cve(severity="CRITICAL")], cache=cache, now=DAY2)
 
     assert [s.source for s in law.acts] == ["cache"]

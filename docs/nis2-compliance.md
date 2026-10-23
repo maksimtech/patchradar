@@ -115,7 +115,7 @@ cosa ricevono:
 | `api.first.org` | `scan` | gli identificativi CVE trovati dalla scansione |
 | `publications.europa.eu` | `scan` da riga di comando, quando ci sono rilievi da citare | il numero CELEX dell'atto citato |
 | `eur-lex.europa.eu` | come sopra, se `publications.europa.eu` non risponde | il numero CELEX dell'atto citato |
-| `www.normattiva.it` | con le citazioni attuali, mai: serve agli atti italiani, e PatchRadar cita solo GDPR e NIS2, pubblicati su EUR-Lex | il riferimento dell'atto e dell'articolo |
+| `www.normattiva.it` | `scan` da riga di comando, quando una CVE critica non ha patch: art. 24 del d.lgs. 138/2024, che recepisce la NIS2 | il riferimento dell'atto e dell'articolo |
 <!-- hosts:end -->
 
 Ogni host riceve inoltre, come per qualunque connessione, l'indirizzo IP della

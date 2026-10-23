@@ -257,13 +257,16 @@ def test_only_the_law_fetcher_names_the_repository_in_its_user_agent(doc):
     assert "python-httpx" in doc
 
 
-def test_normattiva_is_not_reached_by_the_citations_patchradar_makes(doc):
-    """The law fetcher is shared by the Radar tools and can ask Normattiva for an
-    Italian act; PatchRadar's own mapping cites only acts EUR-Lex publishes."""
+def test_normattiva_is_reached_only_for_the_italian_nis2_decree(doc):
+    """PatchRadar cites the GDPR (EU, from Cellar) and, for a critical CVE with no
+    patch, art. 24 of d.lgs. 138/2024 (Italian, from Normattiva): the document says
+    when Normattiva is asked, and for which act."""
     cited = {act for refs in law_checker.FINDING_ARTICLES.values() for act, _ in refs}
     cited |= set(law_checker.ALSO_FETCH)
-    assert cited and all(act.source == "EUR-Lex" for act in cited)
-    assert "GDPR e NIS2" in doc
+    italian = {act.name for act in cited if act.source == "Normattiva"}
+    assert italian == {"D.Lgs. 138/2024"}
+    assert all(act.source in ("EUR-Lex", "Normattiva") for act in cited)
+    assert "`scan` da riga di comando, quando una CVE critica non ha patch: art. 24 del d.lgs. 138/2024" in doc
 
 
 @reads_source
