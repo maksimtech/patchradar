@@ -14,6 +14,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **A critical CVE with no patch now cites art. 24 of d.lgs. 138/2024, not art. 21 of the NIS2
+  directive.** The directive binds the Member States; in Italy the duty of essential and important
+  entities to take security measures is art. 24 of the decree that transposes it, downloaded from
+  Normattiva. The scope note points to art. 3 of the decree, and the note on CVEs not yet analysed names
+  the decree. `docs/nis2-compliance.md` says when Normattiva is now contacted.
+- **A verified text names the source it came from.** EU acts are downloaded from Cellar
+  (publications.europa.eu), with EUR-Lex only as the fallback, but the report said "verified against
+  EUR-Lex" whichever answered. It now says Cellar, EUR-Lex or Normattiva, as the case was;
+  `law_checker.check` takes an optional HTTP client, so the path can be tested on recorded answers.
 - **`bump_version.py` left `uv.lock` behind.** `pyproject.toml` holds the version statically, so the
   lock records it too, and the bump moved only the other two files: on 2026-10-17 Quality refused the
   2026.47 bump with "The lockfile at `uv.lock` needs to be updated", and the lock was moved by hand on

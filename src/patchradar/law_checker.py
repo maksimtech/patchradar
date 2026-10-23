@@ -13,9 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+import httpx
+
 from patchradar import law_fetcher
 from patchradar.law_cache import Key, LawCache
-from patchradar.law_fetcher import GDPR, NIS2, Act, LawFetchError, Provision
+from patchradar.law_fetcher import DLGS_138_2024, GDPR, Act, LawFetchError, Provision
 
 # ─── Mapping: PatchRadar findings → provisions ────────────────────────────────
 
@@ -23,7 +25,7 @@ from patchradar.law_fetcher import GDPR, NIS2, Act, LawFetchError, Provision
 FINDING_ARTICLES = {
     "critical": ((GDPR, "32(2)"),),
     "unpatched": ((GDPR, "25"),),
-    "critical_unpatched": ((NIS2, "21"),),
+    "critical_unpatched": ((DLGS_138_2024, "24"),),
     "personal_data": ((GDPR, "32"),),
 }
 
@@ -38,7 +40,7 @@ FINDING_TITLES = {
 ALSO_FETCH: dict = {}
 
 NIS2_SCOPE_NOTE = (
-    "NIS2 art. 21 binds essential and important entities (art. 3 of the directive): "
+    "D.Lgs. 138/2024 art. 24 binds essential and important entities (art. 3 of the decree): "
     "check that the organisation falls within scope"
 )
 
@@ -83,7 +85,7 @@ def notes_of(cves: list[dict]) -> list[str]:
     if unknown:
         notes.append(
             f"{unknown} CVEs with no patch information (not yet analysed by NVD): "
-            "not assessed against GDPR art. 25 or NIS2 art. 21"
+            "not assessed against GDPR art. 25 or D.Lgs. 138/2024 art. 24"
         )
     if any(_is_critical(cve) and cve.get("patch_available") is False for cve in cves):
         notes.append(NIS2_SCOPE_NOTE)
@@ -104,10 +106,11 @@ class Citation:
 @dataclass(frozen=True)
 class ActStatus:
     act: Act
-    # "verified": downloaded now from the act's source (EUR-Lex or Normattiva);
-    # "cache": source unreachable, cached copy; "unavailable": no text at all
+    # "verified": downloaded now; "cache": source unreachable, cached copy; "unavailable": no text at all
     source: str
     error: str | None = None
+    # Where a verified text came from: "Cellar", "EUR-Lex" (the fallback) or "Normattiva"; None otherwise
+    origin: str | None = None
 
 
 @dataclass
@@ -128,6 +131,7 @@ def check(
     *,
     cache: LawCache | None = None,
     now: datetime | None = None,
+    client: httpx.Client | None = None,
     **context,
 ) -> LawCheckResult:
     """
@@ -153,13 +157,14 @@ def check(
     # Keyed by (celex, article) — the cache's key, not the fetcher's.
     fresh: dict[Key, Provision] = {}
     errors: dict[Act, str] = {}
+    origins: dict[Act, str] = {}
     for act in acts:
         # The articles cited ("32(1)(a)" is part of article 32) and ALSO_FETCH
         articles = tuple(dict.fromkeys(
             [ref.split("(")[0] for _, a, ref in cited if a == act] + list(ALSO_FETCH.get(act, ()))
         ))
         try:
-            by_article = law_fetcher.fetch_provisions(act, articles, now=now)
+            by_article, origins[act] = law_fetcher.fetch_provisions_from(act, articles, now=now, client=client)
         except LawFetchError as e:
             errors[act] = str(e)
         else:
@@ -177,7 +182,7 @@ def check(
     statuses = []
     for act in acts:
         if act not in errors:
-            statuses.append(ActStatus(act, "verified"))
+            statuses.append(ActStatus(act, "verified", origin=origins[act]))
         else:
             cached = any((act.celex, ref) in provisions for _, a, ref in cited if a == act)
             statuses.append(ActStatus(act, "cache" if cached else "unavailable", errors[act]))
