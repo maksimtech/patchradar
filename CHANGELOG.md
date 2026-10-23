@@ -12,6 +12,8 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+## [2026.48] - 2026-10-23
+
 ### Security
 
 - **certifi 2026.10.19** in `uv.lock`, from 2026.7.22. The older bundle trusts emSign root CAs whose
