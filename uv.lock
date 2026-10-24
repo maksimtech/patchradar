@@ -751,7 +751,7 @@ wheels = [
 
 [[package]]
 name = "patchradar"
-version = "2026.47"
+version = "2026.48"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
