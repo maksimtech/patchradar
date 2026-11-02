@@ -22,6 +22,10 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   quota. The Snyk-sourced entries left `SECURITY-EXCEPTIONS.toml`, their reasons moving into the entries
   of the scanners that still report the same CVEs; `tests/test_trivy_workflow.py` holds the image scan,
   and `tests/test_workflow_set.py` keeps `snyk.yml` retired.
+  Its first run reported nine CVEs in the base image's Debian packages (util-linux ×4, ncurses, systemd, perl, sqlite3, acl), all
+  without a fix in trixie and none in code this tool runs; with the three sqlite3 CVEs Docker Scout raised
+  on `main` on 2026-11-02, which had turned Security Posture red, they are recorded in
+  `SECURITY-EXCEPTIONS.toml` to wait for Debian, as the maintainer decided that day for every Radar.
 
 ### Fixed
 
