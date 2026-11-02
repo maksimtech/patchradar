@@ -12,6 +12,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Trivy scans the image a pull request builds; Snyk is gone.** As in maksimtech/apkradar#54: of what
+  `snyk.yml` ran, only the container scan worked. Snyk Open Source stopped on `SNYK-OS-PYTHON-0013`
+  ("Missing required packages") here too, so its check on new dependency issues let everything through;
+  Snyk Code repeated CodeQL, Bandit and SonarCloud; and the free plan's monthly test quota, shared by the
+  Radar, was spent. `trivy.yml` now builds the image and scans it before merge, with no token and no
+  quota. The Snyk-sourced entries left `SECURITY-EXCEPTIONS.toml`, their reasons moving into the entries
+  of the scanners that still report the same CVEs; `tests/test_trivy_workflow.py` holds the image scan,
+  and `tests/test_workflow_set.py` keeps `snyk.yml` retired.
+
 ### Fixed
 
 - **Docker Scout scans the image as soon as it is published, and Security Posture reads that scan.**
