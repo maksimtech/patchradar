@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Taken at least 14 days after release (tests/test_dependabot_config.py);
+    # Dependabot's security updates are not subject to the cooldown.
+    cooldown:
+      default-days: 14
     labels:
       - "dependencies"
 
@@ -11,6 +15,15 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Taken at least 14 days after release (tests/test_dependabot_config.py);
+    # Dependabot's security updates are not subject to the cooldown.
+    cooldown:
+      default-days: 14
+    groups:
+      # Every action in one pull request a week, not one per action.
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
 
@@ -18,5 +31,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Taken at least 14 days after release (tests/test_dependabot_config.py);
+    # Dependabot's security updates are not subject to the cooldown.
+    cooldown:
+      default-days: 14
     labels:
       - "dependencies"
