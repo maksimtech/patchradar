@@ -45,6 +45,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **Security Posture reads every page of alerts.** The code scanning API returns at most a hundred
+  alerts per call, and the gate read one page of each list. Found in cookieradar on 2026-11-13
+  (cookieradar #70): a pull request with 123 open alerts and main with 142, three exceptions whose
+  findings sat past the hundredth read as matching nothing, and the gate failed on a product whose every
+  alert was explained; read the other way, an unexplained alert past the hundredth would not have been
+  seen at all. This repository had 49 open on main on 2026-11-15, so its gate had not met the limit yet.
+  Each of the four reads now goes through `gh api --paginate --slurp` and joins the pages; a failed read
+  still fails, so an unreadable list is not taken for an empty one.
+  `tests/test_security_posture_workflow.py` runs the step's own function against a stand-in `gh` that
+  answers in two pages.
+
 - **Docker Scout scans the image as soon as it is published, and Security Posture reads that scan.**
   The scan reads `latest` from Docker Hub but ran only on a push to main, weekly or by hand: after the
   certifi release the gate stayed red on the replaced image until both were dispatched by hand.
