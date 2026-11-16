@@ -44,9 +44,11 @@ jobs:
           RAW: ${{ github.ref_name }}
         run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
 
-      # No margin: the grace in this script is for the case of two resolvers, the
-      # runner and the buildx container. Here there is only the runner, which is what
-      # the poll just asked, so a margin would buy nothing.
+      # No margin, and the install is asked again instead, by install_from_pypi.sh.
+      # A poll that has just been answered does not mean the next request will be: on
+      # apkradar 2026.48 the wait saw the version and the install three seconds later,
+      # on the same runner, was refused it. A grace would not have saved it —
+      # releaseradar lost on v2026.4 with 45 s.
       - name: Wait for the index to catch up
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
@@ -57,6 +59,5 @@ jobs:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           python -m venv "${RUNNER_TEMP}/verify"
-          "${RUNNER_TEMP}/verify/bin/pip" install --no-cache-dir \
-              --only-binary :all: "patchradar==${VERSION}"
+          bash .github/scripts/install_from_pypi.sh "${RUNNER_TEMP}/verify" patchradar "$VERSION" 10 30
           "${RUNNER_TEMP}/verify/bin/patchradar" --version
