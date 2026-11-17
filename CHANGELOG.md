@@ -53,6 +53,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
+  Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
+  from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
+  statement from `db.execute(sql, params)` and leaves the parameters, a tuple built with `*` and `+`,
+  where the check expects the statement; a few dozen more repeat the listings' ORDER BY, which another
+  test of the file counts. The three checks now read the database.py in the repository, the same path
+  without `mutants/`, so they hold or fail under mutmut exactly as they do in the ordinary run. The new
+  test has mutmut build its copy of the real database.py and reproduced the failure before the fix.
+
 - **Security Posture reads every page of alerts.** The code scanning API returns at most a hundred
   alerts per call, and the gate read one page of each list. Found in cookieradar on 2026-11-13
   (cookieradar #70): a pull request with 123 open alerts and main with 142, three exceptions whose
