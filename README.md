@@ -14,9 +14,9 @@ PatchRadar checks the CVE feeds for the software on your watchlist, most urgent 
 Scans run when you start one — `patchradar scan`, or **Scan** in the web UI. There is no scheduler and no notification inside PatchRadar: to scan on a schedule, run `patchradar scan` from cron or the Windows Task Scheduler.
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)
-![CalVer](https://img.shields.io/badge/calver-2026.8.2-green?style=flat-square)
+![CalVer](https://img.shields.io/badge/versioning-CalVer-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square)label=pypi)
+![PyPI](https://img.shields.io/pypi/v/patchradar?style=flat-square&label=pypi)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/maksimtech/patchradar?utm_source=badge)
 
 ---

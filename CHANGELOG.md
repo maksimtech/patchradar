@@ -12,6 +12,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Security
+
+- **opentelemetry-api 1.45.2** in `uv.lock`, from 1.45.1. The older release parses a `traceparent`
+  header in quadratic time, a denial of service (CVE-2026-126360, GHSA-mf5v-w3w3-f6cg, medium,
+  published 2026-11-13); 1.45.2, on PyPI since 2026-10-29, is the release the advisory names as fixed.
+  It arrives through fastapi, so `uv lock --upgrade-package opentelemetry-api` moved that one entry and
+  nothing else. Dependabot raised the alert on 2026-11-14 but opened no pull request.
+
 ### Changed
 
 - **The sqlite3 findings say what Debian decided, and Trivy's two new ones are recorded.** On
@@ -51,6 +59,29 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
+  Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
+  from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
+  statement from `db.execute(sql, params)` and leaves the parameters, a tuple built with `*` and `+`,
+  where the check expects the statement; a few dozen more repeat the listings' ORDER BY, which another
+  test of the file counts. The three checks now read the database.py in the repository, the same path
+  without `mutants/`, so they hold or fail under mutmut exactly as they do in the ordinary run. The new
+  test has mutmut build its copy of the real database.py and reproduced the failure before the fix.
+
+- **The README's badges render, and none states the version by hand.** The README is also the long
+  description on PyPI. The PyPI badge had been pasted into its own URL and showed as a broken image; it
+  is one badge again. The static `calver-2026.8.2` badge named a release two months old; it now says
+  the project uses CalVer, and the version is left to the PyPI badges, which ask PyPI.
+  `tests/test_readme_badges.py` holds both.
+
+- **Changelog headings.** 2026.40 had two `### Changed` sections, now one; 2026.48 was dated
+  2026-10-23 with a hyphen, and is now dated 2026-10-24, the day of its tag, with the em dash the other
+  releases use.
+
+- **The two CodeQL exceptions name the lines CodeQL reports.** Their `where` said `api/main.py:69` and
+  `ui_harness.js:45`; the open alerts are at lines 145 and 73, the same warning and the same setter,
+  moved by the code around them. Only the text changed: the gate matches an exception by rule and path.
+
 - **Security Posture reads every page of alerts.** The code scanning API returns at most a hundred
   alerts per call, and the gate read one page of each list. Found in cookieradar on 2026-11-13
   (cookieradar #70): a pull request with 123 open alerts and main with 142, three exceptions whose
@@ -89,7 +120,7 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   of the configuration read `uv.lock`. A `uv` entry with `open-pull-requests-limit: 0` stops version
   updates for uv, so pip's remain the one weekly stream, and leaves security updates to arrive.
 
-## [2026.48] - 2026-10-23
+## [2026.48] — 2026-10-24
 
 ### Security
 
@@ -1258,20 +1289,6 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   done it. 2026 is a settling year; from 2027 the count moves when the code
   moves.
 
-
-### Fixed
-
-- **An NVD API key, paced requests, and a scan that admits a source was
-  silent.** Without a key NVD allows five requests per rolling thirty seconds,
-  and the scanner sent them as fast as it could: the throttling that followed
-  came back as empty results, which the report presented as "no CVEs" — the
-  strongest possible claim, produced by not having asked. A key is read from the
-  environment when present, requests are paced to what the tier actually allows,
-  and a source that did not answer is reported as a source that did not answer
-  rather than as an absence of findings.
-
-### Changed
-
 - **The Docker image builds from this repository instead of from a published
   release.** The Dockerfile could only install `patchradar==${PATCHRADAR_VERSION}`
   from PyPI, with a default of `2026.8.33` — an August release, while the package
@@ -1283,6 +1300,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   without publishing anything: it verifies that the container user can create the
   database where the volume actually is, which is the failure that once emptied
   the watchlist on every container recreation.
+
+### Fixed
+
+- **An NVD API key, paced requests, and a scan that admits a source was
+  silent.** Without a key NVD allows five requests per rolling thirty seconds,
+  and the scanner sent them as fast as it could: the throttling that followed
+  came back as empty results, which the report presented as "no CVEs" — the
+  strongest possible claim, produced by not having asked. A key is read from the
+  environment when present, requests are paced to what the tier actually allows,
+  and a source that did not answer is reported as a source that did not answer
+  rather than as an absence of findings.
 
 ## [2026.9.6] — 2026-09-24
 
