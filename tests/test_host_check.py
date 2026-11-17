@@ -83,9 +83,15 @@ async def test_a_loopback_name_on_another_port_is_refused():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("host", ["", "localhost:99999", "localhost:80@evil.example", "evil.example/x"])
+@pytest.mark.parametrize("host", [
+    "", "localhost:99999", "localhost:80@evil.example", "evil.example/x",
+    # brackets around what is not an IPv6 address: urlsplit raises on them
+    "[1.2]", "[1.2.3.4]:8000", "[:::]",
+])
 async def test_a_host_that_is_not_one_is_a_bad_request(host):
-    r = await _request("GET", "/api/watchlist", {"Host": host})
+    async with AsyncClient(transport=ASGITransport(app=api.app, raise_app_exceptions=False),
+                           base_url="http://localhost:8000") as ac:
+        r = await ac.get("/api/watchlist", headers={"Host": host})
     assert r.status_code == 400
 
 
@@ -206,11 +212,56 @@ async def test_a_proxy_that_rewrites_host_keeps_the_configured_origin(monkeypatc
     f"http://{FOREIGN}",
     "null",
     "http://localhost:8000@evil.example",
+    "http://localhost:8000/path",
+    "http://[1.2]:8000",              # urlsplit raises on it: a 500 on ad348ad
 ])
 async def test_an_origin_the_server_does_not_answer_to_is_refused(origin):
-    r = await _request("POST", "/api/watchlist/nginx", {"Host": "localhost:8000", "Origin": origin})
+    async with AsyncClient(transport=ASGITransport(app=api.app, raise_app_exceptions=False),
+                           base_url="http://localhost:8000") as ac:
+        r = await ac.post("/api/watchlist/nginx", headers={"Origin": origin})
     assert r.status_code == 403
     assert await database.get_watchlist() == []
+
+
+# ─── At startup ──────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_startup_names_the_configured_entries_it_ignores(monkeypatch, caplog):
+    """`*` would read as "any host" elsewhere; here it is not a host, and the
+    operator is told rather than left to wonder why nothing matches."""
+    monkeypatch.setenv(ALLOWED_HOSTS_ENV, "*, patchradar.lan, http://x/")
+    with caplog.at_level("WARNING", logger="patchradar"):
+        async with api.lifespan(api.app):
+            pass
+    ignored = [r.getMessage() for r in caplog.records if ALLOWED_HOSTS_ENV in r.getMessage()]
+    assert ignored == [f"{ALLOWED_HOSTS_ENV}: ignoring ['*', 'http://x/'], which are not host or host:port"]
+
+
+@pytest.mark.asyncio
+async def test_the_host_check_lets_the_lifespan_through():
+    """Startup and shutdown carry no Host: the check is for HTTP requests only,
+    or uvicorn would never start the app. Driven through the ASGI app, as
+    uvicorn drives it."""
+    incoming = iter([{"type": "lifespan.startup"}, {"type": "lifespan.shutdown"}])
+    sent: list[str] = []
+
+    async def receive():
+        return next(incoming)
+
+    async def send(message):
+        sent.append(message["type"])
+
+    await api.app({"type": "lifespan", "asgi": {"version": "3.0"}, "state": {}}, receive, send)
+    assert sent == ["lifespan.startup.complete", "lifespan.shutdown.complete"]
+
+
+@pytest.mark.asyncio
+async def test_startup_is_quiet_about_valid_entries(monkeypatch, caplog):
+    monkeypatch.setenv(ALLOWED_HOSTS_ENV, "patchradar.lan,localhost:9000")
+    with caplog.at_level("WARNING", logger="patchradar"):
+        async with api.lifespan(api.app):
+            pass
+    assert not [r for r in caplog.records if ALLOWED_HOSTS_ENV in r.getMessage()]
 
 
 # ─── The page itself ─────────────────────────────────────────────────────────

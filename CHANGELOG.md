@@ -26,7 +26,8 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   (comma-separated, `name` for any port, `name:port` for that one, no wildcard); a missing or
   malformed `Host` is a 400. For a browser that sends no `Sec-Fetch-Site`, the write guard compares
   `Origin` with those hosts, port included, instead of with the request's own `Host`, which the
-  rebinding page sets. Who reaches the UI through a reverse proxy that passes its own `Host`, a LAN
+  rebinding page sets; an `Origin` with brackets around something that is not an IPv6 address, such
+  as `http://[1.2]`, is a 403 where it was a 500. Who reaches the UI through a reverse proxy that passes its own `Host`, a LAN
   name or a Docker port other than 8000 adds that name to the variable; `docker-compose.yml` and
   `.env.example` pass it through. `tests/test_host_check.py`.
 

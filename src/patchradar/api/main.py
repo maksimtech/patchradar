@@ -5,10 +5,11 @@ import logging
 import math
 import os
 import re
+from collections.abc import Awaitable, Callable, MutableMapping
 from contextlib import asynccontextmanager
 from importlib.metadata import version as pkg_version
 from pathlib import Path as FilePath
-from urllib.parse import urlsplit
+from typing import Any
 
 import aiosqlite
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
@@ -106,13 +107,24 @@ async def require_api_key(provided: str | None = Depends(_api_key_header)) -> No
 
 ALLOWED_HOSTS_ENV = "PATCHRADAR_ALLOWED_HOSTS"
 
+# ASGI, spelt without importing Starlette, which is FastAPI's and not declared here.
+Scope = MutableMapping[str, Any]
+Receive = Callable[[], Awaitable[MutableMapping[str, Any]]]
+Send = Callable[[MutableMapping[str, Any]], Awaitable[None]]
+ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
+
 # The names a browser on this machine reaches the server by, whatever --host is.
 _LOOPBACK_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
 
 # A Host value, or the authority of an Origin: a name or an IPv4 address, or an
 # IPv6 address in brackets, and an optional port. Nothing else — no userinfo,
 # path or spaces — so what is matched is what a browser would have sent.
-_AUTHORITY_RE = re.compile(r"(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?")
+# Matched here rather than with urlsplit, which raises ValueError on brackets
+# around something that is not an IPv6 address: a 500 for `Origin: http://[1.2]`.
+_AUTHORITY_RE = re.compile(r"(?:(?P<name>[A-Za-z0-9._-]+)|\[(?P<ipv6>[0-9A-Fa-f:.]+)\])(?::(?P<port>[0-9]{1,5}))?")
+
+# An Origin header as browsers serialise one (RFC 6454, 6.1).
+_ORIGIN_RE = re.compile(r"(?P<scheme>https?)://(?P<authority>.+)")
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
@@ -120,17 +132,19 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 def _parse_authority(value: str) -> tuple[str, int | None] | None:
     """(host, port) of `name[:port]`, the host lower-cased and an address in its
     canonical form; None when the value is not one."""
-    if not _AUTHORITY_RE.fullmatch(value):
+    match = _AUTHORITY_RE.fullmatch(value)
+    if match is None:
         return None
-    parts = urlsplit("//" + value)
-    try:
-        port = parts.port
-    except ValueError:  # beyond 65535
+    port = int(match["port"]) if match["port"] else None
+    if port is not None and port > 65535:
         return None
-    host = parts.hostname
-    if not host:
-        return None
-    return _as_address(host) or host, port
+    if match["ipv6"] is not None:
+        try:
+            return ipaddress.IPv6Address(match["ipv6"]).compressed, port
+        except ValueError:
+            return None
+    name = match["name"].lower()
+    return _as_address(name) or name, port
 
 
 def _as_address(value: str) -> str | None:
@@ -153,7 +167,7 @@ def configured_hosts() -> list[tuple[str, int | None]]:
     return [entry for entry in entries if entry is not None]
 
 
-def _answers_to(host: str, port: int | None, request: Request) -> bool:
+def _answers_to(host: str, port: int | None, scope: Scope) -> bool:
     """Whether this server, as reached by this connection, is `host:port`.
 
     The loopback names and the address the connection arrived on (uvicorn puts
@@ -166,7 +180,7 @@ def _answers_to(host: str, port: int | None, request: Request) -> bool:
     for name, wanted in configured_hosts():
         if host == name and (wanted is None or port == wanted):
             return True
-    own_address, own_port = request.scope.get("server") or (None, None)
+    own_address, own_port = scope.get("server") or (None, None)
     names = set(_LOOPBACK_NAMES)
     if isinstance(own_address, str) and (address := _as_address(own_address)):
         names.add(address)
@@ -184,14 +198,12 @@ def _origin_is_this_server(origin: str, request: Request) -> bool:
     origin's, or the scheme's default when it has none, so a page from
     http://localhost (port 80) is not this server on port 8000.
     """
-    parts = urlsplit(origin)
-    if parts.scheme not in _DEFAULT_PORTS:  # "null" among them
-        return False
-    authority = _parse_authority(parts.netloc)
-    if authority is None or parts.path or parts.query or parts.fragment:
+    match = _ORIGIN_RE.fullmatch(origin)  # not "null", nor anything with a path
+    authority = _parse_authority(match["authority"]) if match else None
+    if match is None or authority is None:
         return False
     host, port = authority
-    return _answers_to(host, port if port is not None else _DEFAULT_PORTS[parts.scheme], request)
+    return _answers_to(host, port if port is not None else _DEFAULT_PORTS[match["scheme"]], request.scope)
 
 
 # What a browser's Sec-Fetch-Site may say about a write it is allowed to send:
@@ -249,10 +261,7 @@ app = FastAPI(title="PatchRadar", version=pkg_version("patchradar"), lifespan=li
 app.mount("/static", StaticFiles(directory=FilePath(__file__).parent / "static"), name="static")
 
 
-# Registered before `security_headers`, so that one wraps it and the refusals
-# below carry the same headers as every other answer.
-@app.middleware("http")
-async def require_known_host(request: Request, call_next) -> Response:
+class RequireKnownHost:
     """Answer only to a Host this server is: every route, reads and /static too.
 
     DNS rebinding: a page on rebind.evil.example is served by the attacker,
@@ -266,19 +275,38 @@ async def require_known_host(request: Request, call_next) -> Response:
     not this server: the request reached a server that will not answer for that
     target. 400 for a Host that is missing or not a host[:port] at all, as
     RFC 9112, 3.2 asks.
+
+    Plain ASGI rather than `@app.middleware("http")`: a second one of those
+    made the API benchmarks 14-18% slower (CodSpeed on this change).
     """
-    raw = request.headers.get("host", "")
-    authority = _parse_authority(raw)
-    if authority is None:
-        return JSONResponse({"detail": "Missing or malformed Host header"}, status_code=400)
-    if not _answers_to(*authority, request):
-        logger.warning("refused a request for host %r: not one this server answers to (%s)",
-                       raw[:100], ALLOWED_HOSTS_ENV)
-        return JSONResponse(
-            {"detail": f"This server does not answer to that host; name it in {ALLOWED_HOSTS_ENV} if it should"},
-            status_code=421,
-        )
-    return await call_next(request)
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        raw = Request(scope).headers.get("host", "")
+        authority = _parse_authority(raw)
+        if authority is None:
+            refusal = JSONResponse({"detail": "Missing or malformed Host header"}, status_code=400)
+        elif not _answers_to(*authority, scope):
+            logger.warning("refused a request for host %r: not one this server answers to (%s)",
+                           raw[:100], ALLOWED_HOSTS_ENV)
+            refusal = JSONResponse(
+                {"detail": f"This server does not answer to that host; name it in {ALLOWED_HOSTS_ENV} if it should"},
+                status_code=421,
+            )
+        else:
+            await self.app(scope, receive, send)
+            return
+        await refusal(scope, receive, send)
+
+
+# Added before `security_headers`, which therefore wraps it: the refusals carry
+# the same headers as every other answer.
+app.add_middleware(RequireKnownHost)
 
 
 @app.middleware("http")
