@@ -338,7 +338,8 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
         lambda: nvd_fetch(sw, days_back=days),
         lambda: msrc_fetch(sw, days_back=days),
         lambda: debian_fetch(sw),
-        lambda: kev_fetch(sw),
+        # By the entry's CPE as well as by name, as in the CLI (collectors/kev.py)
+        lambda: kev_fetch(sw, cpe=entry.cpe) if entry is not None and entry.cpe else kev_fetch(sw),
     ]
     if vuldb_api_key():
         fetches.append(lambda: vuldb_fetch(sw, days_back=days))

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import functools
 import json
 import math
 import pathlib
@@ -391,7 +392,10 @@ async def _scan_target(
         # VulDB only with its key: without it every target came back "incomplete"
         # and no scan could ever end in an all-clear. A source nobody configured
         # is not one that failed; `scan` says once that it was not asked.
-        fetches = (fetch_cves, msrc_fetch, kev_fetch) + ((vuldb_fetch,) if vuldb_api_key() else ())
+        # KEV by the entry's CPE as well as by name: CISA files most Chrome
+        # CVEs under "Chromium V8" and the like (collectors/kev.py).
+        kev_by_cpe = functools.partial(kev_fetch, cpe=entry.cpe) if entry is not None and entry.cpe else kev_fetch
+        fetches = (fetch_cves, msrc_fetch, kev_by_cpe) + ((vuldb_fetch,) if vuldb_api_key() else ())
         for fetch in fetches:
             try:
                 all_cves += await fetch(target, days_back=days)

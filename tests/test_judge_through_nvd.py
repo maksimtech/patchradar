@@ -65,6 +65,9 @@ def nvd_router():
     with respx.mock(assert_all_called=False) as router:
         router.get(url__startswith=nvd.NVD_API, params__contains={"keywordSearch": "7-zip"}).mock(
             return_value=httpx.Response(200, json=NVD_EMPTY))
+        # The KEV collector asks NVD by the entry's CPE too (hasKev): nothing more there
+        router.get(url__startswith=nvd.NVD_API, params__contains={"hasKev": ""}).mock(
+            return_value=httpx.Response(200, json=NVD_EMPTY))
         by_id = router.get(url__startswith=nvd.NVD_API, params__contains={"cveId": "CVE-2026-48092"}).mock(
             return_value=httpx.Response(200, json=CVE_48092))
         router.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
@@ -138,6 +141,9 @@ def test_when_nvd_cannot_be_asked_the_cve_stays_not_evaluable_and_the_scan_says_
     with respx.mock(assert_all_called=False) as router:
         router.get(url__startswith=nvd.NVD_API, params__contains={"keywordSearch": "7-zip"}).mock(
             return_value=httpx.Response(200, json=NVD_EMPTY))
+        # The KEV collector asks NVD by the entry's CPE too (hasKev): nothing more there
+        router.get(url__startswith=nvd.NVD_API, params__contains={"hasKev": ""}).mock(
+            return_value=httpx.Response(200, json=NVD_EMPTY))
         router.get(url__startswith=nvd.NVD_API, params__contains={"cveId": "CVE-2026-48092"}).mock(
             return_value=httpx.Response(503))
         router.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
@@ -168,6 +174,9 @@ def test_a_cve_nvd_already_returned_is_not_asked_for_again(kev_lists_it):
     with respx.mock(assert_all_called=False) as router:
         router.get(url__startswith=nvd.NVD_API, params__contains={"keywordSearch": "7-zip"}).mock(
             return_value=httpx.Response(200, json=CVE_48092))
+        # The KEV collector asks NVD by the entry's CPE too (hasKev): nothing more there
+        router.get(url__startswith=nvd.NVD_API, params__contains={"hasKev": ""}).mock(
+            return_value=httpx.Response(200, json=NVD_EMPTY))
         by_id = router.get(url__startswith=nvd.NVD_API, params__contains={"cveId": "CVE-2026-48092"}).mock(
             return_value=httpx.Response(200, json=CVE_48092))
         router.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
@@ -186,6 +195,9 @@ async def test_the_api_lists_nvd_refusing_the_lookup_among_its_errors(kev_lists_
     errors: list[dict] = []
     with respx.mock(assert_all_called=False) as router:
         router.get(url__startswith=nvd.NVD_API, params__contains={"keywordSearch": "7-zip"}).mock(
+            return_value=httpx.Response(200, json=NVD_EMPTY))
+        # The KEV collector asks NVD by the entry's CPE too (hasKev): nothing more there
+        router.get(url__startswith=nvd.NVD_API, params__contains={"hasKev": ""}).mock(
             return_value=httpx.Response(200, json=NVD_EMPTY))
         router.get(url__startswith=nvd.NVD_API, params__contains={"cveId": "CVE-2026-48092"}).mock(
             return_value=httpx.Response(503))

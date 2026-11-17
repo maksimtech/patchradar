@@ -1,0 +1,135 @@
+{
+ "_derived": "An excerpt, not the whole answer. The source is the live CISA KEV catalogue, https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json, downloaded on 2026-11-17 (catalogVersion 2026.11.17, dateReleased 2026-11-17T17:53:15.5664Z, 1782 entries; 72 of them name Chrome or Chromium, only 6 with the word 'chrome'). Kept, in the catalogue's order: CVE-2026-125350 (Google / Chromium); CVE-2026-58704 (Google / Pixel); CVE-2026-87491 (Google / Chromium V8); CVE-2026-5281 (Google / Dawn); CVE-2025-2783 (Google / Chromium Mojo); CVE-2025-0411 (7-Zip / 7-Zip); CVE-2016-7200 (Microsoft / Edge); CVE-2020-16017 (Google / Chrome). Every kept entry is copied verbatim; nothing was added or changed, only left out. The header fields are verbatim too, except `count`, which says how many entries this file holds.",
+ "title": "CISA Catalog of Known Exploited Vulnerabilities",
+ "catalogVersion": "2026.11.17",
+ "dateReleased": "2026-11-17T17:53:15.5664Z",
+ "count": 8,
+ "vulnerabilities": [
+  {
+   "cveID": "CVE-2026-125350",
+   "vendorProject": "Google",
+   "product": "Chromium",
+   "vulnerabilityName": "Google Chromium Use-After-Free Vulnerability",
+   "dateAdded": "2026-11-10",
+   "shortDescription": "Google Chromium contains a use-after-free vulnerability in the XML component that could allow a remote attacker to execute arbitrary code inside the sandbox via a specially crafted webpage. This vulnerability could affect multiple web browsers that utilize Chromium, including, but not limited to, Google Chrome, Microsoft Edge, and Opera.",
+   "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+   "dueDate": "2026-11-24",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop_018223192.html ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https://nvd.nist.gov/vuln/detail/CVE-2026-125350",
+   "cwes": [
+    "CWE-416"
+   ]
+  },
+  {
+   "cveID": "CVE-2026-58704",
+   "vendorProject": "Google",
+   "product": "Pixel",
+   "vulnerabilityName": "Google Pixel Improper Authorization Vulnerability",
+   "dateAdded": "2026-09-16",
+   "shortDescription": "Google Pixel devices contain an improper authorization vulnerability in the cellular modem. A logic error may allow an attacker to bypass permission checks and escalate privileges.",
+   "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+   "dueDate": "2026-09-19",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "Yes",
+   "notes": "https://source.android.com/docs/security/bulletin/pixel/2026/2026-09-01 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https://nvd.nist.gov/vuln/detail/CVE-2026-58704",
+   "cwes": [
+    "CWE-693"
+   ]
+  },
+  {
+   "cveID": "CVE-2026-87491",
+   "vendorProject": "Google",
+   "product": "Chromium V8",
+   "vulnerabilityName": "Google Chromium V8 Out of Bounds Write Vulnerability",
+   "dateAdded": "2026-09-09",
+   "shortDescription": "Google Chromium V8 contains an out of bounds write vulnerability that allows a remote attacker to execute arbitrary code inside the sandbox via a crafted HTML page. This vulnerability could affect multiple web browsers that utilize Chromium, including, but not limited to, Google Chrome, Microsoft Edge, and Opera.",
+   "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+   "dueDate": "2026-09-23",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://chromereleases.googleblog.com/2026/09/stable-channel-update-for-desktop_0808145027.html ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https://nvd.nist.gov/vuln/detail/CVE-2026-87491",
+   "cwes": [
+    "CWE-787"
+   ]
+  },
+  {
+   "cveID": "CVE-2026-5281",
+   "vendorProject": "Google",
+   "product": "Dawn",
+   "vulnerabilityName": "Google Dawn Use-After-Free Vulnerability",
+   "dateAdded": "2026-04-01",
+   "shortDescription": "Google Dawn contains an use-after-free vulnerability that could allow a remote attacker who had compromised the renderer process to execute arbitrary code via a crafted HTML page. This vulnerability could affect multiple Chromium-based products including, but not limited to, Google Chrome, Microsoft Edge, and Opera.",
+   "requiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2026-04-15",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "This vulnerability affects an open-source component, third-party library, protocol, or proprietary implementation that could be used by different products. For more information, please see: https://chromereleases.googleblog.com/2026/03/stable-channel-update-for-desktop_31.html ; https://nvd.nist.gov/vuln/detail/CVE-2026-5281",
+   "cwes": [
+    "CWE-416"
+   ]
+  },
+  {
+   "cveID": "CVE-2025-2783",
+   "vendorProject": "Google",
+   "product": "Chromium Mojo",
+   "vulnerabilityName": "Google Chromium Mojo Sandbox Escape Vulnerability",
+   "dateAdded": "2025-03-27",
+   "shortDescription": "Google Chromium Mojo on Windows contains a sandbox escape vulnerability caused by a logic error, which results from an incorrect handle being provided in unspecified circumstances. This vulnerability could affect multiple web browsers that utilize Chromium, including, but not limited to, Google Chrome, Microsoft Edge, and Opera.",
+   "requiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2025-04-17",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://chromereleases.googleblog.com/2025/03/stable-channel-update-for-desktop_25.html ; https://nvd.nist.gov/vuln/detail/CVE-2025-2783",
+   "cwes": []
+  },
+  {
+   "cveID": "CVE-2025-0411",
+   "vendorProject": "7-Zip",
+   "product": "7-Zip",
+   "vulnerabilityName": "7-Zip Mark of the Web Bypass Vulnerability",
+   "dateAdded": "2025-02-06",
+   "shortDescription": "7-Zip contains a protection mechanism failure vulnerability that allows remote attackers to bypass the Mark-of-the-Web security feature to execute arbitrary code in the context of the current user.",
+   "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+   "dueDate": "2025-02-27",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://www.7-zip.org/history.txt ; https://nvd.nist.gov/vuln/detail/CVE-2025-0411",
+   "cwes": [
+    "CWE-693"
+   ]
+  },
+  {
+   "cveID": "CVE-2016-7200",
+   "vendorProject": "Microsoft",
+   "product": "Edge",
+   "vulnerabilityName": "Microsoft Edge Memory Corruption Vulnerability",
+   "dateAdded": "2022-03-28",
+   "shortDescription": "The Chakra JavaScript scripting engine in Microsoft Edge allows remote attackers to execute remote code or cause a denial of service (memory corruption) via a crafted web site.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2022-04-18",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://nvd.nist.gov/vuln/detail/CVE-2016-7200",
+   "cwes": [
+    "CWE-119"
+   ]
+  },
+  {
+   "cveID": "CVE-2020-16017",
+   "vendorProject": "Google",
+   "product": "Chrome",
+   "vulnerabilityName": "Google Chrome Use-After-Free Vulnerability",
+   "dateAdded": "2021-11-03",
+   "shortDescription": "Google Chrome contains a use-after-free vulnerability that allows a remote attacker, who has compromised the renderer process, to potentially perform a sandbox escape via a crafted HTML page.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2022-05-03",
+   "knownRansomwareCampaignUse": "Unknown",
+   "forensicTriage": "No",
+   "notes": "https://nvd.nist.gov/vuln/detail/CVE-2020-16017",
+   "cwes": [
+    "CWE-416"
+   ]
+  }
+ ]
+}

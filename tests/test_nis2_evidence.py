@@ -241,6 +241,9 @@ def test_msrc_is_asked_for_a_month_and_nothing_else():
 def test_nvd_receives_the_watched_name_and_first_the_cve_ids(doc):
     nvd = (PACKAGE / "collectors" / "nvd.py").read_text(encoding="utf-8")
     assert '"keywordSearch": keyword' in nvd
+    # For an entry with a CPE: its part, vendor and product, to read KEV through NVD
+    assert '"virtualMatchString": f"cpe:2.3:{parsed.part}:{parsed.vendor}:{parsed.product}"' in nvd
+    assert "`virtualMatchString`, con `hasKev`" in doc
     assert 'headers = {"apiKey": key} if key else {}' in nvd
     epss = (PACKAGE / "epss.py").read_text(encoding="utf-8")
     assert 'params = {"cve": ",".join(chunk)' in epss
@@ -280,7 +283,7 @@ def test_the_law_check_runs_from_the_command_line_scan_only():
 def test_the_web_scan_asks_debian_and_the_command_line_scan_does_not():
     assert "debian_fetch(sw)" in inspect.getsource(api_main._scan_one)
     command_line = inspect.getsource(cli._scan_target)
-    assert "fetches = (fetch_cves, msrc_fetch, kev_fetch)" in command_line
+    assert "fetches = (fetch_cves, msrc_fetch, kev_by_cpe)" in command_line
     assert "debian_fetch" not in command_line
 
 

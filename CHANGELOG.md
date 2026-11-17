@@ -108,6 +108,19 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   in the CLI and the API alike. A `-` counts as a condition only where the record names the product with
   another value in the same field, so VS Code's lone `target_sw: -` changes nothing.
 
+- **The exploited CVEs of a product with a CPE are found whatever CISA calls it.** The KEV collector
+  matched the watchlist name against CISA's `vendorProject` and `product` only. CISA files Chrome under
+  "Google / Chromium V8", "Chromium Mojo", "Chromium" and so on: on the 2026-11-17 catalogue, "chrome"
+  matched 6 of the 72 exploited Chrome CVEs, and a scan reported the other 66 as not known to be
+  exploited. For an entry with a CPE the catalogue is now also read through NVD, which flags every CVE in
+  KEV and maps it to the products it affects (`hasKev` with `virtualMatchString=cpe:2.3:<part>:<vendor>:
+  <product>`, one paged request per entry): for `cpe:2.3:a:google:chrome` it returned the 72 and six more
+  whose CISA entry names no browser (Adobe Flash Player, WebRTC, Skia, Dawn). NVD's records come with
+  them, so those CVEs are judged without a lookup by id each. An alias table (chrome → Chromium) was the
+  alternative; it would have fixed one product and left every other one CISA names by a component as it
+  was. Entries without a CPE are still matched by name; if NVD cannot be asked, the name's matches stand
+  and the scan says it is incomplete. `docs/nis2-compliance.md` lists the new query.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
