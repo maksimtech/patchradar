@@ -486,3 +486,85 @@ would take a database file someone else wrote, opened in place of its own. Accep
 Debian: the review date is when to look for a base image with a fixed sqlite3.
 """
 review_by = "2026-12-31"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenSSL security advisory of 2026-11-10 (four Low issues, fixed in 3.5.10),
+# reported by Docker Scout on 2026-11-17 against the trixie libssl3t64 of the
+# base image. Review on 2026-12-15, or earlier when the DSA lands.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-95691"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-10, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian lists trixie (security) and unstable as \
+unfixed, so there is no package to upgrade to yet. `apt-get upgrade` runs at \
+build time, and the image is rebuilt at every release: the DSA arrives here \
+without anyone chasing it, and this entry then fails the build as unused.
+
+It is reached only by a QUIC client receiving retransmitted CRYPTO frames from a malicious QUIC server. \
+Python's ssl module exposes neither QUIC nor AES-GCM-SIV, and hashlib does not \
+expose AES at all. patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it. Nothing encrypts a CMS message.
+"""
+review_by = "2026-12-15"
+
+[[exception]]
+id = "CVE-2026-95692"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-10, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian lists trixie (security) and unstable as \
+unfixed, so there is no package to upgrade to yet. `apt-get upgrade` runs at \
+build time, and the image is rebuilt at every release: the DSA arrives here \
+without anyone chasing it, and this entry then fails the build as unused.
+
+It is reached only by an application passing a wrong-length IV to AES-GCM-SIV through EVP_CipherInit_ex(). \
+Python's ssl module exposes neither QUIC nor AES-GCM-SIV, and hashlib does not \
+expose AES at all. patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it. Nothing encrypts a CMS message.
+"""
+review_by = "2026-12-15"
+
+[[exception]]
+id = "CVE-2026-88823"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-10, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian lists trixie (security) and unstable as \
+unfixed, so there is no package to upgrade to yet. `apt-get upgrade` runs at \
+build time, and the image is rebuilt at every release: the DSA arrives here \
+without anyone chasing it, and this entry then fails the build as unused.
+
+It is reached only by an application feeding AES-GCM-SIV its AAD in fragments, one of them empty. \
+Python's ssl module exposes neither QUIC nor AES-GCM-SIV, and hashlib does not \
+expose AES at all. patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it. Nothing encrypts a CMS message.
+"""
+review_by = "2026-12-15"
+
+[[exception]]
+id = "CVE-2026-107496"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-10, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian lists trixie (security) and unstable as \
+unfixed, so there is no package to upgrade to yet. `apt-get upgrade` runs at \
+build time, and the image is rebuilt at every release: the DSA arrives here \
+without anyone chasing it, and this entry then fails the build as unused.
+
+It is reached only by CMS_encrypt() to a recipient certificate an attacker supplies. \
+Python's ssl module exposes neither QUIC nor AES-GCM-SIV, and hashlib does not \
+expose AES at all. patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it. Nothing encrypts a CMS message.
+"""
+review_by = "2026-12-15"
