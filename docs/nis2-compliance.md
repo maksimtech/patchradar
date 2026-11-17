@@ -230,7 +230,8 @@ file letti dai test; questa revisione li aggiunge.
 Sul repository sono attivi, verificato il 2026-10-11, gli avvisi Dependabot sulle
 dipendenze (nessun avviso registrato a quella data) e gli aggiornamenti di sicurezza
 automatici di Dependabot; `.github/dependabot.yml` chiede ogni settimana gli
-aggiornamenti delle dipendenze Python, delle GitHub Actions e dell'immagine di base.
+aggiornamenti delle dipendenze Python, delle GitHub Actions e dell'immagine di base;
+dal 2026-11-17 legge anche `uv.lock`, solo per gli aggiornamenti di sicurezza.
 
 Le regole del ramo `main`, lette dalle impostazioni del repository il 2026-10-12
 (ruleset "main protection", attivo), impongono che ogni modifica passi da una pull
