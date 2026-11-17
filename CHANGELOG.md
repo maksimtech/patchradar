@@ -68,6 +68,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   the project uses CalVer, and the version is left to the PyPI badges, which ask PyPI.
   `tests/test_readme_badges.py` holds both.
 
+- **Changelog headings.** 2026.40 had two `### Changed` sections, now one; 2026.48 was dated
+  2026-10-23 with a hyphen, and is now dated 2026-10-24, the day of its tag, with the em dash the other
+  releases use.
+
+- **The two CodeQL exceptions name the lines CodeQL reports.** Their `where` said `api/main.py:69` and
+  `ui_harness.js:45`; the open alerts are at lines 145 and 73, the same warning and the same setter,
+  moved by the code around them. Only the text changed: the gate matches an exception by rule and path.
+
 - **Security Posture reads every page of alerts.** The code scanning API returns at most a hundred
   alerts per call, and the gate read one page of each list. Found in cookieradar on 2026-11-13
   (cookieradar #70): a pull request with 123 open alerts and main with 142, three exceptions whose
@@ -95,7 +103,7 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   attempts, 30 s apart) until it succeeds or names the version it could not install: the same
   script, and the same `tests/test_install_from_pypi.py`, in all six Radar.
 
-## [2026.48] - 2026-10-23
+## [2026.48] — 2026-10-24
 
 ### Security
 
@@ -1264,20 +1272,6 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   done it. 2026 is a settling year; from 2027 the count moves when the code
   moves.
 
-
-### Fixed
-
-- **An NVD API key, paced requests, and a scan that admits a source was
-  silent.** Without a key NVD allows five requests per rolling thirty seconds,
-  and the scanner sent them as fast as it could: the throttling that followed
-  came back as empty results, which the report presented as "no CVEs" — the
-  strongest possible claim, produced by not having asked. A key is read from the
-  environment when present, requests are paced to what the tier actually allows,
-  and a source that did not answer is reported as a source that did not answer
-  rather than as an absence of findings.
-
-### Changed
-
 - **The Docker image builds from this repository instead of from a published
   release.** The Dockerfile could only install `patchradar==${PATCHRADAR_VERSION}`
   from PyPI, with a default of `2026.8.33` — an August release, while the package
@@ -1289,6 +1283,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   without publishing anything: it verifies that the container user can create the
   database where the volume actually is, which is the failure that once emptied
   the watchlist on every container recreation.
+
+### Fixed
+
+- **An NVD API key, paced requests, and a scan that admits a source was
+  silent.** Without a key NVD allows five requests per rolling thirty seconds,
+  and the scanner sent them as fast as it could: the throttling that followed
+  came back as empty results, which the report presented as "no CVEs" — the
+  strongest possible claim, produced by not having asked. A key is read from the
+  environment when present, requests are paced to what the tier actually allows,
+  and a source that did not answer is reported as a source that did not answer
+  rather than as an absence of findings.
 
 ## [2026.9.6] — 2026-09-24
 
