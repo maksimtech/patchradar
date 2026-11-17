@@ -12,6 +12,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Security
+
+- **opentelemetry-api 1.45.2** in `uv.lock`, from 1.45.1. The older release parses a `traceparent`
+  header in quadratic time, a denial of service (CVE-2026-126360, GHSA-mf5v-w3w3-f6cg, medium,
+  published 2026-11-13); 1.45.2, on PyPI since 2026-10-29, is the release the advisory names as fixed.
+  It arrives through fastapi, so `uv lock --upgrade-package opentelemetry-api` moved that one entry and
+  nothing else. Dependabot raised the alert on 2026-11-14 but opened no pull request.
+
 ### Changed
 
 - **The sqlite3 findings say what Debian decided, and Trivy's two new ones are recorded.** On
