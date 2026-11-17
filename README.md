@@ -89,9 +89,12 @@ affected versions:
 - **affected** — listed in the table, with "fixed in X" only where NVD states it;
 - **not evaluable** — NVD has not yet said which products the CVE affects (the
   usual state for weeks after publication), NVD could not be asked about a CVE
-  that came from KEV or MSRC alone — those are looked up in NVD by id — or NVD's
-  versions belong to another scheme: listed, because "cannot tell" is not an
-  all-clear;
+  that came from KEV or MSRC alone — those are looked up in NVD by id — NVD's
+  versions belong to another scheme, or NVD lists the version only on another
+  platform (Chrome on Android) or for an update or edition the CPE does not name
+  (the ESR line of Firefox, a beta): listed, with the condition, because
+  "cannot tell" is not an all-clear. A CPE that names its edition, such as
+  `cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`, is judged on that edition;
 - **not affected** — counted, and listed only with `--all`.
 
 One line gives the split, one says which update closes how many of the
@@ -227,6 +230,13 @@ PatchRadar does not invent one — the fact travels as `known_exploited`, which
 is worth more than a score: on a sample of 695 CVEs matched against installed
 software, sorting by CVSS put five 10.0 entries on top, none of them exploited,
 while the four listed in KEV scored 9.8, 8.8, 8.6 and 7.8.
+
+CISA names products its own way, so for an entry added with `--cpe` the catalogue
+is also read through NVD, which flags every CVE in KEV and knows which products
+it affects: on 2026-11-17 the word "chrome" was in 6 of the 72 exploited Chrome
+CVEs (the rest are "Chromium V8", "Chromium Mojo", ...), and NVD asked for
+`cpe:2.3:a:google:chrome` returned all 72 and six more. Entries without a CPE
+are matched by name only.
 
 EPSS is the row marked *enrichment* because it finds nothing. The four sources
 above answer "which CVEs affect this software"; FIRST answers "how likely is

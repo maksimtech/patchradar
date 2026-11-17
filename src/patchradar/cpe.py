@@ -17,7 +17,7 @@ PREFIX = "cpe:2.3:"
 _PARTS = {"a", "o", "h"}
 
 # ANY and NA. A vendor or product of either names no product to judge.
-_WILDCARDS = {"*", "-", ""}
+WILDCARDS = frozenset({"*", "-", ""})
 
 
 class CpeError(ValueError):
@@ -30,9 +30,17 @@ class Cpe:
     part: str
     vendor: str
     product: str
+    # Every field, as split from `text`: [0] "cpe", [1] "2.3", [2] the part, ...
+    fields: tuple[str, ...] = ()
+
+    def field(self, index: int) -> str:
+        """The field at `index` of the CPE 2.3 formatted string — 6 update,
+        9 sw_edition, 10 target_sw, ... — and `*` (ANY) where the name stops
+        before it, as CPE 2.3 reads a name written short."""
+        return self.fields[index] if index < len(self.fields) and self.fields[index] else "*"
 
 
-def _fields(text: str) -> list[str]:
+def split_fields(text: str) -> list[str]:
     """Split on the colons that are not escaped."""
     fields, current, escaped = [], [], False
     for char in text:
@@ -73,17 +81,24 @@ def _escaped(value: str) -> str:
 
 
 def parse_cpe(text: str) -> Cpe:
-    cleaned = text.strip()
+    """The CPE in `text`, in lower case.
+
+    CPE 2.3 names match without regard to case, and NVD writes them in lower
+    case. Kept as typed, `cpe:2.3:a:Mozilla:Thunderbird` matched none of NVD's
+    names, and every CVE of the program was judged "not affected" — hidden from
+    the table, an all-clear made of a capital letter.
+    """
+    cleaned = text.strip().lower()
     if not cleaned.startswith(PREFIX):
         raise CpeError(f"'{cleaned}' is not a CPE 2.3 name: it must start with '{PREFIX}'")
-    fields = _fields(cleaned)
+    fields = split_fields(cleaned)
     if len(fields) < 5:
         raise CpeError(f"'{cleaned}' names no product: cpe:2.3:<part>:<vendor>:<product>")
     part, vendor, product = fields[2], fields[3], fields[4]
     if part not in _PARTS:
         raise CpeError(f"'{cleaned}': the part is '{part}', and CPE 2.3 knows only a, o and h")
     for label, value in (("vendor", vendor), ("product", product)):
-        if value in _WILDCARDS:
+        if value in WILDCARDS:
             shown = f"'{value}'" if value else "empty"
             raise CpeError(f"'{cleaned}': the {label} is {shown}, which names no product")
         if _escaped(value) != value:
@@ -91,4 +106,4 @@ def parse_cpe(text: str) -> Cpe:
                 f"'{cleaned}': the {label} '{value}' has characters NVD writes escaped, "
                 f"and as typed it would match nothing; NVD's form is '{_escaped(value)}'"
             )
-    return Cpe(text=cleaned, part=part, vendor=vendor, product=product)
+    return Cpe(text=cleaned, part=part, vendor=vendor, product=product, fields=tuple(fields))

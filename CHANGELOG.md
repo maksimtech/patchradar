@@ -59,6 +59,68 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **The law check carries mailradar's fixes of 2026-11-17 (maksimtech/mailradar#103).** `law_fetcher.py`
+  and `law_cache.py` were the copies mailradar had before that pull request, apart from the variable
+  `PATCHRADAR_HOME`; they are now its copies after it, with the same name kept.
+  - *A citation is "verified" only when the reference it cites is in the text downloaded now.* The
+    check looked at the article: with article 32 in Cellar's page and paragraph 2 missing from what was
+    parsed, the citation of `32(2)` for a critical CVE fell back to the cache, old SHA-256 and date
+    included, under "verified against Cellar", or stood beside `SHA256: not available` with an empty
+    cache. A missing reference now makes the act a fetch failure.
+  - *A failed download always reaches the EUR-Lex fallback and the cache*: a redirect to a host httpx
+    cannot encode (`http://xn--/DOC_1`) raised `idna.core.IDNAError` out of the whole law check.
+  - *Redirects stay on the source's host* (publications.europa.eu, eur-lex.europa.eu, www.normattiva.it,
+    default port), so the hosts in `docs/nis2-compliance.md` are the only ones the check can reach.
+  - *A page is read up to 32 MiB, and a fetch ends after 120 seconds*, redirects included.
+  - *A change in the law is reported even when the cache cannot be written*: the comparison was made
+    by the save, so with a read-only cache a changed text was cited without the warning and an unchanged
+    one was dated to the day of the audit. `law_cache.merge` now runs before the save.
+  - *Statuses name the source that was tried.* `ActStatus` carries `tried`, `failure` and `reason`, and
+    `scan` prints "Cellar answered without the text cited" or "Cellar and EUR-Lex unreachable" where it
+    printed "EUR-Lex unreachable" whatever had happened.
+  - *A deeply nested `law_cache.json` is an empty cache*, not a `RecursionError`; Normattiva's "-bis",
+    "-ter", ... paragraphs can be cited on their own.
+
+- **The law check no longer cites CVEs the same scan judged "not affected".** `scan` handed every CVE
+  found by name to the law check, verdict or not: for 7-Zip 26.06 it printed "not affecting it: 2" and
+  then cited CVE-2025-0411 (fixed in 24.09) and CVE-2026-14266 (fixed in 26.02) under GDPR art. 25 and
+  art. 32, and a critical unpatched one would have reached D.Lgs. 138/2024 art. 24 too. Only the CVEs
+  that affect the installed version, could not be evaluated, or belong to an entry matched by name are
+  cited now. The API runs no law check, so it had nothing to change.
+
+- **A CPE typed with capitals no longer turns every CVE into "not affected".** `add --cpe` and
+  `POST /api/watchlist/{name}?cpe=` accepted `cpe:2.3:a:Mozilla:Thunderbird` as typed, and the verdict
+  compared its vendor and product with NVD's lower-case `cpeMatch` names as strings: nothing matched, so
+  every CVE of the program was judged "not affected" and hidden from the table — a false all-clear. CPE
+  2.3 names match without regard to case: the CPE is now stored in lower case, and the verdict compares
+  vendor and product without regard to case, which also covers entries stored before.
+
+- **"Affected" only when NVD's statement is about the version alone.** The verdict read the version of a
+  `cpeMatch` entry and ignored the rest: the fields after the version and the AND configuration around
+  it. On NVD's own records (2026-11-17), Chrome 150 on Windows was "affected" by CVE-2026-16424, which NVD
+  lists for Chrome *on Android* only, and Chrome 151 by CVE-2026-17709, macOS only; Firefox ESR 115.17.0
+  was "affected, fix in 131.0.2" by CVE-2024-9680, whose ESR line was fixed in 115.16.1; and 7-Zip 4.43
+  was affected by entries written `7-zip:4.43:beta`. The watchlist knows the version and the CPE, not the
+  operating system: a range that contains the version only on a platform an AND configuration requires,
+  or only for an update or edition the watched CPE does not name, now gives "not evaluable" with the
+  condition in the reason ("NVD lists it as affecting 150.0.7871.100 only on Android"). A CPE that names
+  its edition or update (`cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`) is judged on those ranges only,
+  in the CLI and the API alike. A `-` counts as a condition only where the record names the product with
+  another value in the same field, so VS Code's lone `target_sw: -` changes nothing.
+
+- **The exploited CVEs of a product with a CPE are found whatever CISA calls it.** The KEV collector
+  matched the watchlist name against CISA's `vendorProject` and `product` only. CISA files Chrome under
+  "Google / Chromium V8", "Chromium Mojo", "Chromium" and so on: on the 2026-11-17 catalogue, "chrome"
+  matched 6 of the 72 exploited Chrome CVEs, and a scan reported the other 66 as not known to be
+  exploited. For an entry with a CPE the catalogue is now also read through NVD, which flags every CVE in
+  KEV and maps it to the products it affects (`hasKev` with `virtualMatchString=cpe:2.3:<part>:<vendor>:
+  <product>`, one paged request per entry): for `cpe:2.3:a:google:chrome` it returned the 72 and six more
+  whose CISA entry names no browser (Adobe Flash Player, WebRTC, Skia, Dawn). NVD's records come with
+  them, so those CVEs are judged without a lookup by id each. An alias table (chrome → Chromium) was the
+  alternative; it would have fixed one product and left every other one CISA names by a component as it
+  was. Entries without a CPE are still matched by name; if NVD cannot be asked, the name's matches stand
+  and the scan says it is incomplete. `docs/nis2-compliance.md` lists the new query.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the

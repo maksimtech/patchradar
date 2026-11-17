@@ -201,6 +201,18 @@ def test_a_cpe_with_an_unescaped_plus_is_refused_with_the_form_nvd_wants():
     assert asyncio.run(database.get_watchlist()) == []
 
 
+def test_a_cpe_typed_with_capitals_is_stored_as_nvd_writes_it():
+    """Stored as typed, `cpe:2.3:a:Mozilla:Thunderbird` matched none of NVD's
+    lower-case names and every CVE of the program read as "not affected"."""
+    result = CliRunner().invoke(cli.app, ["add", "thunderbird", "--version", "140.0",
+                                          "--cpe", "cpe:2.3:a:Mozilla:Thunderbird"])
+
+    assert result.exit_code == 0, result.output
+    [entry] = asyncio.run(database.get_watch_entries())
+    assert entry.cpe == "cpe:2.3:a:mozilla:thunderbird"
+    assert entry.installed() == ("140.0", "mozilla", "thunderbird")
+
+
 def test_list_shows_the_version_and_the_cpe():
     runner = CliRunner()
     runner.invoke(cli.app, ["add", "notepad", "--version", "8.5.0", "--cpe", NOTEPADPP])

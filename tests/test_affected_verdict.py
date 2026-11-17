@@ -201,3 +201,22 @@ def test_every_version_is_comparable_with_every_version():
 
     assert Range(unbounded=True).comparable("8.5.0")
     assert not Range(unbounded=True).comparable("latest")
+
+
+# ─── case ────────────────────────────────────────────────────────────────────
+# NVD's recorded record of CVE-2025-0411: 7-Zip before 24.09, written by NVD in
+# lower case as `cpe:2.3:a:7-zip:7-zip:*`.
+
+NVD_7ZIP_0411 = pathlib.Path(__file__).parent / "fixtures" / "nvd_cve_2025_0411_recorded.json"
+
+
+@pytest.mark.parametrize(("vendor", "product"), [("7-Zip", "7-Zip"), ("7-ZIP", "7-zip")])
+def test_vendor_and_product_are_compared_without_regard_to_case(vendor, product):
+    """`ranges_in` compared the CPE fields as strings, so a vendor typed with a
+    capital letter matched none of NVD's and the CVE was "not affected"."""
+    [item] = json.loads(NVD_7ZIP_0411.read_text(encoding="utf-8"))["vulnerabilities"]
+    record = _parse_item(item, "7-zip")
+
+    verdict = judge(record, version="24.08", vendor=vendor, cpe_product=product)
+
+    assert (verdict.status, verdict.fixed_version) == (AFFECTED, "24.09")

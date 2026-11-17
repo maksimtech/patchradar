@@ -72,6 +72,11 @@ product, neither `*` nor `-`. A product written with a CPE special character
 unescaped — `notepad++` instead of `notepad\+\+` — is refused with the escaped
 form shown, because NVD would match nothing and the scan would read as clean.
 
+CPE 2.3 names match without regard to case, and NVD writes them in lower case:
+the CPE is stored in lower case, and the verdict compares vendor and product
+without regard to case. Compared as typed, `cpe:2.3:a:Mozilla:Thunderbird`
+matched nothing and made every CVE "not affected".
+
 The version must be one `affected.py` can order. One it cannot read is refused
 at `add`, not discovered as "not evaluable" on every CVE of every scan.
 
@@ -88,7 +93,14 @@ name is judged against the installed version with NVD's own `configurations`:
   which products the CVE affects (no `configurations`, the usual state of a CVE
   for weeks after publication), NVD could not be asked about a CVE that came
   from KEV or MSRC alone, or NVD's versions belong to another scheme than the
-  installed one (`2.07` against `16.0.14334`).
+  installed one (`2.07` against `16.0.14334`). Also a CVE whose range contains
+  the version only under a condition the watchlist cannot confirm, which the
+  reason names: an AND configuration with another product, mostly the
+  operating system (Chrome *on Android*), or an update or edition the watched
+  CPE does not name (`7-zip:4.43:beta`, Firefox `sw_edition: esr` beside `-`).
+  A CPE that names it (`cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`) is judged
+  on that edition's ranges only. A `-` in a field counts as a condition only
+  when the record names the product with another value there too.
 
 A CVE that reached the scan only through KEV or MSRC, which carry no
 `cpeMatch`, is looked up in NVD by id (`cveId=`) for an entry that can be judged,

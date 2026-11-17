@@ -338,7 +338,8 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
         lambda: nvd_fetch(sw, days_back=days),
         lambda: msrc_fetch(sw, days_back=days),
         lambda: debian_fetch(sw),
-        lambda: kev_fetch(sw),
+        # By the entry's CPE as well as by name, as in the CLI (collectors/kev.py)
+        lambda: kev_fetch(sw, cpe=entry.cpe) if entry is not None and entry.cpe else kev_fetch(sw),
     ]
     if vuldb_api_key():
         fetches.append(lambda: vuldb_fetch(sw, days_back=days))
@@ -378,7 +379,8 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
                        "reason": exc.reason, "status": exc.status})
     # Judged by the function the CLI judges with, before anything is stored, so
     # the verdict lands with the link and the two scans give one answer.
-    mark(collected, installed)
+    watched = parse_cpe(entry.cpe) if entry is not None and entry.cpe and installed is not None else None
+    mark(collected, installed, watched)
     if installed is not None and verdicts is not None:
         found = [cve["verdict"] for cve in collected]
         verdicts[sw] = {status: found.count(status) for status in (AFFECTED, NOT_EVALUABLE, NOT_AFFECTED)}

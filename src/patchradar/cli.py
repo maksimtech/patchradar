@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import functools
 import json
 import math
 import pathlib
@@ -248,13 +249,17 @@ def _print_law_check(law, out=None) -> None:
     out.print("[bold]⚖️  Provisions applied[/bold]")
     for status in law.acts:
         act = status.act
-        name, source = escape(act.name), escape(act.source)
+        name = escape(act.name)
+        # Which source was tried, and whether it was unreachable or answered
+        # without the text cited: "EUR-Lex unreachable" whatever happened was
+        # wrong on both counts when Cellar had answered without the paragraph.
+        reason = escape(status.reason or "")
         if status.source == "verified":
             origin = escape(status.origin or act.source)
             out.print(f"[dim]{name}: verified against {origin} ({act.id_label} {escape(act.celex)})[/dim]")
         elif status.source == "cache":
             out.print(
-                f"[yellow]{name}: {source} unreachable, "
+                f"[yellow]{name}: {reason}, "
                 "text from the cached copy, not re-verified[/yellow]"
             )
         else:
@@ -263,7 +268,7 @@ def _print_law_check(law, out=None) -> None:
             # for a bug in the hashing. There is no verified text to hash, and
             # printing one anyway would assert a verification never made.
             out.print(
-                f"[yellow]{name}: {source} unreachable and nothing cached, "
+                f"[yellow]{name}: {reason} and nothing cached, "
                 "text not verifiable: the citations below have no SHA-256[/yellow]"
             )
         if act.note:
@@ -371,7 +376,8 @@ async def _scan_target(
     """Scan a single target for CVEs and return count.
 
     The CVEs found are also appended to `collected`, when given, for the law
-    check at the end of the scan, and the failures to `failed`: one source
+    check at the end of the scan — all of them but the ones judged not to affect
+    the installed version — and the failures to `failed`: one source
     refusing every target in a watchlist is a different event from one hiccup,
     and only the whole scan can tell them apart.
     """
@@ -386,7 +392,10 @@ async def _scan_target(
         # VulDB only with its key: without it every target came back "incomplete"
         # and no scan could ever end in an all-clear. A source nobody configured
         # is not one that failed; `scan` says once that it was not asked.
-        fetches = (fetch_cves, msrc_fetch, kev_fetch) + ((vuldb_fetch,) if vuldb_api_key() else ())
+        # KEV by the entry's CPE as well as by name: CISA files most Chrome
+        # CVEs under "Chromium V8" and the like (collectors/kev.py).
+        kev_by_cpe = functools.partial(kev_fetch, cpe=entry.cpe) if entry is not None and entry.cpe else kev_fetch
+        fetches = (fetch_cves, msrc_fetch, kev_by_cpe) + ((vuldb_fetch,) if vuldb_api_key() else ())
         for fetch in fetches:
             try:
                 all_cves += await fetch(target, days_back=days)
@@ -428,11 +437,17 @@ async def _scan_target(
     # configurations, and the ones that do not affect it are counted, not
     # listed, unless --all asks for them.
     judged = installed is not None
-    mark(all_cves, installed)
+    # The CPE too: its update and edition fields decide which of NVD's ranges apply
+    watched = parse_cpe(entry.cpe) if entry is not None and entry.cpe and installed is not None else None
+    mark(all_cves, installed, watched)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
-        collected.extend(all_cves)
+        # A CVE NVD states does not affect the installed version is no gap in
+        # the measures GDPR art. 25 and 32 or D.Lgs. 138/2024 art. 24 ask for:
+        # citing it put 7-Zip 26.06 under art. 25 for CVE-2025-0411, fixed in
+        # 24.09, in the same output that called it "not affecting it".
+        collected.extend(cve for cve in all_cves if cve.get("verdict") != NOT_AFFECTED)
     shown = all_cves
     if judged and not show_all:
         shown = [cve for cve in all_cves if cve["verdict"] != NOT_AFFECTED]

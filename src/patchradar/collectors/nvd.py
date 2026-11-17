@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
+from patchradar.cpe import parse_cpe
 from patchradar.cvss import exploit_maturity
 from patchradar.priority import merge_by_cve
 
@@ -297,10 +298,18 @@ async def _fetch_window(
         "keywordSearch": keyword,
         "pubStartDate": start.strftime("%Y-%m-%dT00:00:00.000"),
         "pubEndDate": end.strftime("%Y-%m-%dT23:59:59.999"),
-        # A string, because httpx's params type does not accept an int: it
-        # stringifies one anyway, so this changes the annotation, not the request.
-        "resultsPerPage": str(RESULTS_PER_PAGE),
     }
+    await _fetch_pages(client, params, keyword, pace, results)
+
+
+async def _fetch_pages(
+    client: httpx.AsyncClient, params: dict[str, str], keyword: str,
+    pace: Callable[[], Awaitable[None]], results: list[dict],
+) -> None:
+    """Every page of the answer to `params`, appended to `results`."""
+    # A string, because httpx's params type does not accept an int: it
+    # stringifies one anyway, so this changes the annotation, not the request.
+    params = {**params, "resultsPerPage": str(RESULTS_PER_PAGE)}
 
     start_index = 0
     while True:
@@ -400,6 +409,32 @@ async def fetch_cves(
             await _fetch_window(client, keyword, start, end, pace, results)
     return results
 
+
+
+async def known_exploited_for(
+    cpe: str, keyword: str, *,
+    wait: Callable[[float], Awaitable[None]] | None = None,
+) -> list[dict]:
+    """NVD's records of the CVEs it flags as in CISA's KEV catalogue (`hasKev`)
+    whose configurations name this product (`virtualMatchString`, the CPE's
+    `cpe:2.3:<part>:<vendor>:<product>`), whatever their date.
+
+    How the scan finds the exploited CVEs of a product that has a CPE: CISA
+    names products its own way, and on 2026-11-17 the word "chrome" was in 6 of
+    the 72 Chrome entries of the catalogue — the others say "Chromium V8",
+    "Chromium Mojo", "Chromium". NVD maps each of them to the CPE it affects;
+    asked for google:chrome it returned 78, the 72 and six more whose CISA
+    entry names no browser at all (Adobe Flash Player, WebRTC, Skia, Dawn).
+    """
+    parsed = parse_cpe(cpe)
+    key = api_key()
+    headers = {"apiKey": key} if key else {}
+    pace = _pacer(wait or _pace, KEYED_DELAY_SECONDS if key else KEYLESS_DELAY_SECONDS)
+    params = {"hasKev": "", "virtualMatchString": f"cpe:2.3:{parsed.part}:{parsed.vendor}:{parsed.product}"}
+    results: list[dict] = []
+    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+        await _fetch_pages(client, params, keyword, pace, results)
+    return results
 
 
 async def records_for(

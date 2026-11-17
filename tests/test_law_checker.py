@@ -1,6 +1,8 @@
 """Tests for mapping PatchRadar findings to GDPR provisions."""
 from datetime import UTC, datetime
+from pathlib import Path
 
+import httpx
 import pytest
 
 from patchradar import law_fetcher
@@ -179,3 +181,145 @@ def test_offline_without_cache(cache):
 def test_default_cache_location(tmp_path, online):
     check([cve(severity="CRITICAL")], now=DAY1)
     assert (tmp_path / "patchradar-home" / "law_cache.json").is_file()
+
+
+# ─── a cited reference must be in the text downloaded now ────────────────────
+# Cellar is answered at the HTTP boundary with the recorded GDPR page
+# (fixtures/gdpr_it_excerpt.html), or with a page derived from it: paragraph 2
+# of article 32 renamed out of the ELI paragraph ids, so that the article still
+# parses and the paragraph cited for a critical CVE is not in it.
+
+GDPR_PAGE = (Path(__file__).parent / "fixtures" / "gdpr_it_excerpt.html").read_text(encoding="utf-8")
+GDPR_PAGE_WITHOUT_32_2_DERIVED = GDPR_PAGE.replace('id="032.002"', 'id="032.002-derived"')
+REAL_FETCH_HTML = law_fetcher.fetch_html
+
+
+def _cellar(page: str | None) -> httpx.Client:
+    """Cellar answering `page` for the GDPR, or nothing at all (503) when None;
+    EUR-Lex, the fallback, answering 503 as well."""
+    def answer(request: httpx.Request) -> httpx.Response:
+        if page is not None and str(request.url) == "https://publications.europa.eu/resource/celex/32016R0679":
+            return httpx.Response(200, text=page)
+        return httpx.Response(503)
+
+    return httpx.Client(transport=httpx.MockTransport(answer))
+
+
+@pytest.fixture
+def real_fetch(monkeypatch):
+    """conftest disables fetch_html so that no test reaches the network; the
+    client passed here answers only from the recording, so the real one goes back."""
+    monkeypatch.setattr(law_fetcher, "fetch_html", REAL_FETCH_HTML)
+
+
+def test_the_derived_page_lacks_only_the_paragraph_cited():
+    """What the tests below rely on."""
+    assert FINDING_ARTICLES["critical"] == ((GDPR, "32(2)"),)
+    assert GDPR_PAGE_WITHOUT_32_2_DERIVED != GDPR_PAGE
+    texts = law_fetcher.parse_articles(GDPR_PAGE_WITHOUT_32_2_DERIVED, ("32",))
+    assert "32(1)" in texts and "32(2)" not in texts
+
+
+def test_a_paragraph_missing_from_the_fresh_text_is_not_verified(real_fetch, cache):
+    """Cellar answered and article 32 parsed, but paragraph 2 was not in it: the
+    act used to be "verified against Cellar" beside "SHA256: not available"."""
+    law = check([cve(severity="CRITICAL")], cache=cache, now=DAY1, client=_cellar(GDPR_PAGE_WITHOUT_32_2_DERIVED))
+
+    [status] = law.acts
+    assert status.source == "unavailable", status
+    assert "32(2)" in (status.error or "")
+    assert law.citations[0].sha256 is None
+
+
+def test_a_cached_paragraph_is_not_served_as_verified(real_fetch, cache):
+    """The same, with the paragraph cached by an earlier audit: its old SHA-256
+    and date came back under the "verified" label."""
+    first = check([cve(severity="CRITICAL")], cache=cache, now=DAY1, client=_cellar(GDPR_PAGE))
+    assert [s.source for s in first.acts] == ["verified"]
+    assert first.citations[0].sha256 is not None
+
+    law = check([cve(severity="CRITICAL")], cache=cache, now=DAY2, client=_cellar(GDPR_PAGE_WITHOUT_32_2_DERIVED))
+
+    [status] = law.acts
+    assert status.source == "cache", status
+    assert law.citations[0].sha256 == first.citations[0].sha256
+    assert law.citations[0].version_date == "2026-09-19"
+
+
+# ─── statuses name the source that was tried ─────────────────────────────────
+
+def test_a_status_says_the_source_answered_without_the_text(real_fetch, cache):
+    """The CLI printed "EUR-Lex unreachable" for this: Cellar was reached, and
+    only the paragraph cited was missing from its page."""
+    check([cve(severity="CRITICAL")], cache=cache, now=DAY1, client=_cellar(GDPR_PAGE))
+    [status] = check(
+        [cve(severity="CRITICAL")], cache=cache, now=DAY2, client=_cellar(GDPR_PAGE_WITHOUT_32_2_DERIVED)
+    ).acts
+
+    assert (status.source, status.tried, status.failure) == ("cache", "Cellar", "not_in_text")
+    assert status.reason == "Cellar answered without the text cited"
+
+
+def test_a_status_names_both_sources_when_neither_answered(real_fetch, cache):
+    [status] = check([cve(severity="CRITICAL")], cache=cache, now=DAY1, client=_cellar(None)).acts
+
+    assert (status.source, status.tried, status.failure) == ("unavailable", "Cellar and EUR-Lex", "unreachable")
+    assert status.reason == "Cellar and EUR-Lex unreachable"
+
+
+def test_a_verified_status_has_no_reason(real_fetch, cache):
+    [status] = check([cve(severity="CRITICAL")], cache=cache, now=DAY1, client=_cellar(GDPR_PAGE)).acts
+
+    assert (status.source, status.tried, status.failure, status.reason) == ("verified", None, None, None)
+
+
+# ─── a cache that cannot be written ──────────────────────────────────────────
+
+@pytest.fixture
+def read_only_cache(cache):
+    """Call it after a first audit: it makes `cache` read-only, the file (what
+    stops os.replace on Windows) and its folder (what stops it on POSIX)."""
+    import os
+    import stat
+
+    def freeze():
+        cache.path.chmod(stat.S_IREAD)
+        cache.path.parent.chmod(stat.S_IREAD | stat.S_IEXEC)
+        try:
+            cache.update({}, checked_at="2026-10-01T09:30:00Z")
+        except OSError:
+            return
+        pytest.skip("this user can write a read-only file (root?)")
+
+    yield freeze
+    os.chmod(cache.path.parent, stat.S_IRWXU)
+    if cache.path.exists():
+        os.chmod(cache.path, stat.S_IREAD | stat.S_IWRITE)
+
+
+def test_a_changed_text_is_reported_when_the_cache_cannot_be_written(cache, read_only_cache, monkeypatch):
+    """The change used to be computed only by a successful save: with the cache
+    read-only, a law whose text changed was cited with no warning."""
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", _fake_fetch())
+    first = check([cve(severity="CRITICAL")], cache=cache, now=DAY1)
+    read_only_cache()
+
+    monkeypatch.setattr(law_fetcher, "fetch_provisions_from", _fake_fetch(" (rettificato)"))
+    law = check([cve(severity="CRITICAL")], cache=cache, now=DAY2)
+
+    assert law.changed == {"GDPR art. 32(2)": first.citations[0].sha256}
+    assert law.citations[0].sha256 != first.citations[0].sha256
+    assert law.citations[0].version_date == "2026-10-01"
+
+
+def test_an_unchanged_text_keeps_its_version_date_when_the_cache_cannot_be_written(
+    cache, read_only_cache, online
+):
+    """The date of a wording is its first download, saved or not."""
+    check([cve(severity="CRITICAL")], cache=cache, now=DAY1)
+    read_only_cache()
+
+    law = check([cve(severity="CRITICAL")], cache=cache, now=DAY2)
+
+    assert law.changed == {}
+    assert law.citations[0].version_date == "2026-09-19"

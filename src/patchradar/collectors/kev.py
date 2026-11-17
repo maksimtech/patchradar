@@ -4,6 +4,7 @@ import time
 
 import httpx
 
+from patchradar.collectors import nvd
 from patchradar.collectors.errors import BAD_PAYLOAD, CollectorError, from_http_error
 from patchradar.names import keyword_pattern
 
@@ -161,15 +162,48 @@ def filter_catalogue(data: dict, keyword: str) -> list[dict]:
     return results
 
 
-async def fetch_cves(keyword: str, days_back: int = 30) -> list[dict]:
+async def fetch_cves(keyword: str, days_back: int = 30, *, cpe: str | None = None) -> list[dict]:
     """Fetch known-exploited CVEs for a given vendor or product keyword.
 
     `days_back` is accepted for signature compatibility with the other
     collectors and deliberately ignored: the catalogue is a standing list of
     what is being exploited, not a feed of recent publications, and dropping
     older entries would hide the ones that have been exploited the longest.
+
+    With the watchlist entry's `cpe`, the catalogue is also read through NVD:
+    the entries whose CVE NVD flags as in KEV for that product
+    (`nvd.known_exploited_for`) are taken whatever CISA called the product, and
+    NVD's records of them come back too, so that the scan can judge them
+    without asking NVD again one id at a time. The keyword alone found 6 of the
+    72 exploited Chrome CVEs: CISA files the rest under "Chromium V8",
+    "Chromium Mojo", "Chromium" and so on. A list of aliases would have fixed
+    Chrome and left every other product CISA names by a component (Win32k,
+    Exchange Server, ...) as it was; the CPE is the name NVD has already mapped.
     """
-    return filter_catalogue(await get_catalogue(), keyword)
+    data = await get_catalogue()
+    results = filter_catalogue(data, keyword)
+    if cpe is None:
+        return results
+    try:
+        flagged = await nvd.known_exploited_for(cpe, keyword)
+    except CollectorError as exc:
+        # The keyword's matches stand; the ones only NVD could name are missing,
+        # and the error says so rather than the scan reading as complete.
+        raise CollectorError(exc.source, exc.reason, status=exc.status, detail=exc.detail,
+                             partial=results) from exc
+    found = {str(record["id"]).upper() for record in results}
+    wanted = {str(record["id"]).upper() for record in flagged}
+    for entry in data.get("vulnerabilities", []):
+        if not isinstance(entry, dict):
+            continue
+        cve_id = entry.get("cveID")
+        if isinstance(cve_id, str) and cve_id.strip().upper() in wanted - found:
+            found.add(cve_id.strip().upper())
+            results.append(_to_record(entry, keyword))
+    # NVD's record first, so that the merged row keeps NVD's publication date
+    # and description, and CISA's adds the exploitation facts to it.
+    listed = [record for record in flagged if str(record["id"]).upper() in found]
+    return listed + results
 
 
 async def known_exploited(cve_id: str) -> dict | None:

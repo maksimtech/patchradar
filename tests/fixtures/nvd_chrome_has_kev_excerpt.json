@@ -1,0 +1,823 @@
+{
+ "_derived": "An excerpt, not the whole answer. The source is NVD's answer to GET https://services.nvd.nist.gov/rest/json/cves/2.0?hasKev=&virtualMatchString=cpe%3A2.3%3Aa%3Agoogle%3Achrome&resultsPerPage=2000&startIndex=0, recorded on 2026-11-17 (timestamp 2026-11-17T19:43:18.077, totalResults 78: every CVE NVD flags as in CISA KEV whose configurations name google:chrome). Kept, in NVD's order, the records of CVE-2020-16017, CVE-2025-2783, CVE-2026-5281, CVE-2026-87491, CVE-2026-125350, each copied verbatim. `resultsPerPage` and `totalResults` say how many records this file holds; every other header field is verbatim.",
+ "startIndex": 0,
+ "format": "NVD_CVE",
+ "version": "2.0",
+ "timestamp": "2026-11-17T19:43:18.077",
+ "resultsPerPage": 5,
+ "totalResults": 5,
+ "vulnerabilities": [
+  {
+   "cve": {
+    "id": "CVE-2020-16017",
+    "sourceIdentifier": "chrome-cve-admin@google.com",
+    "published": "2021-01-08T19:15:12.727",
+    "lastModified": "2026-06-17T02:57:38.610",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Use after free in site isolation in Google Chrome prior to 86.0.4240.198 allowed a remote attacker who had compromised the renderer process to potentially perform a sandbox escape via a crafted HTML page."
+     },
+     {
+      "lang": "es",
+      "value": "Un uso de la memoria previamente liberada en site isolation en Google Chrome versiones anteriores a 86.0.4240.198, permitió a un atacante remoto que había comprometido el proceso del renderizador llevar a cabo potencialmente un escape del sandbox por medio de una página HTML diseñada"
+     }
+    ],
+    "affected": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "affectedData": [
+       {
+        "vendor": "Google",
+        "product": "Chrome",
+        "versions": [
+         {
+          "version": "unspecified",
+          "lessThan": "86.0.4240.198",
+          "versionType": "custom",
+          "status": "affected"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:H",
+        "baseScore": 9.6,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 6.0
+      },
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:H",
+        "baseScore": 9.6,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 6.0
+      }
+     ],
+     "cvssMetricV2": [
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "2.0",
+        "vectorString": "AV:N/AC:M/Au:N/C:P/I:P/A:P",
+        "baseScore": 6.8,
+        "accessVector": "NETWORK",
+        "accessComplexity": "MEDIUM",
+        "authentication": "NONE",
+        "confidentialityImpact": "PARTIAL",
+        "integrityImpact": "PARTIAL",
+        "availabilityImpact": "PARTIAL"
+       },
+       "baseSeverity": "MEDIUM",
+       "exploitabilityScore": 8.6,
+       "impactScore": 6.4,
+       "acInsufInfo": false,
+       "obtainAllPrivilege": false,
+       "obtainUserPrivilege": false,
+       "obtainOtherPrivilege": false,
+       "userInteractionRequired": true
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2025-02-03T14:19:29.342779Z",
+        "id": "CVE-2020-16017",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2021-11-03",
+    "cisaActionDue": "2022-05-03",
+    "cisaRequiredAction": "Apply updates per vendor instructions.",
+    "cisaVulnerabilityName": "Google Chrome Use-After-Free Vulnerability",
+    "weaknesses": [
+     {
+      "source": "nvd@nist.gov",
+      "type": "Primary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-416"
+       }
+      ]
+     },
+     {
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-416"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "86.0.4240.198",
+          "matchCriteriaId": "C62E5348-105F-4B98-A7B6-ACCA567941F3"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://chromereleases.googleblog.com/2020/11/stable-channel-update-for-desktop_11.html",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Release Notes",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://crbug.com/1146709",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Permissions Required",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://chromereleases.googleblog.com/2020/11/stable-channel-update-for-desktop_11.html",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Release Notes",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://crbug.com/1146709",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Permissions Required",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2020-16017",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2025-2783",
+    "sourceIdentifier": "chrome-cve-admin@google.com",
+    "published": "2025-03-26T16:15:23.693",
+    "lastModified": "2026-06-17T09:07:37.023",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Incorrect handle provided in unspecified circumstances in Mojo in Google Chrome on Windows prior to 134.0.6998.177 allowed a remote attacker to perform a sandbox escape via a malicious file. (Chromium security severity: High)"
+     },
+     {
+      "lang": "es",
+      "value": "Un identificador incorrecto proporcionado en circunstancias no especificadas en Mojo en Google Chrome para Windows anterior a la versión 134.0.6998.177 permitió que un atacante remoto escapara de la zona protegida mediante un archivo malicioso. (Severidad de seguridad de Chromium: Alta)"
+     }
+    ],
+    "affected": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "affectedData": [
+       {
+        "vendor": "Google",
+        "product": "Chrome",
+        "versions": [
+         {
+          "version": "134.0.6998.177",
+          "lessThan": "134.0.6998.177",
+          "versionType": "custom",
+          "status": "affected"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:H",
+        "baseScore": 8.3,
+        "baseSeverity": "HIGH",
+        "attackVector": "NETWORK",
+        "attackComplexity": "HIGH",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 1.6,
+       "impactScore": 6.0
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2025-03-28T03:55:52.966374Z",
+        "id": "CVE-2025-2783",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2025-03-27",
+    "cisaActionDue": "2025-04-17",
+    "cisaRequiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+    "cisaVulnerabilityName": "Google Chromium Mojo Sandbox Escape Vulnerability",
+    "weaknesses": [
+     {
+      "source": "nvd@nist.gov",
+      "type": "Primary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "NVD-CWE-noinfo"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "134.0.6998.177",
+          "matchCriteriaId": "55EB6B03-2E87-4B74-A41D-1A48BAFDC687"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:o:microsoft:windows:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "A2572D17-1DE6-457B-99CC-64AFD54487EA"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://chromereleases.googleblog.com/2025/03/stable-channel-update-for-desktop_25.html",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Release Notes"
+      ]
+     },
+     {
+      "url": "https://issues.chromium.org/issues/405143032",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Permissions Required"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2025-2783",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-5281",
+    "sourceIdentifier": "chrome-cve-admin@google.com",
+    "published": "2026-04-01T05:16:01.440",
+    "lastModified": "2026-07-24T21:10:00.143",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Use after free in Dawn in Google Chrome prior to 146.0.7680.178 allowed a remote attacker who had compromised the renderer process to execute arbitrary code via a crafted HTML page. (Chromium security severity: High)"
+     },
+     {
+      "lang": "es",
+      "value": "Uso después de liberar en Dawn en Google Chrome versiones anteriores a 146.0.7680.178 permitía a un atacante remoto que había comprometido el proceso de renderizado ejecutar código arbitrario a través de una página HTML manipulada. (Gravedad de seguridad de Chromium: Alta)"
+     }
+    ],
+    "affected": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "affectedData": [
+       {
+        "vendor": "Google",
+        "product": "Chrome",
+        "versions": [
+         {
+          "version": "146.0.7680.178",
+          "lessThan": "146.0.7680.178",
+          "versionType": "custom",
+          "status": "affected"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "baseScore": 8.8,
+        "baseSeverity": "HIGH",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 5.9
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2026-04-01T00:00:00+00:00",
+        "id": "CVE-2026-5281",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2026-04-01",
+    "cisaActionDue": "2026-04-15",
+    "cisaRequiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+    "cisaVulnerabilityName": "Google Dawn Use-After-Free Vulnerability",
+    "weaknesses": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-416"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "146.0.7680.177",
+          "matchCriteriaId": "55B0324F-7911-403B-8235-D71996B55DFB"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:o:apple:macos:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "387021A0-AF36-463C-A605-32EA7DAC172E"
+         },
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:o:linux:linux_kernel:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "703AF700-7A70-47E2-BC3A-7FD03B3CA9C1"
+         },
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:o:microsoft:windows:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "A2572D17-1DE6-457B-99CC-64AFD54487EA"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://chromereleases.googleblog.com/2026/03/stable-channel-update-for-desktop_31.html",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://issues.chromium.org/issues/491518608",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Issue Tracking",
+       "Permissions Required"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-5281",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-87491",
+    "sourceIdentifier": "chrome-cve-admin@google.com",
+    "published": "2026-09-09T01:17:05.887",
+    "lastModified": "2026-09-21T13:17:11.283",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Out of bounds write in V8 in Google Chrome prior to 153.0.8010.36 allowed a remote attacker to execute arbitrary code inside the sandbox via a crafted HTML page. (Chromium security severity: Medium)"
+     }
+    ],
+    "affected": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "affectedData": [
+       {
+        "vendor": "Google",
+        "product": "Chrome",
+        "versions": [
+         {
+          "version": "153.0.8010.36",
+          "lessThan": "153.0.8010.36",
+          "versionType": "custom",
+          "status": "affected"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "baseScore": 8.8,
+        "baseSeverity": "HIGH",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 5.9
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2026-09-10T03:55:21.039385Z",
+        "id": "CVE-2026-87491",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2026-09-09",
+    "cisaActionDue": "2026-09-23",
+    "cisaRequiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+    "cisaVulnerabilityName": "Google Chromium V8 Out of Bounds Write Vulnerability",
+    "weaknesses": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-787"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "153.0.8010.36",
+          "matchCriteriaId": "7BC1B89D-DEB1-48BD-8602-0869B89600FD"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://chromereleases.googleblog.com/2026/09/stable-channel-update-for-desktop_0808145027.html",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Release Notes",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://issues.chromium.org/issues/543557673",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Permissions Required"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-87491",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2026-125350",
+    "sourceIdentifier": "chrome-cve-admin@google.com",
+    "published": "2026-11-10T18:17:35.237",
+    "lastModified": "2026-11-11T05:19:38.220",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Use after free in XML in Google Chrome prior to 157.0.8103.50 allowed a remote attacker to execute arbitrary code inside the sandbox via a crafted HTML page. (Chromium security severity: High)"
+     }
+    ],
+    "affected": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "affectedData": [
+       {
+        "vendor": "Google",
+        "product": "Chrome",
+        "versions": [
+         {
+          "version": "157.0.8103.50",
+          "lessThan": "157.0.8103.50",
+          "versionType": "custom",
+          "status": "affected"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "baseScore": 8.8,
+        "baseSeverity": "HIGH",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 5.9
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2026-11-09T00:00:00+00:00",
+        "id": "CVE-2026-125350",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2026-11-10",
+    "cisaActionDue": "2026-11-24",
+    "cisaRequiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+    "cisaVulnerabilityName": "Google Chromium Use-After-Free Vulnerability",
+    "weaknesses": [
+     {
+      "source": "chrome-cve-admin@google.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-416"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "157.0.8103.50",
+          "matchCriteriaId": "6670B19D-D9FF-4276-B04E-F35E8F3BB029"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop_018223192.html",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Release Notes",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://issues.chromium.org/issues/582442907",
+      "source": "chrome-cve-admin@google.com",
+      "tags": [
+       "Permissions Required"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-125350",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
