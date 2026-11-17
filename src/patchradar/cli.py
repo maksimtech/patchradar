@@ -375,7 +375,8 @@ async def _scan_target(
     """Scan a single target for CVEs and return count.
 
     The CVEs found are also appended to `collected`, when given, for the law
-    check at the end of the scan, and the failures to `failed`: one source
+    check at the end of the scan — all of them but the ones judged not to affect
+    the installed version — and the failures to `failed`: one source
     refusing every target in a watchlist is a different event from one hiccup,
     and only the whole scan can tell them apart.
     """
@@ -436,7 +437,11 @@ async def _scan_target(
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:
-        collected.extend(all_cves)
+        # A CVE NVD states does not affect the installed version is no gap in
+        # the measures GDPR art. 25 and 32 or D.Lgs. 138/2024 art. 24 ask for:
+        # citing it put 7-Zip 26.06 under art. 25 for CVE-2025-0411, fixed in
+        # 24.09, in the same output that called it "not affecting it".
+        collected.extend(cve for cve in all_cves if cve.get("verdict") != NOT_AFFECTED)
     shown = all_cves
     if judged and not show_all:
         shown = [cve for cve in all_cves if cve["verdict"] != NOT_AFFECTED]

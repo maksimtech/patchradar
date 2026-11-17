@@ -1,11 +1,15 @@
 """Tests for the law check that `patchradar scan` runs."""
 import hashlib
+import json
 from pathlib import Path
 
+import httpx
 import pytest
+import respx
 from typer.testing import CliRunner
 
 from patchradar import cli, law_fetcher
+from patchradar.collectors import msrc, nvd
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "gdpr_it_excerpt.html"
@@ -138,3 +142,41 @@ def test_law_check_failure_does_not_fail_scan(monkeypatch):
 def test_cve_markup_in_evidence_is_not_interpreted(monkeypatch, eurlex):
     out = _scan(monkeypatch, [cve("CVE-[bold]x[/bold]", severity="CRITICAL")])
     assert "CVE-[bold]x[/bold]" in out.output
+
+
+# ─── only what may affect the installed version is cited ─────────────────────
+# NVD answers with its recorded record of CVE-2025-0411 (7-Zip, fixed in 24.09:
+# `versionEndExcluding: 24.09`; no reference tagged Patch, confidentiality
+# impact HIGH), MSRC with no document. For 7-Zip 26.06 the same scan judges it
+# "not affected", and the law check cited it under GDPR art. 25 and art. 32.
+
+NVD_7ZIP_0411 = json.loads((FIXTURES / "nvd_cve_2025_0411_recorded.json").read_text(encoding="utf-8"))
+SEVEN_ZIP = "cpe:2.3:a:7-zip:7-zip"
+
+
+def _judged_scan(version):
+    router = respx.mock(assert_all_called=False)
+    router.get(url__startswith=nvd.NVD_API).mock(return_value=httpx.Response(200, json=NVD_7ZIP_0411))
+    router.get(url__startswith=msrc.MSRC_API).mock(return_value=httpx.Response(404))
+    with router:
+        assert runner.invoke(cli.app, ["add", "7-zip", "--cpe", SEVEN_ZIP, "--version", version]).exit_code == 0
+        out = runner.invoke(cli.app, ["scan", "7-zip", "--days", "7"], env={"COLUMNS": "200"})
+    assert out.exit_code == 0, out.output
+    return out.output
+
+
+def test_a_cve_the_scan_judged_not_affecting_the_version_is_not_cited():
+    out = _judged_scan("26.06")
+
+    assert "not affecting it: 1" in " ".join(out.split())
+    assert "CVE-2025-0411" not in out
+    assert "Provision applied" not in out
+
+
+def test_a_cve_affecting_the_version_is_still_cited():
+    out = _judged_scan("24.08")
+    law = out[out.index("Provisions applied"):]
+
+    assert "CVE-2025-0411" in law
+    assert "Provision applied: GDPR art. 25" in law
+    assert "Provision applied: GDPR art. 32" in law

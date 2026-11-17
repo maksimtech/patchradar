@@ -81,6 +81,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   - *A deeply nested `law_cache.json` is an empty cache*, not a `RecursionError`; Normattiva's "-bis",
     "-ter", ... paragraphs can be cited on their own.
 
+- **The law check no longer cites CVEs the same scan judged "not affected".** `scan` handed every CVE
+  found by name to the law check, verdict or not: for 7-Zip 26.06 it printed "not affecting it: 2" and
+  then cited CVE-2025-0411 (fixed in 24.09) and CVE-2026-14266 (fixed in 26.02) under GDPR art. 25 and
+  art. 32, and a critical unpatched one would have reached D.Lgs. 138/2024 art. 24 too. Only the CVEs
+  that affect the installed version, could not be evaluated, or belong to an entry matched by name are
+  cited now. The API runs no law check, so it had nothing to change.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
