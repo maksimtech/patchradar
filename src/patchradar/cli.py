@@ -248,13 +248,17 @@ def _print_law_check(law, out=None) -> None:
     out.print("[bold]⚖️  Provisions applied[/bold]")
     for status in law.acts:
         act = status.act
-        name, source = escape(act.name), escape(act.source)
+        name = escape(act.name)
+        # Which source was tried, and whether it was unreachable or answered
+        # without the text cited: "EUR-Lex unreachable" whatever happened was
+        # wrong on both counts when Cellar had answered without the paragraph.
+        reason = escape(status.reason or "")
         if status.source == "verified":
             origin = escape(status.origin or act.source)
             out.print(f"[dim]{name}: verified against {origin} ({act.id_label} {escape(act.celex)})[/dim]")
         elif status.source == "cache":
             out.print(
-                f"[yellow]{name}: {source} unreachable, "
+                f"[yellow]{name}: {reason}, "
                 "text from the cached copy, not re-verified[/yellow]"
             )
         else:
@@ -263,7 +267,7 @@ def _print_law_check(law, out=None) -> None:
             # for a bug in the hashing. There is no verified text to hash, and
             # printing one anyway would assert a verification never made.
             out.print(
-                f"[yellow]{name}: {source} unreachable and nothing cached, "
+                f"[yellow]{name}: {reason} and nothing cached, "
                 "text not verifiable: the citations below have no SHA-256[/yellow]"
             )
         if act.note:

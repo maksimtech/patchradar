@@ -85,3 +85,29 @@ def test_an_act_read_from_the_cache_still_has_its_hash():
     assert "cache" in out
     assert "not verifiable" not in out, out
 
+
+
+# ── which source, and what went wrong with it ───────────────────────────────
+
+
+def test_a_source_that_answered_without_the_text_is_not_called_unreachable():
+    """Cellar answered, and the paragraph cited was not in its page: the line
+    said "EUR-Lex unreachable", naming neither the source nor what happened."""
+    out = render(LawCheckResult(
+        citations=[], notes=["n"],
+        acts=[ActStatus(GDPR, "cache", "GDPR art. 32(2) not found in the text from Cellar",
+                        tried="Cellar", failure="not_in_text")],
+    ))
+
+    assert "Cellar answered without the text cited" in out
+    assert "unreachable" not in out
+
+
+def test_both_sources_unreachable_with_nothing_cached_say_which():
+    out = render(LawCheckResult(
+        citations=[], notes=["n"],
+        acts=[ActStatus(GDPR, "unavailable", "Cellar answered HTTP 503; and EUR-Lex answered HTTP 202",
+                        tried="Cellar and EUR-Lex", failure="unreachable")],
+    ))
+
+    assert "Cellar and EUR-Lex unreachable and nothing cached" in out

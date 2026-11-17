@@ -59,6 +59,28 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Fixed
 
+- **The law check carries mailradar's fixes of 2026-11-17 (maksimtech/mailradar#103).** `law_fetcher.py`
+  and `law_cache.py` were the copies mailradar had before that pull request, apart from the variable
+  `PATCHRADAR_HOME`; they are now its copies after it, with the same name kept.
+  - *A citation is "verified" only when the reference it cites is in the text downloaded now.* The
+    check looked at the article: with article 32 in Cellar's page and paragraph 2 missing from what was
+    parsed, the citation of `32(2)` for a critical CVE fell back to the cache, old SHA-256 and date
+    included, under "verified against Cellar", or stood beside `SHA256: not available` with an empty
+    cache. A missing reference now makes the act a fetch failure.
+  - *A failed download always reaches the EUR-Lex fallback and the cache*: a redirect to a host httpx
+    cannot encode (`http://xn--/DOC_1`) raised `idna.core.IDNAError` out of the whole law check.
+  - *Redirects stay on the source's host* (publications.europa.eu, eur-lex.europa.eu, www.normattiva.it,
+    default port), so the hosts in `docs/nis2-compliance.md` are the only ones the check can reach.
+  - *A page is read up to 32 MiB, and a fetch ends after 120 seconds*, redirects included.
+  - *A change in the law is reported even when the cache cannot be written*: the comparison was made
+    by the save, so with a read-only cache a changed text was cited without the warning and an unchanged
+    one was dated to the day of the audit. `law_cache.merge` now runs before the save.
+  - *Statuses name the source that was tried.* `ActStatus` carries `tried`, `failure` and `reason`, and
+    `scan` prints "Cellar answered without the text cited" or "Cellar and EUR-Lex unreachable" where it
+    printed "EUR-Lex unreachable" whatever had happened.
+  - *A deeply nested `law_cache.json` is an empty cache*, not a `RecursionError`; Normattiva's "-bis",
+    "-ter", ... paragraphs can be cited on their own.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
