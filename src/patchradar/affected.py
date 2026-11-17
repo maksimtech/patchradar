@@ -38,6 +38,7 @@ import re
 from dataclasses import dataclass
 
 from patchradar.collectors.nvd import CVSS_METRIC_KEYS, scoring_entry
+from patchradar.cpe import WILDCARDS, Cpe, split_fields
 from patchradar.cvss import severity_for
 
 # A dotted numeric version, optionally ending in lower-case letters the way
@@ -119,6 +120,11 @@ class Range:
     # No exact, no start, no end: NVD naming the product with a `*` version,
     # which means every version of it.
     unbounded: bool = False
+    # What else NVD's statement needs, besides the version, that the watchlist
+    # cannot confirm: an update or edition the watched CPE does not name ("for
+    # update beta"), or another product an AND configuration requires ("on
+    # Android"). A range with conditions never makes a version "affected".
+    conditions: tuple[str, ...] = ()
 
     def contains(self, version: str) -> bool:
         have = _parts(version)
@@ -257,7 +263,145 @@ def _score_of(cve: dict) -> tuple[float | None, str | None, str]:
     return None, None, "UNKNOWN"
 
 
-def ranges_in(cve: dict, *, vendor: str, cpe_product: str | None = None) -> list[Range]:
+# The CPE 2.3 fields after the version, by their index in the formatted string,
+# and how a reason names a value of each.
+_FIELDS = {
+    6: lambda v: "for the release with no update" if v == "-" else f"for update {v}",
+    7: lambda v: f"for edition {v}",
+    8: lambda v: f"for language {v}",
+    9: lambda v: "for the standard edition" if v == "-" else f"for the {v} edition",
+    10: lambda v: f"for target software {v}",
+    11: lambda v: f"for target hardware {v}",
+    12: lambda v: f"for {v}",
+}
+
+# How the operating systems NVD's AND configurations require are called in a
+# reason; any other product is named by its CPE product field.
+_PLATFORM_NAMES = {
+    "android": "Android", "macos": "macOS", "mac_os_x": "macOS", "mac_os": "macOS",
+    "windows": "Windows", "linux_kernel": "Linux", "iphone_os": "iOS", "ipados": "iPadOS",
+    "chrome_os": "ChromeOS", "chromeos": "ChromeOS",
+}
+
+
+def _same(fields: list[str], vendor: str, product: str | None) -> bool:
+    return (len(fields) >= 6 and fields[3].lower() == vendor
+            and (product is None or fields[4].lower() == product))
+
+
+def _platform(entries: list[dict]) -> str:
+    """The products a node lists, as a reason names them: "on Android"."""
+    names, systems = [], True
+    for entry in entries:
+        fields = split_fields(str(entry.get("criteria", "")))
+        if len(fields) < 5:
+            continue
+        product = fields[4].lower()
+        name = _PLATFORM_NAMES.get(product, product.replace("\\", "").replace("_", " "))
+        systems = systems and fields[2] == "o"
+        if name not in names:
+            names.append(name)
+    listed = " or ".join(names) or "another product"
+    return f"on {listed}" if systems else f"with {listed}"
+
+
+def _field_conditions(fields: list[str], seen: dict[int, set[str]],
+                      watched: Cpe | None) -> list[str] | None:
+    """What the fields after the version require, or None when the watched CPE
+    names a different value: then the statement is about another update or
+    edition, and does not apply.
+
+    A specific value (`beta`, `esr`) is always a condition. `-` ("none": the
+    release with no update, the standard edition) is one only when the record
+    also names the product with another value in that field — Firefox's `-`
+    beside `esr`; VS Code's lone `target_sw: -` chooses between nothing.
+    """
+    conditions = []
+    for index, say in _FIELDS.items():
+        value = fields[index].lower() if len(fields) > index else "*"
+        if value == "*":
+            continue
+        mine = watched.field(index) if watched is not None else "*"
+        if mine != "*":
+            if mine != value:
+                return None
+            continue
+        if value == "-" and not (seen.get(index, set()) - WILDCARDS):
+            continue
+        conditions.append(say(value))
+    return conditions
+
+
+def _ranges(cve: dict, vendor: str, cpe_product: str | None,
+            watched: Cpe | None) -> tuple[list[Range], int]:
+    """The ranges for that vendor and product, and how many entries were left
+    out because the watched CPE names another update or edition."""
+    vendor = vendor.lower()
+    product = cpe_product.lower() if cpe_product is not None else None
+    configurations = [c for c in cve.get("configurations") or [] if isinstance(c, dict)]
+
+    # Which values each field takes across the product's vulnerable entries,
+    # which is what makes a `-` a choice between editions or not.
+    seen: dict[int, set[str]] = {}
+    for configuration in configurations:
+        for node in configuration.get("nodes") or []:
+            for entry in (node.get("cpeMatch") or []) if isinstance(node, dict) else []:
+                if isinstance(entry, dict) and entry.get("vulnerable", False):
+                    fields = split_fields(str(entry.get("criteria", "")))
+                    if _same(fields, vendor, product):
+                        for index in _FIELDS:
+                            seen.setdefault(index, set()).add(fields[index].lower() if len(fields) > index else "*")
+
+    found: list[Range] = []
+    excluded = 0
+    for configuration in configurations:
+        nodes = [n for n in configuration.get("nodes") or [] if isinstance(n, dict)]
+        joined = str(configuration.get("operator", "")).upper() == "AND"
+        for node in nodes:
+            entries = [e for e in node.get("cpeMatch") or [] if isinstance(e, dict)]
+            node_joined = str(node.get("operator", "")).upper() == "AND"
+            for entry in entries:
+                if not entry.get("vulnerable", False):
+                    # `vulnerable: false` describes the context in which another
+                    # component is vulnerable. On CVE-2017-8803 the Notepad++
+                    # node is exactly that, and counting it reports a CVE that
+                    # does not concern the program.
+                    continue
+                fields = split_fields(str(entry.get("criteria", "")))
+                if not _same(fields, vendor, product):
+                    continue
+                conditions = _field_conditions(fields, seen, watched)
+                if conditions is None:
+                    excluded += 1
+                    continue
+                # An AND of this node with others: Chrome *and* Android. The
+                # statement is about the product on, or with, what they list.
+                if joined:
+                    conditions += [_platform([e for e in other.get("cpeMatch") or [] if isinstance(e, dict)])
+                                   for other in nodes if other is not node]
+                if node_joined:
+                    conditions += [_platform([other]) for other in entries if other is not entry]
+
+                start = entry.get("versionStartIncluding") or entry.get("versionStartExcluding")
+                end = entry.get("versionEndIncluding") or entry.get("versionEndExcluding")
+                if start is None and end is None:
+                    version = fields[5]
+                    found.append(Range(exact=version, conditions=tuple(conditions))
+                                 if version not in _NOT_A_VERSION
+                                 else Range(unbounded=True, conditions=tuple(conditions)))
+                    continue
+                found.append(Range(
+                    start=start,
+                    start_inclusive="versionStartIncluding" in entry,
+                    end=end,
+                    end_inclusive="versionEndIncluding" in entry,
+                    conditions=tuple(conditions),
+                ))
+    return found, excluded
+
+
+def ranges_in(cve: dict, *, vendor: str, cpe_product: str | None = None,
+              watched: Cpe | None = None) -> list[Range]:
     """The affected ranges this CVE declares for that vendor, and product.
 
     `cpe_product` is the product field of the CPE in its escaped form — the
@@ -265,43 +409,13 @@ def ranges_in(cve: dict, *, vendor: str, cpe_product: str | None = None) -> list
     Passing the readable name raises nothing and matches nothing, which reads as
     "no vulnerabilities". Vendor and product are compared without regard to
     case, as CPE 2.3 names are matched.
-    """
-    vendor = vendor.lower()
-    cpe_product = cpe_product.lower() if cpe_product is not None else None
-    found: list[Range] = []
-    for configuration in cve.get("configurations") or []:
-        if not isinstance(configuration, dict):
-            continue
-        for node in configuration.get("nodes") or []:
-            if not isinstance(node, dict):
-                continue
-            for entry in node.get("cpeMatch") or []:
-                if not isinstance(entry, dict) or not entry.get("vulnerable", False):
-                    # `vulnerable: false` describes the context in which another
-                    # component is vulnerable. On CVE-2017-8803 the Notepad++
-                    # node is exactly that, and counting it reports a CVE that
-                    # does not concern the program.
-                    continue
-                fields = str(entry.get("criteria", "")).split(":")
-                if len(fields) < 6 or fields[3].lower() != vendor:
-                    continue
-                if cpe_product is not None and fields[4].lower() != cpe_product:
-                    continue
 
-                start = entry.get("versionStartIncluding") or entry.get("versionStartExcluding")
-                end = entry.get("versionEndIncluding") or entry.get("versionEndExcluding")
-                if start is None and end is None:
-                    version = fields[5]
-                    found.append(Range(exact=version) if version not in _NOT_A_VERSION
-                                 else Range(unbounded=True))
-                    continue
-                found.append(Range(
-                    start=start,
-                    start_inclusive="versionStartIncluding" in entry,
-                    end=end,
-                    end_inclusive="versionEndIncluding" in entry,
-                ))
-    return found
+    `watched` is the watchlist entry's CPE: an entry whose update or edition it
+    contradicts is left out, and one whose update or edition it does not name
+    carries that as a condition (`Range.conditions`), as does one in an AND
+    configuration.
+    """
+    return _ranges(cve, vendor, cpe_product, watched)[0]
 
 
 def _note_for(span: Range) -> str:
@@ -329,7 +443,8 @@ def affects(payload: dict, *, version: str, vendor: str,
         if not isinstance(cve, dict):
             continue
         for span in ranges_in(cve, vendor=vendor, cpe_product=cpe_product):
-            if not span.contains(version):
+            # A range with conditions says "affected, if": not a hit
+            if span.conditions or not span.contains(version):
                 continue
             score, cvss_version, severity = _score_of(cve)
             description = next((d.get("value", "") for d in cve.get("descriptions") or []
@@ -426,13 +541,20 @@ class Verdict:
     fixed_version: str | None = None
 
 
-def judge(record: dict, *, version: str, vendor: str, cpe_product: str) -> Verdict:
+def judge(record: dict, *, version: str, vendor: str, cpe_product: str,
+          watched: Cpe | None = None) -> Verdict:
     """The verdict on one scan record for the installed `version` (DESIGN §5.3).
 
     The record carries NVD's `configurations` when NVD returned it — an empty
     list when NVD has not analysed the CVE yet — and no such key when it came
     from another source alone. Only a statement NVD made about this product
     decides: anything short of that is "not evaluable", never "not affected".
+
+    Nor "affected": a range that contains the version but holds only on a
+    platform, or for an update or edition, the watched CPE (`watched`) does not
+    name makes the CVE "not evaluable", with the condition in the reason. The
+    watchlist knows the version, not the operating system: Chrome on Windows
+    was "affected" by a CVE NVD lists for Chrome on Android only.
     """
     configurations = record.get("configurations")
     if configurations is None:
@@ -440,13 +562,23 @@ def judge(record: dict, *, version: str, vendor: str, cpe_product: str) -> Verdi
     if not isinstance(configurations, list) or not configurations:
         return Verdict(NOT_EVALUABLE, "NVD has not yet stated which products it affects")
 
-    spans = ranges_in({"configurations": configurations}, vendor=vendor, cpe_product=cpe_product)
+    spans, excluded = _ranges({"configurations": configurations}, vendor, cpe_product, watched)
     if not spans:
+        if excluded:
+            return Verdict(NOT_AFFECTED, f"NVD lists {vendor}:{cpe_product} only with an update or "
+                                         f"edition other than the one the watched CPE names")
         return Verdict(NOT_AFFECTED, f"NVD lists the products it affects, and "
                                      f"{vendor}:{cpe_product} is not among them")
+    conditional = None
     for span in spans:
         if span.contains(version):
-            return Verdict(AFFECTED, _note_for(span), span.fixed_version)
+            if not span.conditions:
+                return Verdict(AFFECTED, _note_for(span), span.fixed_version)
+            conditional = conditional or span
+    if conditional is not None:
+        return Verdict(NOT_EVALUABLE, f"NVD lists it as affecting {version} only "
+                                      f"{' and '.join(conditional.conditions)}, which the "
+                                      f"watchlist does not record")
 
     stated = "; ".join(span.describe() for span in spans)
     if not all(span.comparable(version) for span in spans):
@@ -456,10 +588,12 @@ def judge(record: dict, *, version: str, vendor: str, cpe_product: str) -> Verdi
                                  f"{version} is not among them")
 
 
-def mark(records: list[dict], installed: tuple[str, str, str] | None) -> None:
+def mark(records: list[dict], installed: tuple[str, str, str] | None,
+         watched: Cpe | None = None) -> None:
     """Give each scan record its verdict for `installed` — (version, vendor,
     product), or None for an entry matched by name — and take NVD's
-    configurations off it, which nothing after the verdict reads.
+    configurations off it, which nothing after the verdict reads. `watched` is
+    the entry's CPE, whose update and edition fields the verdict reads too.
 
     The one place the CLI and the API judge, so the two cannot disagree. The
     record keeps the version it was judged for, which is what lets a stored
@@ -468,7 +602,7 @@ def mark(records: list[dict], installed: tuple[str, str, str] | None) -> None:
     for record in records:
         if installed is not None:
             version, vendor, product = installed
-            verdict = judge(record, version=version, vendor=vendor, cpe_product=product)
+            verdict = judge(record, version=version, vendor=vendor, cpe_product=product, watched=watched)
             record.update(verdict=verdict.status, verdict_reason=verdict.reason,
                           verdict_fixed_version=verdict.fixed_version, judged_version=version)
         record.pop("configurations", None)

@@ -93,7 +93,14 @@ name is judged against the installed version with NVD's own `configurations`:
   which products the CVE affects (no `configurations`, the usual state of a CVE
   for weeks after publication), NVD could not be asked about a CVE that came
   from KEV or MSRC alone, or NVD's versions belong to another scheme than the
-  installed one (`2.07` against `16.0.14334`).
+  installed one (`2.07` against `16.0.14334`). Also a CVE whose range contains
+  the version only under a condition the watchlist cannot confirm, which the
+  reason names: an AND configuration with another product, mostly the
+  operating system (Chrome *on Android*), or an update or edition the watched
+  CPE does not name (`7-zip:4.43:beta`, Firefox `sw_edition: esr` beside `-`).
+  A CPE that names it (`cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`) is judged
+  on that edition's ranges only. A `-` in a field counts as a condition only
+  when the record names the product with another value there too.
 
 A CVE that reached the scan only through KEV or MSRC, which carry no
 `cpeMatch`, is looked up in NVD by id (`cveId=`) for an entry that can be judged,

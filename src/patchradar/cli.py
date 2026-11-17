@@ -433,7 +433,9 @@ async def _scan_target(
     # configurations, and the ones that do not affect it are counted, not
     # listed, unless --all asks for them.
     judged = installed is not None
-    mark(all_cves, installed)
+    # The CPE too: its update and edition fields decide which of NVD's ranges apply
+    watched = parse_cpe(entry.cpe) if entry is not None and entry.cpe and installed is not None else None
+    mark(all_cves, installed, watched)
     for cve in all_cves:
         await save_cve(cve)
     if collected is not None:

@@ -89,9 +89,12 @@ affected versions:
 - **affected** — listed in the table, with "fixed in X" only where NVD states it;
 - **not evaluable** — NVD has not yet said which products the CVE affects (the
   usual state for weeks after publication), NVD could not be asked about a CVE
-  that came from KEV or MSRC alone — those are looked up in NVD by id — or NVD's
-  versions belong to another scheme: listed, because "cannot tell" is not an
-  all-clear;
+  that came from KEV or MSRC alone — those are looked up in NVD by id — NVD's
+  versions belong to another scheme, or NVD lists the version only on another
+  platform (Chrome on Android) or for an update or edition the CPE does not name
+  (the ESR line of Firefox, a beta): listed, with the condition, because
+  "cannot tell" is not an all-clear. A CPE that names its edition, such as
+  `cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`, is judged on that edition;
 - **not affected** — counted, and listed only with `--all`.
 
 One line gives the split, one says which update closes how many of the

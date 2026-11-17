@@ -378,7 +378,8 @@ async def _scan_one(sw: str, days: int, errors: list[dict], entry: WatchEntry | 
                        "reason": exc.reason, "status": exc.status})
     # Judged by the function the CLI judges with, before anything is stored, so
     # the verdict lands with the link and the two scans give one answer.
-    mark(collected, installed)
+    watched = parse_cpe(entry.cpe) if entry is not None and entry.cpe and installed is not None else None
+    mark(collected, installed, watched)
     if installed is not None and verdicts is not None:
         found = [cve["verdict"] for cve in collected]
         verdicts[sw] = {status: found.count(status) for status in (AFFECTED, NOT_EVALUABLE, NOT_AFFECTED)}

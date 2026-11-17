@@ -95,6 +95,19 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   2.3 names match without regard to case: the CPE is now stored in lower case, and the verdict compares
   vendor and product without regard to case, which also covers entries stored before.
 
+- **"Affected" only when NVD's statement is about the version alone.** The verdict read the version of a
+  `cpeMatch` entry and ignored the rest: the fields after the version and the AND configuration around
+  it. On NVD's own records (2026-11-17), Chrome 150 on Windows was "affected" by CVE-2026-16424, which NVD
+  lists for Chrome *on Android* only, and Chrome 151 by CVE-2026-17709, macOS only; Firefox ESR 115.17.0
+  was "affected, fix in 131.0.2" by CVE-2024-9680, whose ESR line was fixed in 115.16.1; and 7-Zip 4.43
+  was affected by entries written `7-zip:4.43:beta`. The watchlist knows the version and the CPE, not the
+  operating system: a range that contains the version only on a platform an AND configuration requires,
+  or only for an update or edition the watched CPE does not name, now gives "not evaluable" with the
+  condition in the reason ("NVD lists it as affecting 150.0.7871.100 only on Android"). A CPE that names
+  its edition or update (`cpe:2.3:a:mozilla:firefox:*:*:*:*:esr:*:*:*`) is judged on those ranges only,
+  in the CLI and the API alike. A `-` counts as a condition only where the record names the product with
+  another value in the same field, so VS Code's lone `target_sw: -` changes nothing.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the
