@@ -27,7 +27,7 @@ def isolated_db(tmp_path, monkeypatch):
 @pytest.fixture
 async def client():
     await database.init_db()
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as ac:
         yield ac
 
 

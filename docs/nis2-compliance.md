@@ -59,8 +59,20 @@ conta:
   sulla rete se davanti non c'è un proxy che termina TLS;
 - una scrittura che un browser invia per conto di un altro sito viene rifiutata con
   403: il server accetta solo `Sec-Fetch-Site` uguale a `same-origin` o `none` e, se
-  quell'intestazione manca, un `Origin` uguale al server. È una difesa contro le pagine
-  web ostili visitate dall'utente, non un controllo degli accessi.
+  quell'intestazione manca, un `Origin` che sia uno degli host a cui il server
+  risponde, porta compresa (non più l'`Host` della richiesta stessa). È una difesa
+  contro le pagine web ostili visitate dall'utente, non un controllo degli accessi;
+- ogni richiesta, letture e file statici compresi, il cui `Host` non è un nome a cui
+  il server risponde viene rifiutata con 421 (Misdirected Request), e con 400 se
+  `Host` manca o non è un host. Il server risponde a `localhost`, `127.0.0.1` e
+  `[::1]` sulla porta su cui ascolta, all'indirizzo su cui è arrivata la connessione e
+  ai nomi elencati nella variabile d'ambiente `PATCHRADAR_ALLOWED_HOSTS` (separati da
+  virgole: `nome` per qualunque porta, `nome:porta` solo per quella; nessun carattere
+  jolly). Difende dal DNS rebinding: una pagina ostile che fa risolvere il proprio nome
+  in 127.0.0.1 è "same-origin" per il browser, e fino al 2026-11-17 poteva così leggere
+  la watchlist e aggiungervi voci. Chi mette un proxy davanti al server e gli fa
+  passare il proprio `Host`, o rimappa la porta con Docker, aggiunge quel nome alla
+  variabile.
 
 In pratica: esposta oltre la macchina locale, l'interfaccia mostra a chiunque la
 raggiunga l'inventario del software e le sue vulnerabilità. Va lasciata sul loopback,

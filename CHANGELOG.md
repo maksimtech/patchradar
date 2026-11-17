@@ -14,6 +14,22 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Security
 
+- **The web UI answers only to its own names: DNS rebinding is refused.** The server never looked
+  at `Host`. A page on a name the attacker controls, made to resolve to 127.0.0.1, is the same origin
+  as `http://that-name:8000` for the browser, which therefore sends `Sec-Fetch-Site: same-origin`, an
+  `Origin` equal to `Host`, and lets the page read the answers: the bug hunt of 2026-11-17 added a
+  watchlist entry and read `GET /api/watchlist` — the software installed and its versions — with
+  `Host: rebind.evil.example:8000`, so "a page you visit cannot add to your watchlist" did not hold.
+  Every request, reads and `/static` included, is now refused with 421 Misdirected Request unless its
+  `Host` is `localhost`, `127.0.0.1` or `[::1]` on the port the server listens on (or with no port),
+  the address the connection arrived on, or a name in the new `PATCHRADAR_ALLOWED_HOSTS`
+  (comma-separated, `name` for any port, `name:port` for that one, no wildcard); a missing or
+  malformed `Host` is a 400. For a browser that sends no `Sec-Fetch-Site`, the write guard compares
+  `Origin` with those hosts, port included, instead of with the request's own `Host`, which the
+  rebinding page sets. Who reaches the UI through a reverse proxy that passes its own `Host`, a LAN
+  name or a Docker port other than 8000 adds that name to the variable; `docker-compose.yml` and
+  `.env.example` pass it through. `tests/test_host_check.py`.
+
 - **opentelemetry-api 1.45.2** in `uv.lock`, from 1.45.1. The older release parses a `traceparent`
   header in quadratic time, a denial of service (CVE-2026-126360, GHSA-mf5v-w3w3-f6cg, medium,
   published 2026-11-13); 1.45.2, on PyPI since 2026-10-29, is the release the advisory names as fixed.

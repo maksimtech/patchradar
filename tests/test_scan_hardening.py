@@ -56,7 +56,7 @@ async def client(tmp_path):
     for sw in WATCHED:
         await database.add_to_watchlist(sw)
     async with AsyncClient(
-        transport=ASGITransport(app=api.app), base_url="http://test", timeout=60
+        transport=ASGITransport(app=api.app), base_url="http://localhost", timeout=60
     ) as ac:
         yield ac
 
@@ -314,7 +314,7 @@ async def test_a_non_ascii_key_header_is_a_401_not_a_500(monkeypatch):
     instead of a 401."""
     monkeypatch.setenv(api.API_KEY_ENV, "secret")
     transport = ASGITransport(app=api.app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://localhost") as ac:
         r = await ac.post("/api/watchlist/x", headers={"X-API-Key": "s\xe9cret".encode("latin-1")})
     assert r.status_code == 401
 
@@ -325,7 +325,7 @@ async def test_a_non_ascii_configured_key_does_not_turn_a_wrong_header_into_a_50
     stays a 401."""
     monkeypatch.setenv(api.API_KEY_ENV, "chiavé")
     transport = ASGITransport(app=api.app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://localhost") as ac:
         r = await ac.post("/api/watchlist/x", headers={"X-API-Key": "chiave"})
     assert r.status_code == 401
 
@@ -439,9 +439,9 @@ async def test_the_scan_counts_each_cve_once_across_sources(empty_database, unre
             return_value=httpx.Response(200, json=_recorded("nvd_vcenter_2026_07_30.json")))
         upstream.route(host="api.msrc.microsoft.com").pass_through()
         upstream.route(host="security-tracker.debian.org").pass_through()
-        upstream.route(host="test").pass_through()   # the app itself, over ASGI
+        upstream.route(host="localhost").pass_through()   # the app itself, over ASGI
 
-        async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as ac:
             r = await ac.post("/api/scan?days=7")
 
     assert r.status_code == 200

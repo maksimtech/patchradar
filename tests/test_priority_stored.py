@@ -182,7 +182,7 @@ async def test_a_short_listing_is_the_most_urgent_not_the_newest():
 
 async def test_the_api_listing_says_why_each_row_ranks_where_it_does():
     await _store(ROWS)
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as client:
         rows = (await client.get("/api/cves", params={"limit": 100})).json()["cves"]
 
     assert [r["id"] for r in rows] == _expected(ROWS)

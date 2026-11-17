@@ -211,7 +211,7 @@ def test_the_cli_scan_reads_the_edition_of_the_watched_cpe(upstream_9680):
 
 
 async def test_the_api_scan_reads_the_edition_of_the_watched_cpe(upstream_9680):
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as client:
         added = await client.post("/api/watchlist/firefox", params={"version": "115.17.0", "cpe": FIREFOX_ESR})
         assert added.status_code == 200, added.text
         body = (await client.post("/api/scan", params={"days": 7})).json()

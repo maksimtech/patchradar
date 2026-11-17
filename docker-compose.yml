@@ -11,6 +11,9 @@ services:
     environment:
       # read from .env (see .env.example); unset or empty means "no key"
       PATCHRADAR_API_KEY: ${PATCHRADAR_API_KEY:-}
+      # names besides localhost:8000 the UI is opened by, e.g. after changing the
+      # published port above; any other Host is refused (see .env.example)
+      PATCHRADAR_ALLOWED_HOSTS: ${PATCHRADAR_ALLOWED_HOSTS:-}
       NVD_API_KEY: ${NVD_API_KEY:-}
     volumes:
       # must match the Dockerfile VOLUME: the image runs as the unprivileged

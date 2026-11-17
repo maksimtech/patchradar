@@ -41,7 +41,7 @@ async def fresh_db():
 
 @pytest.fixture
 async def client():
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as ac:
         yield ac
 
 

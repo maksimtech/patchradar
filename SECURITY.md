@@ -68,8 +68,10 @@ listens on all of the container's interfaces. The optional `PATCHRADAR_API_KEY`
 protects only the endpoints that change the watchlist or start a scan: the watchlist
 and the vulnerabilities found are readable by anyone who can reach the port, with or
 without the key, over plain HTTP. Keep it on loopback, or put it behind a proxy that
-adds TLS and authentication. The details are in question 2 of
-[docs/nis2-compliance.md](docs/nis2-compliance.md).
+adds TLS and authentication. Requests whose `Host` is not one the server answers to
+— the loopback names, the address the connection arrived on, and the names in
+`PATCHRADAR_ALLOWED_HOSTS` — are refused with 421, which closes DNS rebinding. The
+details are in question 2 of [docs/nis2-compliance.md](docs/nis2-compliance.md).
 
 ## Evidence attached to every release
 
