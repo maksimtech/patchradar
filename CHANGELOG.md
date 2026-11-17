@@ -88,6 +88,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   that affect the installed version, could not be evaluated, or belong to an entry matched by name are
   cited now. The API runs no law check, so it had nothing to change.
 
+- **A CPE typed with capitals no longer turns every CVE into "not affected".** `add --cpe` and
+  `POST /api/watchlist/{name}?cpe=` accepted `cpe:2.3:a:Mozilla:Thunderbird` as typed, and the verdict
+  compared its vendor and product with NVD's lower-case `cpeMatch` names as strings: nothing matched, so
+  every CVE of the program was judged "not affected" and hidden from the table — a false all-clear. CPE
+  2.3 names match without regard to case: the CPE is now stored in lower case, and the verdict compares
+  vendor and product without regard to case, which also covers entries stored before.
+
 - **The weekly mutation run gets past its stats phase again.** It had been red since 2026-10-24, four
   Saturdays, on `assert [13226] == []` in `tests/test_sql_is_not_formatted.py`. mutmut runs the suite
   from `mutants/`, where database.py holds every mutant beside the code, and one of them drops the

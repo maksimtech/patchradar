@@ -73,7 +73,14 @@ def _escaped(value: str) -> str:
 
 
 def parse_cpe(text: str) -> Cpe:
-    cleaned = text.strip()
+    """The CPE in `text`, in lower case.
+
+    CPE 2.3 names match without regard to case, and NVD writes them in lower
+    case. Kept as typed, `cpe:2.3:a:Mozilla:Thunderbird` matched none of NVD's
+    names, and every CVE of the program was judged "not affected" — hidden from
+    the table, an all-clear made of a capital letter.
+    """
+    cleaned = text.strip().lower()
     if not cleaned.startswith(PREFIX):
         raise CpeError(f"'{cleaned}' is not a CPE 2.3 name: it must start with '{PREFIX}'")
     fields = _fields(cleaned)

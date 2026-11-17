@@ -72,6 +72,11 @@ product, neither `*` nor `-`. A product written with a CPE special character
 unescaped — `notepad++` instead of `notepad\+\+` — is refused with the escaped
 form shown, because NVD would match nothing and the scan would read as clean.
 
+CPE 2.3 names match without regard to case, and NVD writes them in lower case:
+the CPE is stored in lower case, and the verdict compares vendor and product
+without regard to case. Compared as typed, `cpe:2.3:a:Mozilla:Thunderbird`
+matched nothing and made every CVE "not affected".
+
 The version must be one `affected.py` can order. One it cannot read is refused
 at `add`, not discovered as "not evaluable" on every CVE of every scan.
 

@@ -57,6 +57,15 @@ async def test_a_cpe_nvd_would_match_nothing_with_is_refused_with_its_form(clien
     assert await database.get_watchlist() == []
 
 
+async def test_a_cpe_sent_with_capitals_is_stored_as_nvd_writes_it(client):
+    response = await _add(client, version="8.5.0", cpe="cpe:2.3:a:Notepad-Plus-Plus:Notepad\\+\\+")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["cpe"] == NOTEPADPP
+    [entry] = await database.get_watch_entries()
+    assert entry.installed() == ("8.5.0", "notepad-plus-plus", "notepad\\+\\+")
+
+
 async def test_a_version_the_scan_cannot_order_is_refused(client):
     response = await _add(client, version="8.x-beta", cpe=NOTEPADPP)
 

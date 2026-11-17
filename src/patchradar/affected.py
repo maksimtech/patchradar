@@ -263,8 +263,11 @@ def ranges_in(cve: dict, *, vendor: str, cpe_product: str | None = None) -> list
     `cpe_product` is the product field of the CPE in its escaped form — the
     `notepad\\+\\+` that the API wants, not the `Notepad++` a person reads.
     Passing the readable name raises nothing and matches nothing, which reads as
-    "no vulnerabilities".
+    "no vulnerabilities". Vendor and product are compared without regard to
+    case, as CPE 2.3 names are matched.
     """
+    vendor = vendor.lower()
+    cpe_product = cpe_product.lower() if cpe_product is not None else None
     found: list[Range] = []
     for configuration in cve.get("configurations") or []:
         if not isinstance(configuration, dict):
@@ -280,9 +283,9 @@ def ranges_in(cve: dict, *, vendor: str, cpe_product: str | None = None) -> list
                     # does not concern the program.
                     continue
                 fields = str(entry.get("criteria", "")).split(":")
-                if len(fields) < 6 or fields[3] != vendor:
+                if len(fields) < 6 or fields[3].lower() != vendor:
                     continue
-                if cpe_product is not None and fields[4] != cpe_product:
+                if cpe_product is not None and fields[4].lower() != cpe_product:
                     continue
 
                 start = entry.get("versionStartIncluding") or entry.get("versionStartExcluding")

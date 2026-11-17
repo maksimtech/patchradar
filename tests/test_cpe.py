@@ -79,3 +79,27 @@ def test_a_character_already_escaped_is_not_escaped_twice():
 
     assert "notepad\\+\\+" in str(raised.value)
     assert "\\\\+" not in str(raised.value)
+
+
+# ─── case ────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("text", [
+    "cpe:2.3:a:Mozilla:Thunderbird",
+    "cpe:2.3:a:MOZILLA:THUNDERBIRD:*:*:*:*:*:*:*:*",
+])
+def test_vendor_and_product_are_read_in_the_lower_case_nvd_writes(text):
+    """CPE 2.3 names match without regard to case, and NVD writes them in lower
+    case. `cpe:2.3:a:Mozilla:Thunderbird` was accepted as typed and then matched
+    no `cpeMatch`, so every CVE of Thunderbird came out "not affected" and was
+    hidden from the table: an all-clear made of a capital letter."""
+    cpe = parse_cpe(text)
+
+    assert (cpe.vendor, cpe.product) == ("mozilla", "thunderbird")
+    assert cpe.text == text.lower()
+
+
+def test_an_escaped_character_survives_the_lower_case():
+    cpe = parse_cpe("cpe:2.3:a:Notepad-Plus-Plus:Notepad\\+\\+")
+
+    assert (cpe.vendor, cpe.product) == ("notepad-plus-plus", "notepad\\+\\+")
+    assert cpe.text == NOTEPADPP
