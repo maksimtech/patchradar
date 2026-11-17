@@ -62,6 +62,12 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   without `mutants/`, so they hold or fail under mutmut exactly as they do in the ordinary run. The new
   test has mutmut build its copy of the real database.py and reproduced the failure before the fix.
 
+- **The README's badges render, and none states the version by hand.** The README is also the long
+  description on PyPI. The PyPI badge had been pasted into its own URL and showed as a broken image; it
+  is one badge again. The static `calver-2026.8.2` badge named a release two months old; it now says
+  the project uses CalVer, and the version is left to the PyPI badges, which ask PyPI.
+  `tests/test_readme_badges.py` holds both.
+
 - **Security Posture reads every page of alerts.** The code scanning API returns at most a hundred
   alerts per call, and the gate read one page of each list. Found in cookieradar on 2026-11-13
   (cookieradar #70): a pull request with 123 open alerts and main with 142, three exceptions whose
