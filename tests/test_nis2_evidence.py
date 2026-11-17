@@ -400,7 +400,7 @@ async def test_reads_need_no_key_even_when_one_is_set(doc, monkeypatch):
     watchlist came back to a request without it. The document has to say so."""
     monkeypatch.setenv(api_main.API_KEY_ENV, "a-key-for-this-test")
     await database.init_db()
-    async with AsyncClient(transport=ASGITransport(app=api_main.app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=api_main.app), base_url="http://localhost") as client:
         assert (await client.post("/api/watchlist/nginx")).status_code == 401
         assert (await client.get("/api/watchlist")).status_code == 200
         assert (await client.get("/api/cves")).status_code == 200

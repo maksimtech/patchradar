@@ -1,13 +1,15 @@
 import asyncio
 import hmac
+import ipaddress
 import logging
 import math
 import os
 import re
+from collections.abc import Awaitable, Callable, MutableMapping
 from contextlib import asynccontextmanager
 from importlib.metadata import version as pkg_version
 from pathlib import Path as FilePath
-from urllib.parse import urlsplit
+from typing import Any
 
 import aiosqlite
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
@@ -103,6 +105,107 @@ async def require_api_key(provided: str | None = Depends(_api_key_header)) -> No
         )
 
 
+ALLOWED_HOSTS_ENV = "PATCHRADAR_ALLOWED_HOSTS"
+
+# ASGI, spelt without importing Starlette, which is FastAPI's and not declared here.
+Scope = MutableMapping[str, Any]
+Receive = Callable[[], Awaitable[MutableMapping[str, Any]]]
+Send = Callable[[MutableMapping[str, Any]], Awaitable[None]]
+ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
+
+# The names a browser on this machine reaches the server by, whatever --host is.
+_LOOPBACK_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+# A Host value, or the authority of an Origin: a name or an IPv4 address, or an
+# IPv6 address in brackets, and an optional port. Nothing else — no userinfo,
+# path or spaces — so what is matched is what a browser would have sent.
+# Matched here rather than with urlsplit, which raises ValueError on brackets
+# around something that is not an IPv6 address: a 500 for `Origin: http://[1.2]`.
+_AUTHORITY_RE = re.compile(r"(?:(?P<name>[A-Za-z0-9._-]+)|\[(?P<ipv6>[0-9A-Fa-f:.]+)\])(?::(?P<port>[0-9]{1,5}))?")
+
+# An Origin header as browsers serialise one (RFC 6454, 6.1).
+_ORIGIN_RE = re.compile(r"(?P<scheme>https?)://(?P<authority>.+)")
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _parse_authority(value: str) -> tuple[str, int | None] | None:
+    """(host, port) of `name[:port]`, the host lower-cased and an address in its
+    canonical form; None when the value is not one."""
+    match = _AUTHORITY_RE.fullmatch(value)
+    if match is None:
+        return None
+    port = int(match["port"]) if match["port"] else None
+    if port is not None and port > 65535:
+        return None
+    if match["ipv6"] is not None:
+        try:
+            return ipaddress.IPv6Address(match["ipv6"]).compressed, port
+        except ValueError:
+            return None
+    name = match["name"].lower()
+    return _as_address(name) or name, port
+
+
+def _as_address(value: str) -> str | None:
+    """An IP address in its canonical form, or None when `value` is not one."""
+    try:
+        return ipaddress.ip_address(value).compressed
+    except ValueError:
+        return None
+
+
+def configured_hosts() -> list[tuple[str, int | None]]:
+    """The extra names in PATCHRADAR_ALLOWED_HOSTS, comma-separated.
+
+    `name` is answered on any port, `name:port` on that port only. An entry that
+    is not a name — `*`, a URL — is ignored (the startup log says so), never
+    read as "any host". Read per request, like the API key.
+    """
+    raw = os.environ.get(ALLOWED_HOSTS_ENV, "")
+    entries = (_parse_authority(item.strip()) for item in raw.split(",") if item.strip())
+    return [entry for entry in entries if entry is not None]
+
+
+def _answers_to(host: str, port: int | None, scope: Scope) -> bool:
+    """Whether this server, as reached by this connection, is `host:port`.
+
+    The loopback names and the address the connection arrived on (uvicorn puts
+    the socket's own address in the scope's `server`), on the port it arrived
+    on or with no port; then the configured names. An address is taken from
+    `server` only when it is one: DNS rebinding works through a name, and no
+    answer of the attacker's makes a browser send an address it did not
+    connect to.
+    """
+    for name, wanted in configured_hosts():
+        if host == name and (wanted is None or port == wanted):
+            return True
+    own_address, own_port = scope.get("server") or (None, None)
+    names = set(_LOOPBACK_NAMES)
+    if isinstance(own_address, str) and (address := _as_address(own_address)):
+        names.add(address)
+    if host not in names:
+        return False
+    return port is None or own_port is None or port == own_port
+
+
+def _origin_is_this_server(origin: str, request: Request) -> bool:
+    """Whether an Origin header names this server, port included.
+
+    Compared with the hosts the server answers to, not with the request's own
+    Host: under DNS rebinding the browser makes the two equal, and behind a
+    proxy that rewrites Host they differ for a legitimate page. The port is the
+    origin's, or the scheme's default when it has none, so a page from
+    http://localhost (port 80) is not this server on port 8000.
+    """
+    match = _ORIGIN_RE.fullmatch(origin)  # not "null", nor anything with a path
+    authority = _parse_authority(match["authority"]) if match else None
+    if match is None or authority is None:
+        return False
+    host, port = authority
+    return _answers_to(host, port if port is not None else _DEFAULT_PORTS[match["scheme"]], request.scope)
+
+
 # What a browser's Sec-Fetch-Site may say about a write it is allowed to send:
 # the page came from this server, or the user started the request directly.
 _OWN_FETCH_SITES = {"same-origin", "none"}
@@ -118,10 +221,14 @@ async def require_same_origin(request: Request) -> None:
 
     Browsers say where a request comes from, in Sec-Fetch-Site and, on every
     cross-origin POST or DELETE, in Origin. Sec-Fetch-Site is preferred because
-    it survives a reverse proxy that rewrites Host; Origin against Host covers
-    the browsers that predate it. A client that sends neither header is not a
-    browser — curl, a script — and cannot be used for CSRF, so it is let through
-    to the key check like before.
+    it survives a reverse proxy that rewrites Host; Origin against the hosts the
+    server answers to covers the browsers that predate it. A client that sends
+    neither header is not a browser — curl, a script — and cannot be used for
+    CSRF, so it is let through to the key check like before.
+
+    "same-origin" is only as good as the origin: under DNS rebinding the
+    attacker's page is same-origin with the name it rebinds, and so is its
+    Origin. `require_known_host` refuses that name before any route runs.
     """
     site = request.headers.get("sec-fetch-site")
     if site is not None:
@@ -129,7 +236,7 @@ async def require_same_origin(request: Request) -> None:
             return
     else:
         origin = request.headers.get("origin")
-        if origin is None or urlsplit(origin).netloc == request.headers.get("host"):
+        if origin is None or _origin_is_this_server(origin, request):
             return
     raise HTTPException(status_code=403, detail="Cross-site request refused")
 
@@ -144,10 +251,63 @@ async def lifespan(app: FastAPI):
             "unauthenticated. Set it before exposing PatchRadar beyond localhost.",
             API_KEY_ENV,
         )
+    ignored = [item.strip() for item in os.environ.get(ALLOWED_HOSTS_ENV, "").split(",")
+               if item.strip() and _parse_authority(item.strip()) is None]
+    if ignored:
+        logger.warning("%s: ignoring %r, which are not host or host:port", ALLOWED_HOSTS_ENV, ignored)
     yield
 
 app = FastAPI(title="PatchRadar", version=pkg_version("patchradar"), lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=FilePath(__file__).parent / "static"), name="static")
+
+
+class RequireKnownHost:
+    """Answer only to a Host this server is: every route, reads and /static too.
+
+    DNS rebinding: a page on rebind.evil.example is served by the attacker,
+    then the name is made to resolve to 127.0.0.1. The browser still counts the
+    page and http://rebind.evil.example:8000 as one origin — Sec-Fetch-Site
+    says same-origin, Origin equals Host — and lets the page read the answers.
+    Only Host gives it away, and it was never looked at: the page could add to
+    the watchlist and read it, the software installed and its versions.
+
+    421 Misdirected Request (RFC 9110, 15.5.20) for a well-formed Host that is
+    not this server: the request reached a server that will not answer for that
+    target. 400 for a Host that is missing or not a host[:port] at all, as
+    RFC 9112, 3.2 asks.
+
+    Plain ASGI rather than `@app.middleware("http")`: a second one of those
+    made the API benchmarks 14-18% slower (CodSpeed on this change).
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        raw = Request(scope).headers.get("host", "")
+        authority = _parse_authority(raw)
+        if authority is None:
+            refusal = JSONResponse({"detail": "Missing or malformed Host header"}, status_code=400)
+        elif not _answers_to(*authority, scope):
+            logger.warning("refused a request for host %r: not one this server answers to (%s)",
+                           raw[:100], ALLOWED_HOSTS_ENV)
+            refusal = JSONResponse(
+                {"detail": f"This server does not answer to that host; name it in {ALLOWED_HOSTS_ENV} if it should"},
+                status_code=421,
+            )
+        else:
+            await self.app(scope, receive, send)
+            return
+        await refusal(scope, receive, send)
+
+
+# Added before `security_headers`, which therefore wraps it: the refusals carry
+# the same headers as every other answer.
+app.add_middleware(RequireKnownHost)
+
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:

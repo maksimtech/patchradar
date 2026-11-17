@@ -177,8 +177,19 @@ meant for use on the same machine: `patchradar serve` listens on 127.0.0.1 and t
 `docker-compose.yml` publishes the port on 127.0.0.1 only. Set the key (see
 `.env.example`) before exposing it any further. Either way, a write that a browser
 sends on behalf of another web site (`Sec-Fetch-Site: cross-site`, or an `Origin`
-that is not this server) is refused with 403, so a page you visit cannot add to your
-watchlist or start scans through your browser.
+that is not this server) is refused with 403, and every request — reads and static
+files included — whose `Host` is not a name the server answers to is refused with
+421 Misdirected Request. So a page you visit cannot read your watchlist, add to it or
+start scans through your browser, not even by making its own name resolve to
+127.0.0.1 (DNS rebinding).
+
+The server answers to `localhost`, `127.0.0.1` and `[::1]` on the port it listens on,
+and to the address a connection arrived on (`http://192.168.1.10:8000` with
+`--host 0.0.0.0`). Any other name — a reverse proxy that passes its own `Host`, a
+LAN name, a port Docker remaps such as `-p 127.0.0.1:9000:8000` — goes in
+`PATCHRADAR_ALLOWED_HOSTS`, comma-separated: `name` for any port, `name:port` for
+that port only, for example `PATCHRADAR_ALLOWED_HOSTS=patchradar.lan,localhost:9000`.
+There is no wildcard.
 
 On Windows, `scripts/import-winget.ps1` fills the watchlist from `winget list`:
 
@@ -289,6 +300,9 @@ the response times, how customers are told and how to roll back.
 only: anyone who can reach the port can read the watchlist and the CVEs found, with
 or without the key, over plain HTTP. Keep it on 127.0.0.1, as the default and
 `docker-compose.yml` do, or put it behind a proxy with TLS and authentication.
+Against web pages acting through your browser, cross-site writes are refused, and so
+is any request for a `Host` the server does not answer to, which closes DNS rebinding
+(see [Web UI](#web-ui) for `PATCHRADAR_ALLOWED_HOSTS`).
 
 Every GitHub release carries CycloneDX SBOMs of the Docker image and of the Python
 environment, and dated Trivy reports of the image and of the repository at the tag.

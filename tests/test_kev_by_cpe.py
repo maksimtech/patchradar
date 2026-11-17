@@ -125,7 +125,7 @@ async def test_a_scan_over_http_reads_kev_by_the_cpe_too(sources):
     import patchradar.api.main as api
 
     sources.route().mock(return_value=httpx.Response(503))
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as client:
         assert (await client.post("/api/watchlist/chrome", params={"cpe": CHROME})).status_code == 200
         body = (await client.post("/api/scan", params={"days": 7})).json()
 

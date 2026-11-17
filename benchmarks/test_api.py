@@ -13,7 +13,7 @@ from patchradar.api.main import app, sanitize_cve
 @pytest.fixture
 def client(loop, seeded_db):
     transport = ASGITransport(app=app)
-    http_client = AsyncClient(transport=transport, base_url="http://bench")
+    http_client = AsyncClient(transport=transport, base_url="http://localhost")
     yield http_client
     loop.run_until_complete(http_client.aclose())
 

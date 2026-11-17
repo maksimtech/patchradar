@@ -77,4 +77,6 @@ scansioni datate. Per una release già uscita:
   (`_get_over_https`): Cellar risponde con un 303 verso `http://`.
 - Chiavi lette dall'ambiente: `NVD_API_KEY` (facoltativa), `VULDB_API_KEY` (senza,
   VulDB non viene interrogato), `PATCHRADAR_API_KEY` (protegge solo le scritture
-  dell'API), `PATCHRADAR_HOME` (sposta solo la cache dei testi di legge).
+  dell'API), `PATCHRADAR_ALLOWED_HOSTS` (nomi a cui l'interfaccia web risponde oltre
+  al loopback; ogni altro `Host` riceve 421), `PATCHRADAR_HOME` (sposta solo la cache
+  dei testi di legge).

@@ -213,7 +213,7 @@ def test_collector_error_is_readable():
 @pytest.fixture
 async def client():
     await add_to_watchlist("nginx")
-    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://t") as ac:
+    async with AsyncClient(transport=ASGITransport(app=api.app), base_url="http://localhost") as ac:
         yield ac
 
 
