@@ -12,6 +12,8 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+## [2026.49] — 2026-11-18
+
 ### Security
 
 - **The web UI answers only to its own names: DNS rebinding is refused.** The server never looked
