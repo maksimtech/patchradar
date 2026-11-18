@@ -568,3 +568,49 @@ FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and 
 leaves TLS to whatever fronts it. Nothing encrypts a CMS message.
 """
 review_by = "2026-12-15"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenSSL security advisory of 2026-11-17 (three Low issues, fixed in 3.5.10),
+# against the trixie libssl3t64 of the base image; entered as Docker Scout
+# reports them. Review on 2026-12-15, with the 2026-11-10 ones above.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-107493"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-17, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian has no trixie package with the fix yet, \
+so there is nothing to upgrade to. `apt-get upgrade` runs at build time, and the \
+image is rebuilt at every release: the DSA arrives here without anyone chasing \
+it, and this entry then fails the build as unused.
+
+It is reached only by an application that passes a stack of its own to PEM_X509_INFO_read_bio_ex() \
+and keeps using it after a failed read. OpenSSL itself never does, and Python's \
+ssl loads its CA bundle through SSL_CTX_load_verify_locations(), which passes \
+no stack of its own.
+patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it.
+"""
+review_by = "2026-12-15"
+
+[[exception]]
+id = "CVE-2026-124709"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+OpenSSL advisory of 2026-11-17, which rates it Low; Docker Scout reports it as \
+high. Fixed upstream in 3.5.10; Debian has no trixie package with the fix yet, \
+so there is nothing to upgrade to. `apt-get upgrade` runs at build time, and the \
+image is rebuilt at every release: the DSA arrives here without anyone chasing \
+it, and this entry then fails the build as unused.
+
+It is reached only by a QUIC server whose peers open streams it rejects and reset them. Python's ssl \
+module exposes no QUIC, client or server.
+patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, \
+FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and \
+leaves TLS to whatever fronts it.
+"""
+review_by = "2026-12-15"
