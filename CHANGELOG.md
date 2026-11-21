@@ -33,6 +33,22 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   Python's ssl exposes no QUIC. The entry now holds for any scanner. Reviewed on 2026-12-15 with the
   other OpenSSL entries.
 
+- **CVE-2026-84786 (OpenSSL, DANE) is accepted until Debian ships a fix.** Docker Scout started
+  reporting it on main on 2026-11-21, and Security Posture failed. A DANE-enabled TLS client may
+  dereference a NULL pointer on unusual certificate and TLSA records; there is no OpenSSL advisory yet,
+  the fix is openssl/openssl#33634, and Debian has no fixed trixie package. It is not reachable here:
+  Python's ssl exposes no DANE and patchradar reads no TLSA record. Reviewed on 2026-12-15 with the
+  other OpenSSL entries (maksimtech/apkradar#116).
+
+- **Two glibc issues Debian has already fixed are accepted for Docker Scout until this release is
+  published.** On 2026-11-21 Docker Scout reported CVE-2026-19499 (`strfmon()`) and CVE-2026-5435 (the
+  deprecated resolver printing functions) as high against glibc 2.41-12+deb13u4 in the image published
+  for 2026.49. Debian fixed both for trixie in 2.41-12+deb13u5, which the image built from this source
+  has (`apt-get upgrade`), and Trivy, which reads that image, does not report them. Neither is reached:
+  nothing formats money, and the feeds are fetched through `getaddrinfo()`, which prints no record. The
+  entries are reviewed on 2026-12-08 and fail the build as unused once the new image is out
+  (maksimtech/apkradar#121).
+
 ## [2026.49] — 2026-11-18
 
 ### Security
