@@ -16,6 +16,7 @@ permissions:
 jobs:
   docker:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     steps:
       # The tag being built, not the default branch. The image is built from this
       # checkout now, so a dispatched rebuild of an older version has to stand on

@@ -43,6 +43,7 @@ jobs:
     # is rerun and succeeds, or on the next push or schedule.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-26.04
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7
