@@ -13,6 +13,7 @@ jobs:
   bandit:
     name: Bandit
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7

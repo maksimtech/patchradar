@@ -12,6 +12,18 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Every job has a time limit, so a hung job no longer holds a pull request for six hours.** No job
+  but mutmut set `timeout-minutes`, and GitHub's default is 360 minutes; on a required check the pull
+  request, and the auto-merge this repository allows, waited that long. Each limit is about three
+  times the job's longest run in its last 40 (ten minutes at least): 25 for the benchmarks, 20 for the
+  published image, 10 for the rest. Two jobs wait on purpose and get more than their runs suggest, so
+  they still say what they were waiting for: Security Posture 40, past the 20 minutes it waits for the
+  scanners and three times its longest run, and publishing 30, past the 15 minutes it waits for PyPI to
+  show and install the new version; the test reads both waits from the workflows
+  (`tests/test_job_timeouts.py`, maksimtech/apkradar#113).
+
 ## [2026.49] — 2026-11-18
 
 ### Security
