@@ -12,6 +12,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ## [Unreleased]
 
+### Security
+
+- **CVE-2026-124709 (OpenSSL, QUIC) stays accepted now that Trivy reports it too.** Debian moved trixie
+  to openssl 3.5.9-1~deb13u1, which a fresh build installs, and on 2026-11-21 Trivy reported the issue
+  against it; the entry was written for Docker Scout alone and Security Posture failed. 3.5.9 does not
+  fix it (fixed upstream in 3.5.10; Debian has no fixed trixie package), and it is still not reachable:
+  Python's ssl exposes no QUIC. The entry now holds for any scanner. Reviewed on 2026-12-15 with the
+  other OpenSSL entries.
+
 ## [2026.49] — 2026-11-18
 
 ### Security
