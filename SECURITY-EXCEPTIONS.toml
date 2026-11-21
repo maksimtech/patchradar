@@ -616,3 +616,80 @@ FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and 
 leaves TLS to whatever fronts it.
 """
 review_by = "2026-12-15"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CVE-2026-84786 (OpenSSL, DANE; no advisory yet), reported by Docker Scout on
+# main on 2026-11-21 against the trixie libssl3t64 of the base image
+# (maksimtech/apkradar#116). Review on 2026-12-15, with the other OpenSSL entries.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-84786"
+source = "Docker Scout"
+where = "openssl 3.5.7-1~deb13u3 (libssl3t64), python:3.14-slim-trixie base image"
+why = """
+A DANE-enabled TLS client may dereference a NULL pointer on an unusual pair of \
+certificate and TLSA records (Debian security tracker). No OpenSSL advisory yet; \
+the fix is openssl/openssl#33634, open on 2026-11-20 and marked for the 3.5 \
+branch. Debian lists trixie and sid as vulnerable, with no fixed version, \
+3.5.9-1~deb13u1 included. Docker Scout reports it as high. `apt-get upgrade` \
+runs at build time, and the image is rebuilt at every release: the DSA arrives \
+here without anyone chasing it, and this entry then fails the build as unused.
+
+It is reached only by a TLS client that enables DANE (SSL_dane_enable) and checks \
+TLSA records. Python's ssl module exposes no DANE at all, and patchradar reads \
+no TLSA record. patchradar's own TLS is Python's ssl module over TCP (httpx, to \
+NVD, MSRC, CISA, FIRST, Debian and the law texts); its web UI serves plain HTTP \
+on localhost and leaves TLS to whatever fronts it.
+"""
+review_by = "2026-12-15"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Two glibc issues Debian has already fixed in trixie (2.41-12+deb13u5), reported
+# by Docker Scout on 2026-11-21 against the published image, which was built for
+# 2026.49 on deb13u4 (maksimtech/apkradar#121). The image built from main runs
+# `apt-get upgrade` and has the fix; Trivy, which reads that one, does not report
+# them. Review on 2026-12-08, the day after the release that rebuilds the
+# published image.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-19499"
+source = "Docker Scout"
+where = "glibc 2.41-12+deb13u4 (libc6), python:3.14-slim-trixie base image, published image 2026.49"
+why = """
+strfmon() and strfmon_l() may write past the caller's buffer when a conversion \
+pads to a width (Debian security tracker; GLIBC-SA-2026-0017). Debian fixed it \
+for trixie in glibc 2.41-12+deb13u5 (`patchradar debian`, 2026-11-21). Docker \
+Scout reports it as high against the image published for 2026.49, built on \
+deb13u4 before that update.
+
+The image built from this source runs `apt-get upgrade` and carries deb13u5. \
+Nothing in patchradar formats money: Python's locale.currency() is written in \
+Python and does not call strfmon.
+
+When the release of 2026-12-07 publishes the new image, this entry stops \
+matching and fails the build as unused: delete it then.
+"""
+review_by = "2026-12-08"
+
+[[exception]]
+id = "CVE-2026-5435"
+source = "Docker Scout"
+where = "glibc 2.41-12+deb13u4 (libc6), python:3.14-slim-trixie base image, published image 2026.49"
+why = """
+The deprecated resolver printing functions ns_printrrf(), ns_printrr() and \
+fp_nquery() ignore the buffer length they are given and may write past it when \
+printing TSIG records (Debian security tracker; GLIBC-SA-2026-0011). Debian \
+fixed it for trixie in glibc 2.41-12+deb13u5 (`patchradar debian`, 2026-11-21). \
+Docker Scout reports it as high against the image published for 2026.49, built \
+on deb13u4 before that update.
+
+The image built from this source runs `apt-get upgrade` and carries deb13u5. \
+patchradar fetches its feeds over httpx, resolving through getaddrinfo(); it \
+prints no DNS record, and nothing in the image calls these debugging functions.
+
+When the release of 2026-12-07 publishes the new image, this entry stops \
+matching and fails the build as unused: delete it then.
+"""
+review_by = "2026-12-08"
