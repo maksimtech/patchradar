@@ -38,6 +38,15 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   (`tests/test_scout_binary.py`). Sources:
   [docker/scout-action#116](https://github.com/docker/scout-action/issues/116).
 
+- **Coverage reaches this repository's Codecov project again.** The upload authenticated with a
+  `CODECOV_TOKEN` secret, and Codecov files an upload under the project its token belongs to: the
+  secret here held exeradar's token, so every report since at least 2026-10-17 went to exeradar's
+  project, and `codecov/patch` waited on #111 for one that never came. The upload now uses OIDC
+  (`use_oidc: true`, `id-token: write` on the test job): GitHub tells Codecov which repository the job
+  runs in, and there is no secret left to mix up. The test that required the token now requires OIDC
+  and forbids the secret (`tests/test_codecov_contract.py`). Same as maksimtech/mailradar#135 and
+  maksimtech/cookieradar#104.
+
 ### Security
 
 - **CVE-2026-121482 (OpenSSL, CRL distribution points) is accepted until Debian ships a fix.** Docker
