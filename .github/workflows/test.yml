@@ -11,6 +11,9 @@ permissions:
 
 jobs:
   test:
+    # The ruleset of main requires the stable rows under this name
+    # (tests/test_python_matrix.py).
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     # id-token: write lets the coverage upload prove to Codecov, through GitHub's
@@ -22,10 +25,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        # The same list as the classifiers in pyproject.toml, which
+        # tests/test_python_matrix.py checks.
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         experimental: [false]
         include:
-          - python-version: "3.15-dev"
+          # The next Python, from its development branch, allowed to fail and
+          # never a required check: 3.16.0 ships on 2027-10-06 (PEP 826), and a
+          # dependency without a wheel for it should show up here first, not
+          # after the classifier.
+          - python-version: "3.16-dev"
             experimental: true
     continue-on-error: ${{ matrix.experimental }}
 
@@ -83,9 +92,10 @@ jobs:
 
   summary:
     # The branch ruleset needs one check name that survives a change to the
-    # matrix. The matrix job cannot be it: its contexts carry the Python version
-    # and the experimental flag — "test (3.11, false)" — so they move whenever
-    # the matrix does, and a ruleset pinned to them silently stops matching.
+    # matrix. The matrix job cannot be it alone: its contexts carry the Python
+    # version — "Tests (Python 3.11)" — so they move whenever the matrix does,
+    # and a ruleset pinned only to them silently stops matching. The ruleset
+    # requires this name and each stable row.
     #
     # always(): a skipped required check counts as passed, so this has to run
     # even when the matrix fails, and fail explicitly in that case.
