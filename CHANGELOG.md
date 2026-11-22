@@ -14,6 +14,19 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **Python 3.15 is supported, and 3.16 is the row allowed to fail.** 3.15.0 went final on 2026-10-09;
+  it moves from the experimental `3.15-dev` row to the stable matrix, the classifiers and the README
+  badge, and `3.16-dev` takes its place as the one row with `continue-on-error`, as in apkradar.
+  Nothing tied the matrix to the classifiers before: `tests/test_python_matrix.py` now holds the two
+  as one list, the `-dev` row as the next minor, and the job name. The matrix jobs report as
+  `Tests (Python 3.11)` … `Tests (Python 3.16-dev)` rather than `test (3.11, false)`, so main's
+  ruleset can require each stable row by name. On 3.15 every dependency installs from a published
+  wheel; nothing is built from source but PatchRadar itself. The `3.16-dev` row is red today, as it
+  may be, and not at the install: pyyaml, libcst, librt, pydantic-core and setproctitle build from
+  source there, but every test then errors at setup, because pytest-asyncio 1.5.0 calls
+  `asyncio.get_event_loop_policy()`, which 3.16 removes. pytest-asyncio 2.0.0a1 handles it
+  (pytest-dev/pytest-asyncio#1593); the row should turn green with 2.0 final, a major update that
+  `pytest-asyncio (>=1.4.0,<2.0.0)` does not let in by itself.
 - **Every job has a time limit, so a hung job no longer holds a pull request for six hours.** No job
   but mutmut set `timeout-minutes`, and GitHub's default is 360 minutes; on a required check the pull
   request, and the auto-merge this repository allows, waited that long. Each limit is about three
