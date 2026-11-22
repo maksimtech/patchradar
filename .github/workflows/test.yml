@@ -31,7 +31,7 @@ jobs:
         experimental: [false]
         include:
           # The next Python, from its development branch, allowed to fail and
-          # never a required check: 3.16.0 ships on 2027-10-06 (PEP 826), and a
+          # never a required check: 3.16.0 ships on 2027-10-05 (PEP 826), and a
           # dependency without a wheel for it should show up here first, not
           # after the classifier.
           - python-version: "3.16-dev"
