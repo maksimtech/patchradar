@@ -618,6 +618,24 @@ leaves TLS to whatever fronts it.
 review_by = "2026-12-15"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CVE-2026-107494 (OpenSSL, QUIC; incomplete fix of CVE-2026-84784), reported by
+# Trivy on 2026-11-23 against the base image's openssl 3.5.9-1~deb13u1, first on
+# the image scan of #118 (maksimtech/apkradar#134). Review by 2026-12-15, with
+# the other OpenSSL entries.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[exception]]
+id = "CVE-2026-107494"
+where = "openssl 3.5.9-1~deb13u1 (libssl3t64, openssl, openssl-provider-legacy), python:3.14-slim-trixie base image"
+why = """
+The fix for CVE-2026-84784 (OpenSSL advisory of 2026-09-29, rated Low, fixed in 3.5.9) was incomplete: OpenSSL's QUIC stack still queues a RETIRE_CONNECTION_ID frame for every retransmitted NEW_CONNECTION_ID frame, without limit, so a malicious QUIC peer can exhaust memory. Trivy reports it as high. No OpenSSL advisory yet, and Debian marks trixie, trixie-security and sid vulnerable with no fixed package (security-tracker.debian.org, 2026-11-23), so there is nothing to upgrade to. `apt-get upgrade` runs at build time, and the image is rebuilt at every release: the DSA arrives here without anyone chasing it, and this entry then fails the build as unused. No `source`: Docker Scout reads the same package, and the reason below holds whichever scanner reports it.
+
+It is reached only through OpenSSL's QUIC stack. Python's ssl module exposes no QUIC, client or server, and nothing in this image speaks it.
+patchradar's own TLS is Python's ssl module over TCP (httpx, to NVD, MSRC, CISA, FIRST, Debian and the law texts); its web UI serves plain HTTP on localhost and leaves TLS to whatever fronts it.
+"""
+review_by = "2026-12-15"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CVE-2026-84786 (OpenSSL, DANE; no advisory yet), reported by Docker Scout on
 # main on 2026-11-21 against the trixie libssl3t64 of the base image
 # (maksimtech/apkradar#116). Review on 2026-12-15, with the other OpenSSL entries.
