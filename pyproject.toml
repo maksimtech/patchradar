@@ -49,6 +49,12 @@ Issues = "https://github.com/maksimtech/patchradar/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/patchradar"]
 
+# A release is locked only once it is 14 days old, whoever writes the lock:
+# Renovate's own wait does not reach `uv lock --upgrade-package`
+# (tests/test_dependency_age.py).
+[tool.uv]
+exclude-newer = "14 days"
+
 [tool.coverage.run]
 source = ["src"]
 # Paths in coverage.xml relative to the checkout, so SonarCloud can map them.

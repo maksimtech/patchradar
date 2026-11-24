@@ -14,6 +14,27 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **Renovate replaces Dependabot's version updates, as in apkradar.** `.github/dependabot.yml`
+  (pip, uv for security only, Actions and the base image, each with a 14-day cooldown) and the
+  test that held it, `tests/test_dependabot_config.py`, are removed. So is the `renovate.json` at
+  the root, written on 2026-08-20 with automerge for every minor and patch, which Renovate never
+  ran here because the app had no access. `.github/renovate.json` is apkradar's:
+  - one batch every Thursday before 6am, and releases taken only once they are 14 days old;
+  - a known vulnerability is updated at once, any day;
+  - minor, patch and digest updates merge on their own once the required checks pass, and a
+    major waits for a person;
+  - the Actions arrive as one pull request, kept pinned to a commit with its full version;
+  - the lower bounds in `pyproject.toml` are raised by hand, and the Python of the image and of
+    the matrix is not Renovate's to move.
+
+  The 14-day rule is also in uv (`[tool.uv] exclude-newer = "14 days"`), because Renovate's wait
+  does not reach the `uv lock --upgrade-package` it runs (apkradar#81). The lock written under it
+  changes no version: every locked release was already older. The required **Renovate gate** job
+  (`tools/renovate_gate.py`) fails a Renovate pull request whose own statuses
+  (`renovate/artifacts`, `renovate/stability-days`) are not green, since GitHub's auto-merge waits
+  only for required checks. Tests: `tests/test_renovate_config.py`, `tests/test_renovate_gate.py`,
+  `tests/test_dependency_age.py`. Alignment to apkradar, step 4 (#97).
+
 - **Every action is pinned to a commit, with its full version.** 22 uses in 8 workflows named refs
   that can move: `@v4`, `@v7`, and `setup-python@v7.1.0`, a full version but still a tag. Their
   owners could change what these jobs run without a pull request here. Each is now pinned to the

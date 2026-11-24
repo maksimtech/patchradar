@@ -241,9 +241,16 @@ file letti dai test; questa revisione li aggiunge.
 
 Sul repository sono attivi, verificato il 2026-10-11, gli avvisi Dependabot sulle
 dipendenze (nessun avviso registrato a quella data) e gli aggiornamenti di sicurezza
-automatici di Dependabot; `.github/dependabot.yml` chiede ogni settimana gli
-aggiornamenti delle dipendenze Python, delle GitHub Actions e dell'immagine di base;
-dal 2026-11-17 legge anche `uv.lock`, solo per gli aggiornamenti di sicurezza.
+automatici di Dependabot; `.github/dependabot.yml` chiedeva ogni settimana gli
+aggiornamenti delle dipendenze Python, delle GitHub Actions e dell'immagine di base, e
+dal 2026-11-17 leggeva anche `uv.lock`, solo per gli aggiornamenti di sicurezza.
+
+Dal 2026-11-24 quel file non c'è più: gli aggiornamenti li chiede Renovate
+(`.github/renovate.json`), come in apkradar. Ogni giovedì le dipendenze Python, `uv.lock`,
+le GitHub Actions e l'immagine di base, prese almeno 14 giorni dopo l'uscita (la regola è
+anche in `uv`, `[tool.uv] exclude-newer`); gli aggiornamenti per una vulnerabilità nota
+arrivano subito, senza attesa. I limiti inferiori in `pyproject.toml` si alzano a mano, e
+la versione di Python dell'immagine e della matrice non la cambia nessun bot.
 
 Le regole del ramo `main`, lette dalle impostazioni del repository il 2026-10-12
 (ruleset "main protection", attivo), impongono che ogni modifica passi da una pull
