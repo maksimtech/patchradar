@@ -79,6 +79,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Security
 
+- **The three open OpenSSL entries now state OpenSSL's advisory of 2026-11-24.** The entries for
+  CVE-2026-107494 (QUIC), CVE-2026-84786 (DANE) and CVE-2026-121482 (CRL distribution points) said
+  there was no OpenSSL advisory yet. Since that morning `secadv/20261124.txt` rates all three Low and
+  names 3.5.10 as the fix, scheduled for 2026-12-01; until then no release contains it, and Debian
+  still has no fixed package, so the entries stay, with the facts of that day. The CVE-2026-107494
+  entry is wrapped again, since its lines had been joined into one. Its reachability is now measured
+  in the image built from main (`ldd` on every ELF file): the system libssl is loaded only by
+  Python's `_ssl`, apt and the `openssl` binary, and nothing in the image speaks QUIC or HTTP/3.
 - **CVE-2026-107494 (OpenSSL, QUIC) is accepted until Debian ships a fix.** Trivy reported it on
   2026-11-23 against openssl 3.5.9-1~deb13u1 in the image, first on #118's scan, and Security Posture
   failed there. The fix for CVE-2026-84784 (OpenSSL advisory of 2026-09-29, rated Low) was incomplete,
