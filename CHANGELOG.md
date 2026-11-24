@@ -14,6 +14,17 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **Every action is pinned to a commit, with its full version.** 22 uses in 8 workflows named refs
+  that can move: `@v4`, `@v7`, and `setup-python@v7.1.0`, a full version but still a tag. Their
+  owners could change what these jobs run without a pull request here. Each is now pinned to the
+  commit its ref pointed at on 2026-11-24, with the release beside it: checkout v7.0.1, setup-python
+  v7.1.0, upload-artifact v7.0.2, build-push v7.4.0, login v4.8.0, setup-buildx v4.4.1. codeql-action's
+  `@v4` had moved that day to v4.39.5, younger than the 14 days a dependency waits here: it goes to
+  v4.39.3, its newest release at least 14 days old and the one apkradar pins. Each commit was checked
+  against its tag. The PyPI publish action was already on a commit, but its comment named a branch,
+  `# release/v1`; it now names the release that commit is, v1.14.3. `tests/test_actions_pinned.py`,
+  mailradar's, keeps it so.
+
 - **Every job runs on ubuntu-26.04, CodSpeed's too.** The benchmarks stayed on ubuntu-24.04 when the
   other jobs moved on 2026-10-02, because CodSpeed's action failed on 26.04 with "Unsupported system"
   (run 37063015887). CodSpeed's runner and action v5.5.0 (2026-10-14) support it, and the action here
