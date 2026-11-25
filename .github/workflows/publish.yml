@@ -3,18 +3,20 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  # A dry run: build runs, publish and verify are skipped. Only a release
+  # publishes, as before (tests/test_publish_contract.py).
+  workflow_dispatch:
+
+# Each job asks for its own; only publish holds the token PyPI trusts.
+permissions: {}
 
 jobs:
-  build-and-publish:
-    name: Build and publish to PyPI
+  build:
+    name: Build the distributions
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    environment:
-      name: pypi
-      url: https://pypi.org/p/patchradar
+    timeout-minutes: 15
     permissions:
-      id-token: write
-
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,15 +26,65 @@ jobs:
         with:
           python-version: "3.13"
 
+      # build, hatchling and their dependencies, each pinned with its hashes and
+      # compiled under the 14-day rule; Renovate keeps the file
+      # (tests/test_publish_contract.py, tests/test_renovate_config.py).
       - name: Install build dependencies
-        run: pip install --upgrade build hatchling  # NOSONAR - trusted packages
+        run: pip install --require-hashes -r .github/requirements-build.txt
 
+      # Without isolation: python -m build would fetch an unpinned hatchling into
+      # an environment of its own. The step above installed the pinned one.
       - name: Build package
-        run: python -m build
+        run: python -m build --no-isolation
+
+      - name: Keep the distributions for publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # The one job PyPI trusts: no checkout, no Python, no command of its own.
+  publish:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/patchradar
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch the distributions build made
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           verify-metadata: false
+
+  verify:
+    name: Check the release installs from PyPI
+    needs: publish
+    if: github.event_name == 'release'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
 
       # That the file on PyPI can be installed used to be proved by accident, by
       # docker.yml installing it to build the image. The image now builds from this

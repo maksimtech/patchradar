@@ -113,3 +113,25 @@ def test_no_bot_moves_the_python_we_run():
     ]
     assert frozen, "a rule has to keep Renovate off the Python version"
     assert set(frozen[0]["matchUpdateTypes"]) >= {"major", "minor"}
+
+
+def _matches(patterns: list[str], path: str) -> bool:
+    return any(re.search(p.strip("/"), path) for p in patterns)
+
+
+def test_the_build_tools_are_kept_by_the_pip_compile_manager():
+    """publish.yml installs the build tools from .github/requirements-build.txt,
+    pinned with hashes (tests/test_publish_contract.py). Renovate's pip-compile
+    manager matches no file until it is told which, and rewrites it with the
+    command in its header: `uv pip compile`, run from the root, where uv reads
+    `exclude-newer = "14 days"` from pyproject.toml, so the dependencies of an
+    update wait their 14 days too."""
+    manager = config()["pip-compile"]
+    assert _matches(manager["managerFilePatterns"], ".github/requirements-build.txt")
+    assert not _matches(manager["managerFilePatterns"], ".github/requirements-build.in"), "the output, not the input"
+
+
+def test_pip_requirements_does_not_read_the_same_file_a_second_time():
+    """Its default pattern matches requirements-build.txt too, and two managers on
+    one file open every update twice, apart from each other (mailradar#170)."""
+    assert config()["pip_requirements"] == {"enabled": False}
