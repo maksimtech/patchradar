@@ -24,7 +24,10 @@ che il fornitore è in grado di dare, non un attestato di conformità.
   sorgente su PyPI hanno un'attestazione PEP 740 firmata con Sigstore, che indica come
   origine il workflow `publish.yml` di questo repository; l'immagine su Docker Hub
   (`maksimtech/patchradar`) ha, per ciascuna delle due piattaforme, un'attestazione di
-  provenienza SLSA v1 generata da BuildKit al momento del push.
+  provenienza SLSA v1 generata da BuildKit al momento del push. Dalle release
+  successive al 2026-11-25 il pacchetto è costruito in un job senza il token di PyPI,
+  con strumenti di build fissati per hash, e caricato da un job che non installa né
+  esegue nulla: l'unico che può ottenere quel token (`tests/test_publish_contract.py`).
 - Licenze: il workflow License Check fallisce se una dipendenza è sotto GPL, AGPL o
   LGPL.
 

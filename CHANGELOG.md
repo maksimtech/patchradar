@@ -100,6 +100,23 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Security
 
+- **The job PyPI trusts installs and runs nothing, as in releaseradar and exeradar.** `publish.yml`'s
+  `build-and-publish` held `id-token: write` while it installed the newest `build` and `hatchling` of
+  that minute, built in an isolated environment that fetched an unpinned hatchling again, and after
+  the upload installed the release with all its runtime dependencies from PyPI. A package
+  compromised like `agent-framework` on 2026-11-18, whose `.pth` file mints OIDC tokens at every
+  Python start-up, could have published a release under this project's name from there
+  (maksimtech/apkradar#135, #120). The workflow now has three jobs:
+  - `build`, without the token: installs the build tools with `pip install --require-hashes` from
+    `.github/requirements-build.txt` (compiled with `uv pip compile --universal` under the 14-day
+    rule, kept by Renovate's pip-compile manager), builds with `--no-isolation`, and uploads `dist/`;
+  - `publish`, the only job with `id-token: write`: downloads `dist/` and uploads it with
+    `pypa/gh-action-pypi-publish`, with no checkout, no Python and no command of its own;
+  - `verify`, without the token: the wait for the index and the install check, unchanged.
+
+  A release publishes, as before: `publish` and `verify` run on the `release` event only, since the
+  tags here have no `v`. `workflow_dispatch` is new and is a dry run that builds and stops.
+  `tests/test_publish_contract.py` holds the layout.
 - **The three open OpenSSL entries now state OpenSSL's advisory of 2026-11-24.** The entries for
   CVE-2026-107494 (QUIC), CVE-2026-84786 (DANE) and CVE-2026-121482 (CRL distribution points) said
   there was no OpenSSL advisory yet. Since that morning `secadv/20261124.txt` rates all three Low and
