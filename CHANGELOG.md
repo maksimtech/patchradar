@@ -14,6 +14,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Changed
 
+- **The CHANGELOG no longer reports a review that has not happened.** The Security entries gave
+  the date an accepted finding is looked at again in the past tense, as if the review were done;
+  it is the deadline, the same date as `review_by` in `SECURITY-EXCEPTIONS.toml`. 4 phrases
+  now read "Review by DATE", or "due for review by DATE". `tests/test_changelog_dates.py` holds it:
+  no review dated after today in `[Unreleased]` or after its release in a released section, and
+  every "review by" in `[Unreleased]` equal to the `review_by` of the CVE it names. Wrapped
+  phrases are found too, and `today` is a parameter (#115, maksimtech/apkradar#130).
 - **Renovate's weekly batch can arrive at any hour of Thursday, not only before 6am.**
   On 2026-11-26 the window opened no pull request here: the Mend-hosted app runs a repository that
   has not merged a Renovate pull request yet once a day, at an hour it picks, and that run fell
@@ -144,21 +151,21 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   Scout reported it on 2026-11-22: a certificate with very many CRL distribution points, verified with
   CRL checking enabled, costs CPU time quadratic in their number (openssl/openssl#33546; no advisory
   yet, no fixed Debian package). It is not reachable here: patchradar's only TLS is httpx with Python's
-  default context, which enables no CRL checking. Reviewed on 2026-12-15 with the other OpenSSL entries
+  default context, which enables no CRL checking. Review by 2026-12-15 with the other OpenSSL entries
   (maksimtech/apkradar#124).
 
 - **CVE-2026-124709 (OpenSSL, QUIC) stays accepted now that Trivy reports it too.** Debian moved trixie
   to openssl 3.5.9-1~deb13u1, which a fresh build installs, and on 2026-11-21 Trivy reported the issue
   against it; the entry was written for Docker Scout alone and Security Posture failed. 3.5.9 does not
   fix it (fixed upstream in 3.5.10; Debian has no fixed trixie package), and it is still not reachable:
-  Python's ssl exposes no QUIC. The entry now holds for any scanner. Reviewed on 2026-12-15 with the
+  Python's ssl exposes no QUIC. The entry now holds for any scanner. Review by 2026-12-15 with the
   other OpenSSL entries.
 
 - **CVE-2026-84786 (OpenSSL, DANE) is accepted until Debian ships a fix.** Docker Scout started
   reporting it on main on 2026-11-21, and Security Posture failed. A DANE-enabled TLS client may
   dereference a NULL pointer on unusual certificate and TLSA records; there is no OpenSSL advisory yet,
   the fix is openssl/openssl#33634, and Debian has no fixed trixie package. It is not reachable here:
-  Python's ssl exposes no DANE and patchradar reads no TLSA record. Reviewed on 2026-12-15 with the
+  Python's ssl exposes no DANE and patchradar reads no TLSA record. Review by 2026-12-15 with the
   other OpenSSL entries (maksimtech/apkradar#116).
 
 - **Two glibc issues Debian has already fixed are accepted for Docker Scout until this release is
@@ -167,7 +174,7 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   for 2026.49. Debian fixed both for trixie in 2.41-12+deb13u5, which the image built from this source
   has (`apt-get upgrade`), and Trivy, which reads that image, does not report them. Neither is reached:
   nothing formats money, and the feeds are fetched through `getaddrinfo()`, which prints no record. The
-  entries are reviewed on 2026-12-08 and fail the build as unused once the new image is out
+  entries are due for review by 2026-12-08 and fail the build as unused once the new image is out
   (maksimtech/apkradar#121).
 
 ## [2026.49] — 2026-11-18
