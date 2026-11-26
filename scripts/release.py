@@ -93,6 +93,38 @@ def check_main_published(cwd: Path = REPO_ROOT) -> str:
         )
     raise SystemExit("main is behind the remote: git pull, then run this again")
 
+
+def push_signed_tag(version: str, sha: str, cwd: Path = REPO_ROOT) -> None:
+    """Make `version` an annotated, signed tag on `sha`, check the signature, and push the tag.
+
+    Until #117, `gh release create --target` made the tag on GitHub, and a tag
+    made there is lightweight and unsigned: 2026.40 to 2026.49 carry nothing that
+    ties them to the maintainer's key. The tag is now made here, where the key is,
+    with the name the releases have always had (`2026.N`, which the `pypi`
+    environment's `20*` rule matches).
+
+    Refuse, do not warn: if the tag cannot be made or signed, nothing is pushed
+    and no unsigned tag is left behind. An existing tag is never moved.
+    """
+    try:
+        _git(cwd, "tag", "--sign", version, sha, "-m", f"PatchRadar {version}")
+    except subprocess.CalledProcessError as e:
+        if not _git(cwd, "tag", "--list", version):
+            raise SystemExit(
+                f"Could not make and sign tag {version}: {(e.stderr or '').strip() or e}. Nothing was pushed."
+            ) from None
+        raise SystemExit(f"Tag {version} already exists: it is not moved. Nothing was pushed.") from None
+    try:
+        _git(cwd, "verify-tag", version)
+    except subprocess.CalledProcessError as e:
+        _git(cwd, "tag", "--delete", version)
+        raise SystemExit(
+            f"Tag {version} was made but its signature does not verify: {(e.stderr or '').strip() or e}. "
+            "The tag was deleted and nothing was pushed."
+        ) from None
+    _git(cwd, "push", "--quiet", "origin", f"refs/tags/{version}")
+
+
 def main():
     version = get_current_version()
     # Fail before anything is created if the entry is missing.
@@ -103,8 +135,9 @@ def main():
     print(f"   Notes:   {CHANGELOG_FILE} § [{version}] ({len(notes.splitlines())} lines)")
     print("\nThis will:")
     print(f"  1. Check that main, as the remote has it, carries {version}")
-    print(f"  2. Create GitHub release {version} on that commit")
-    print("  3. GitHub Actions publishes to PyPI automatically")
+    print(f"  2. Make tag {version} on that commit, signed with your key, and push it")
+    print(f"  3. Create GitHub release {version} from that tag")
+    print("  4. GitHub Actions publishes to PyPI automatically")
     print()
 
     confirm = input("Proceed? [y/N] ").strip().lower()
@@ -113,16 +146,20 @@ def main():
         sys.exit(0)
 
     sha = check_main_published()
-    print(f"\n🚀 Creating GitHub release {version} on {sha[:12]}...")
+    print(f"\n🔏 Signing tag {version} on {sha[:12]}...")
+    push_signed_tag(version, sha)
+    print(f"\n🚀 Creating GitHub release {version} from tag {version}...")
     with tempfile.NamedTemporaryFile(
         "w", suffix=".md", delete=False, encoding="utf-8"
     ) as handle:
         handle.write(notes)
         notes_path = handle.name
     try:
+        # --verify-tag: the tag pushed above, never one gh would make on the
+        # server, which is lightweight and unsigned (#117)
         run([
             "gh", "release", "create", version,
-            "--target", sha,
+            "--verify-tag",
             "--title", version,
             "--notes-file", notes_path,
             "--latest"

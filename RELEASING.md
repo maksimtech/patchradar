@@ -75,13 +75,22 @@ with auto-merge (when `gh` is installed and `origin` is this repository on GitHu
 `release.py` does, in this order:
 
 1. checks that the local `main` is clean and is `main` as the remote has it — not
-   ahead, not behind — and pushes nothing
-2. `gh release create <version> --target <that commit> --latest`, with the notes
-   taken from the CHANGELOG
-3. it stops: **`publish.yml` starts on its own** on `release: published` and
+   ahead, not behind — and never pushes `main`
+2. makes the tag `<version>` on that commit, annotated and **signed with your
+   key** (`git tag --sign`), checks it with `git verify-tag`, and pushes the tag
+   alone. If the tag cannot be signed or does not verify, it stops: nothing is
+   pushed and no unsigned tag is left behind. An existing tag is never moved.
+3. `gh release create <version> --verify-tag --latest`, with the notes taken from
+   the CHANGELOG. `--verify-tag` makes `gh` use the tag pushed in step 2 and
+   refuse to make one of its own: a tag made on GitHub is lightweight and
+   unsigned, which is what 2026.40 to 2026.49 are (#117)
+4. it stops: **`publish.yml` starts on its own** on `release: published` and
    publishes to PyPI with trusted publishing — no token to hand over
 
-Step 3 is **irreversible**: a version on PyPI cannot be withdrawn, only marked
+The tag keeps the bare CalVer name (`2026.50`, no `v`): the `pypi` environment
+accepts deployments from tags matching `20*` only.
+
+Step 4 is **irreversible**: a version on PyPI cannot be withdrawn, only marked
 *yanked*. It is worth reading the CHANGELOG once more before confirming.
 
 ## Branches
