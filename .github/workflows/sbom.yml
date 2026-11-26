@@ -13,8 +13,8 @@ name: Release Evidence
 #   EVIDENCE-<version>.md              what these are, from which commit and
 #                                      image digest, on which date
 #
-# Releases here are cut by scripts/release.py with `gh release create
-# <version>`: the tag is bare CalVer (2026.46, no "v"), and docker.yml, which
+# Releases here are cut by scripts/release.py with a signed tag and `gh release
+# create <version> --verify-tag`: the tag is bare CalVer (2026.46, no "v"), and docker.yml, which
 # runs on `release: published`, tags the image with that same bare version
 # (maksimtech/patchradar:2026.46).
 #

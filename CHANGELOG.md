@@ -114,6 +114,19 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Security
 
+- **Release tags are signed (#117).** `scripts/release.py` left the tag to `gh release create
+  --target`, which makes it on GitHub, lightweight and unsigned: 2026.40 to 2026.49 carry nothing
+  that ties them to the maintainer's key, unlike the other five Radar. `release.py` now:
+  - makes the tag on the checked commit, annotated and signed (`git tag --sign`);
+  - checks it with `git verify-tag`;
+  - pushes the tag alone;
+  - creates the release with `gh release create --verify-tag`, which refuses to make a tag of its
+    own.
+
+  If the tag cannot be signed or does not verify, it stops: nothing is pushed and no unsigned tag
+  is left behind. The name stays bare CalVer (`2026.50`), which the `pypi` environment's `20*`
+  rule matches. Existing tags are not re-signed. `tests/test_release_through_pr.py` signs with a
+  test SSH key on a real bare repository, and checks that a key that cannot sign stops the release.
 - **The job PyPI trusts installs and runs nothing, as in releaseradar and exeradar.** `publish.yml`'s
   `build-and-publish` held `id-token: write` while it installed the newest `build` and `hatchling` of
   that minute, built in an isolated environment that fetched an unpinned hatchling again, and after
