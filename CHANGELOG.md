@@ -141,6 +141,14 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
 
 ### Security
 
+- **A version from a tag or the dispatch form is checked to be a release before it is written
+  (#141, maksimtech/apkradar#151).** `docker.yml` wrote the dispatch input, `v` stripped, straight
+  to the step outputs: a newline in it would have added outputs and image tags of its own, in a job
+  that then logs in to Docker Hub. `publish.yml` wrote the release's tag the same way. Both now
+  refuse anything that is not a CalVer release (`2026.49`, an optional `v` aside) before writing
+  it, and print a refused value with `%q`. `tests/test_workflow_inputs.py`, the same in all six
+  Radars, holds it, and the two forms that became code elsewhere (`${{ }}` in a script, a shell
+  variable in a `python -c` string), which never appeared here.
 - **Release tags are signed (#117).** `scripts/release.py` left the tag to `gh release create
   --target`, which makes it on GitHub, lightweight and unsigned: 2026.40 to 2026.49 carry nothing
   that ties them to the maintainer's key, unlike the other five Radar. `release.py` now:
