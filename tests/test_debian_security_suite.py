@@ -87,3 +87,14 @@ def test_the_cli_names_both(tracker, tmp_path):
     assert result.exit_code == 0, result.output
     flat = " ".join(result.output.split())
     assert "in trixie: 2.0.17-1 (trixie-security: 2.0.17-1+deb13u1)" in flat
+
+
+def test_no_repositories_means_no_version_and_no_other_suites():
+    """The tracker leaves `repositories` out for a package it lists in no suite
+    of the release: nothing to show, rather than an empty "in trixie:"."""
+    data = {"zlib": {"CVE-1": {"releases": {"trixie": {"status": "open", "urgency": "low"}}}}}
+    [found] = standings(data, "CVE-1", release="trixie")
+    assert found.in_release is None
+    assert found.in_other_suites == {}
+    assert found.installed_text() == ""
+    assert "installed in" not in found.describe()
