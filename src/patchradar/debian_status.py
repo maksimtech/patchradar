@@ -104,6 +104,12 @@ class Standing:
     status: str = ""
     urgency: str = ""
     in_release: str | None = None
+    # The release's other suites (`trixie-security`, `trixie-backports`) whose
+    # version differs from `in_release`. Dropping them named 2.0.17-1 for anope in
+    # trixie while trixie-security ships 2.0.17-1+deb13u1, which is what an image
+    # with the security suite runs (#139). Not "the newest wins" either: openssl's
+    # point release put 3.5.9 in trixie with 3.5.7 still in trixie-security.
+    in_other_suites: dict[str, str] = field(default_factory=dict)
     fixed_here: str | None = None
     fixed_elsewhere: dict[str, str] = field(default_factory=dict)
     nodsa: str | None = None
@@ -250,11 +256,19 @@ class Standing:
             f"{self.tracker_url}."
         )
 
+    def installed_text(self) -> str:
+        """`in_release`, and the release's other suites that ship another version:
+        "2.0.17-1 (trixie-security: 2.0.17-1+deb13u1)"."""
+        if not self.in_release:
+            return ""
+        others = ", ".join(f"{suite}: {version}" for suite, version in self.in_other_suites.items())
+        return f"{self.in_release} ({others})" if others else self.in_release
+
     def describe(self) -> str:
         parts = [f"{self.cve}  {self.package or '?'}  {self.release}  "
                  f"[{self.position.value}]"]
         if self.in_release:
-            parts.append(f"  installed in {self.release}: {self.in_release}")
+            parts.append(f"  installed in {self.release}: {self.installed_text()}")
         if self.urgency:
             parts.append(f"  urgency: {self.urgency}")
         if self.fixed_here:
@@ -286,6 +300,16 @@ def _version_in(node: Mapping, release: str) -> str | None:
         if suite.startswith(release):
             return version
     return None
+
+
+def _other_suites(node: Mapping, release: str, shown: str | None) -> dict[str, str]:
+    """The release's other suites — `trixie-security`, `trixie-backports`, never
+    `bookworm-security` — that ship a version other than the one `shown` (#139)."""
+    repositories = node.get("repositories")
+    if not isinstance(repositories, Mapping) or shown is None:
+        return {}
+    return {str(suite): str(version) for suite, version in repositories.items()
+            if str(suite).startswith(f"{release}-") and version != shown}
 
 
 def _fixes_elsewhere(releases: Mapping, release: str) -> dict[str, str]:
@@ -363,12 +387,14 @@ def _standing(cve: str, package: str, entry: Mapping, release: str) -> Standing:
     nodsa = str(raw_nodsa) if raw_nodsa is not None else None
     elsewhere = _fixes_elsewhere(releases, release)
     reason = node.get("nodsa_reason")
+    in_release = _version_in(node, release)
     return Standing(
         cve=cve, package=package, release=release,
         position=_position_of(node, fixed_here, nodsa, elsewhere),
         status=str(node.get("status") or ""),
         urgency=str(node.get("urgency") or ""),
-        in_release=_version_in(node, release),
+        in_release=in_release,
+        in_other_suites=_other_suites(node, release, in_release),
         fixed_here=fixed_here,
         fixed_elsewhere=elsewhere,
         nodsa=nodsa,

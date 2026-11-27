@@ -1,0 +1,85 @@
+{
+ "_derived": "Two entries of the Debian security tracker dump of 2026-11-26 (https://security-tracker.debian.org/tracker/data/json), copied verbatim: anope CVE-2024-30187, where trixie-security ships a newer version than trixie, and openssl CVE-2026-84786, where the point release in trixie is newer than trixie-security (#139).",
+ "anope": {
+  "CVE-2024-30187": {
+   "description": "Anope before 2.0.15 does not prevent resetting the password of a suspended account.",
+   "scope": "local",
+   "releases": {
+    "bookworm": {
+     "status": "resolved",
+     "repositories": {
+      "bookworm": "2.0.12-1",
+      "bookworm-security": "2.0.12-1+deb12u1"
+     },
+     "fixed_version": "2.0.12-1+deb12u1",
+     "urgency": "not yet assigned",
+     "nodsa": "Minor issue; due to apparmor bug not affecting default configurations",
+     "nodsa_reason": ""
+    },
+    "forky": {
+     "status": "resolved",
+     "repositories": {
+      "forky": "2.0.21-1"
+     },
+     "fixed_version": "2.0.15-1",
+     "urgency": "not yet assigned"
+    },
+    "sid": {
+     "status": "resolved",
+     "repositories": {
+      "sid": "2.0.21-1"
+     },
+     "fixed_version": "2.0.15-1",
+     "urgency": "not yet assigned"
+    },
+    "trixie": {
+     "status": "resolved",
+     "repositories": {
+      "trixie": "2.0.17-1",
+      "trixie-security": "2.0.17-1+deb13u1"
+     },
+     "fixed_version": "2.0.15-1",
+     "urgency": "not yet assigned"
+    }
+   }
+  }
+ },
+ "openssl": {
+  "CVE-2026-84786": {
+   "description": "Issue summary: A DANE-enabled TLS client may crash by dereferencing a NULL pointer when processing an unusual combination of certificate and TLSA records.  Impact summary: The impact is limited to a client crash (potential Denial of Service).  CWE: CWE-476: NULL Pointer Dereference  Description: A DANE-enabled TLS client that supports TLSA records with at least one of the PKIX-TA(0) or PKIX-EE(1) usages alongside the DANE-TA(2) usage may crash by dereferencing a NULL pointer if the server claims a trusted CA's certificate to be its end-entity certificate and has an unusual mix of associated TLSA records.  DANE SMTP clients should not be affected since only the DANE-TA(2) and DANE-EE(3) TLSA record usages are specified applicable in SMTP.  For example, the Postfix MTA is not affected, while the Exim MTA does not at present use OpenSSL's DANE implementation.  Use of DANE in validation of RFC7250 raw public keys (RPKs) is also unaffected, as these only use DANE-EE(3) TLSA records.  Only applications that support combining the DANE PKI with a traditional PKI are potentially affected.  A DANE-enabled browser or similar, that uses OpenSSL's DANE API could be affected.  FIPS impact: no The DANE API is outside the FIPS module boundary.",
+   "scope": "local",
+   "releases": {
+    "bookworm": {
+     "status": "open",
+     "repositories": {
+      "bookworm": "3.0.20-1~deb12u2",
+      "bookworm-security": "3.0.22-1~deb12u2"
+     },
+     "urgency": "not yet assigned"
+    },
+    "forky": {
+     "status": "open",
+     "repositories": {
+      "forky": "3.6.5-1"
+     },
+     "urgency": "not yet assigned"
+    },
+    "sid": {
+     "status": "open",
+     "repositories": {
+      "sid": "3.6.5-1"
+     },
+     "urgency": "not yet assigned"
+    },
+    "trixie": {
+     "status": "open",
+     "repositories": {
+      "trixie": "3.5.9-1~deb13u1",
+      "trixie-security": "3.5.7-1~deb13u3"
+     },
+     "urgency": "not yet assigned"
+    }
+   }
+  }
+ }
+}
