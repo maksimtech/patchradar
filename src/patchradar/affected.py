@@ -49,7 +49,13 @@ from patchradar.cvss import severity_for
 # the order OpenSSL released them in. No other suffix: none of the sources read
 # here put `-rc1` in a fixed version, and accepting one would mean inventing an
 # order between rc1 and rc2 that no source confirms.
-_NUMERIC = re.compile(r"^(\d+(?:\.\d+)*)([a-z]*)$")
+#
+# Only OpenSSL's letters, then: one letter, or `z` and more letters (1.0.2za …
+# 1.0.2zh, 1.1.1zz). Any run of letters used to pass, so `2.0beta`, `2.0rc` and
+# `2.0alpha` were versions ordered *after* 2.0, and the fix in 2.0 made each of
+# them "not affected" (#137); now they are not versions, as `8.9b1` was not. A
+# single letter stays ambiguous — `2.0b` may be a beta — and is read as OpenSSL's.
+_NUMERIC = re.compile(r"^(\d+(?:\.\d+)*)((?:[a-y]|z[a-z]*)?)$")
 
 # The CPE wildcards. `*` is ANY and `-` is NA; neither is a low version number,
 # and treating them as one is how a range comes to match everything.
