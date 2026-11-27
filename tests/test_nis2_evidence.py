@@ -479,7 +479,8 @@ def test_the_image_tag_named_is_the_one_docker_yml_pushes(doc):
     which is also the git tag here: maksimtech/patchradar:2026.46. Docker Hub
     listed no v-prefixed tag on 2026-10-11."""
     docker = DOCKER.read_text(encoding="utf-8")
-    assert 'echo "VERSION=${RAW#v}"' in docker
+    # Stripped, then checked to be a CalVer release before it is written (#141)
+    assert 'VERSION="${RAW#v}"' in docker and 'echo "VERSION=${VERSION}"' in docker
     assert f"{IMAGE}:${{{{ steps.version.outputs.VERSION }}}}" in docker
     for name, text in (("the document", doc), ("SECURITY.md", SECURITY.read_text(encoding="utf-8"))):
         assert re.search(rf"{re.escape(IMAGE)}:(?:\d{{4}}\.|<versione>|<version>)", text), (

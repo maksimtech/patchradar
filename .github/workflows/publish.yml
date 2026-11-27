@@ -91,11 +91,19 @@ jobs:
       # tag's source and never asks the index, so the check is made here, on purpose,
       # and after the upload — where a slow index delays a check instead of failing a
       # build that had nothing to do with it.
+      # The release's tag, a CalVer version or nothing: it goes to pip and to the
+      # index, and a git ref holds no newline, so here this is consistency (#141).
       - name: Extract version
         id: version
         env:
           RAW: ${{ github.ref_name }}
-        run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="${RAW#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            printf '::error::not a release tag: %q\n' "$RAW"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
 
       # No margin, and the install is asked again instead, by install_from_pypi.sh.
       # A poll that has just been answered does not mean the next request will be: on

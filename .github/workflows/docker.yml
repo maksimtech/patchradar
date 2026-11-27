@@ -33,11 +33,19 @@ jobs:
         with:
           python-version: "3.12"
 
+      # An image tag and a step output: a release (CalVer, no v), or nothing. A
+      # newline in a dispatch input would have added outputs and image tags (#141).
       - name: Extract version
         id: version
         env:
           RAW: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
-        run: echo "VERSION=${RAW#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="${RAW#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            printf '::error::not a release tag: %q\n' "$RAW"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
