@@ -959,7 +959,7 @@ def debian(
                           f"[{style}]{standing.position.value}[/{style}]")
             if standing.in_release:
                 console.print(f"  [dim]in {escape(release)}:[/dim] "
-                              f"{escape(standing.in_release)}"
+                              f"{escape(standing.installed_text())}"
                               f"   [dim]urgency:[/dim] {escape(standing.urgency or '—')}")
             if standing.fixed_here:
                 console.print(f"  [dim]fixed here:[/dim] {escape(standing.fixed_here)}")

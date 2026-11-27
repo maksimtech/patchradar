@@ -131,6 +131,13 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   and more letters (`1.0.2za` … `1.0.2zh`). Any other run of letters is not a version, and the
   verdict is "not evaluable", as it already was for `8.9b1` and `1.0-rc1`. A single letter stays
   ambiguous (`2.0b` may be a beta) and is read as OpenSSL's.
+- **"in trixie" names the version of each of the release's suites (#139).** `patchradar debian`
+  printed `in trixie: 2.0.17-1` for anope CVE-2024-30187, and dropped `trixie-security:
+  2.0.17-1+deb13u1`, which is what an image with the security suite runs. In the tracker dump of
+  2026-11-26 that was 33,779 of the 83,547 pairs listed for trixie. Preferring the security suite
+  would be as wrong: openssl's point release put 3.5.9 in trixie while trixie-security still has
+  3.5.7. So the release's own version stays, and the other suites follow it when they ship another
+  one: `in trixie: 2.0.17-1 (trixie-security: 2.0.17-1+deb13u1)`. The same in `Standing.describe()`.
 
 ### Security
 
