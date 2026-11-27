@@ -122,6 +122,16 @@ what has already shipped, and for nothing else. See `RELEASING.md`.
   and forbids the secret (`tests/test_codecov_contract.py`). Same as maksimtech/mailradar#135 and
   maksimtech/cookieradar#104.
 
+### Fixed
+
+- **A pre-release of the fix is no longer judged "not affected" by it (#137).** Any run of
+  lower-case letters after the last number was a version ordered after the release, as OpenSSL's
+  1.1.1a is. So `2.0beta`, `2.0rc` and `2.0alpha` came after 2.0, and a CVE fixed in 2.0 left each
+  of them "not affected". Only OpenSSL's notation is a version now: one letter (`1.1.1t`), or `z`
+  and more letters (`1.0.2za` … `1.0.2zh`). Any other run of letters is not a version, and the
+  verdict is "not evaluable", as it already was for `8.9b1` and `1.0-rc1`. A single letter stays
+  ambiguous (`2.0b` may be a beta) and is read as OpenSSL's.
+
 ### Security
 
 - **Release tags are signed (#117).** `scripts/release.py` left the tag to `gh release create

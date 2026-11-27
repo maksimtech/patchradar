@@ -27,7 +27,7 @@ import pathlib
 
 import pytest
 
-from patchradar.affected import Hit, Range, affects, ranges_in, summarise, target_version
+from patchradar.affected import NOT_EVALUABLE, Hit, Range, affects, judge, ranges_in, summarise, target_version
 from patchradar.collectors import nvd
 
 VENDOR = "notepad-plus-plus"
@@ -371,11 +371,29 @@ def test_openssl_letter_releases_are_ordered(span, version, expected):
     assert span.contains(version) is expected
 
 
-@pytest.mark.parametrize("version", ["1.0-rc1", "2.0.0-beta", "8.9b1", "1.1.1T", "1.1.1 t"])
+@pytest.mark.parametrize("version", ["1.0-rc1", "2.0.0-beta", "8.9b1", "1.1.1T", "1.1.1 t",
+                                     # A word glued to the number (#137): only OpenSSL's
+                                     # one letter, or z and letters, is a version.
+                                     "2.0beta", "2.0rc", "2.0alpha", "2.0pre", "2.0dev", "1.1.1ab"])
 def test_suffixes_with_no_stated_order_are_still_not_versions(version):
     """The module's stated limit stands: rc1/rc2, beta and 'b1' have no order a
     source confirms, and are not compared."""
     assert Range(end="9.9.9").contains(version) is False
+    assert Range(end="9.9.9").comparable(version) is False
+
+
+@pytest.mark.parametrize("version", ["2.0beta", "2.0rc", "2.0alpha"])
+def test_a_pre_release_of_the_fix_is_not_evaluable_rather_than_not_affected(version):
+    """#137: 2.0beta comes before 2.0, and was ordered after it, so the fix in 2.0
+    made the beta "not affected". With no stated order it cannot be judged."""
+    record = {"configurations": cve("CVE-P", match(versionEndExcluding="2.0"))["cve"]["configurations"]}
+    verdict = judge(record, version=version, vendor=VENDOR, cpe_product=PRODUCT)
+    assert verdict.status == NOT_EVALUABLE, verdict
+
+
+@pytest.mark.parametrize("version", ["1.1.1t", "1.0.2za", "1.0.2zh", "1.1.1zz"])
+def test_openssl_s_letters_are_still_versions(version):
+    assert Range(end="9.9.9").comparable(version) is True
 
 
 def test_the_target_is_the_highest_lettered_fix():
